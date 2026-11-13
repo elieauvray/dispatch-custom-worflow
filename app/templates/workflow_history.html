@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Historique – {{ workflow.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom Workflows</a></li><li>{{ workflow.name }}</li></ul></nav>
+<header class="connector-head" style="margin-bottom:1rem">
+  <h1 style="margin:0">Historique : {{ workflow.name }}</h1>
+  <form method="post" action="/workflows/{{ workflow.id }}/run" style="margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Exécuter</button>
+  </form>
+</header>
+{% if runs %}
+<table>
+  <thead><tr><th>#</th><th>Date</th><th>Utilisateur</th><th>Durée</th><th>Statut</th><th></th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td>{{ r.started_at | dt }}</td>
+    <td>{{ r.user.login }}</td>
+    <td>{{ r.duration_seconds | duration }}</td>
+    <td><span class="badge {{ r.status }}">{{ r.status_label }}</span></td>
+    <td><a href="/runs/{{ r.id }}">Détail</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<article><p class="muted">Ce workflow n'a pas encore été exécuté.</p></article>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ run.workflow_name_snapshot or 'Prompt' }} #{{ run.id }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    {% if run.workflow_id %}
+    <li><a href="/workflows">Custom Workflows</a></li>
+    <li><a href="/workflows/{{ run.workflow_id }}/history">{{ run.workflow_name_snapshot }}</a></li>
+    {% else %}
+    <li><a href="/prompt">Prompt</a></li>
+    {% endif %}
+    <li>Exécution #{{ run.id }}</li>
+  </ul>
+</nav>
+
+<div hx-ext="sse" sse-connect="/runs/{{ run.id }}/stream?after={{ last_event_id }}">
+  <header class="connector-head" style="margin-bottom:1rem">
+    <h1 style="margin:0">{{ run.workflow_name_snapshot or 'Prompt libre' }}</h1>
+    <div id="run-status" sse-swap="status" hx-swap="innerHTML">{% include "partials/run_status.html" %}</div>
+  </header>
+  <p class="small muted">
+    Lancé le {{ run.started_at | dt }} par <strong>{{ run.user.login }}</strong>
+    {% if run.session_id %}· Session <code>{{ run.session_id }}</code>{% endif %}
+  </p>
+
+  {% if run.workflow_id %}
+  <details>
+    <summary>Skills envoyés ({{ run.skills_snapshot | length }})</summary>
+    {% for s in run.skills_snapshot %}
+    <article><strong>{{ s.name }}</strong><pre class="skill-content">{{ s.content }}</pre></article>
+    {% else %}<p class="muted">Aucun skill actif lors du lancement.</p>{% endfor %}
+  </details>
+  <details>
+    <summary>Contenu du workflow (figé au lancement)</summary>
+    <div class="ev user md">{{ run.content_snapshot | md }}</div>
+  </details>
+  {% endif %}
+
+  <div id="transcript" class="transcript" sse-swap="transcript" hx-swap="beforeend">
+    {% for ev in events %}{% include "partials/event.html" %}{% endfor %}
+  </div>
+
+  <div id="run-actions" class="actions-panel" sse-swap="actions" hx-swap="innerHTML">
+    {% include "partials/run_actions.html" %}
+  </div>
+</div>
+<script>
+  // Garde la vue en bas quand de nouveaux événements arrivent (si l'utilisateur est déjà en bas).
+  document.body.addEventListener("htmx:sseBeforeMessage", function () {
+    window.__stick = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 120;
+  });
+  document.body.addEventListener("htmx:sseMessage", function () {
+    if (window.__stick) window.scrollTo(0, document.body.scrollHeight);
+  });
+</script>
+{% endblock %}

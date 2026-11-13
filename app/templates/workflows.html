@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Custom Workflows{% endblock %}
+{% block content %}
+<header class="connector-head" style="margin-bottom:1rem">
+  <h1 style="margin:0">Custom Workflows</h1>
+  <a href="/workflows/new" role="button" class="secondary">Nouveau workflow</a>
+</header>
+<p class="muted">Enregistrez un prompt depuis la page Prompt (« Valider et enregistrer comme workflow ») ou créez-le ici. À chaque exécution, les skills actifs définis par l'admin sont envoyés avant le contenu.</p>
+{% if workflows %}
+<div class="overflow-auto">
+<table>
+  <thead><tr><th>Nom</th><th>Contenu</th><th>Créé le</th><th>Exécutions</th><th>Dernière exécution</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for wf in workflows %}
+  {% set last = last_runs.get(wf.id) %}
+  <tr>
+    <td><strong>{{ wf.name }}</strong></td>
+    <td class="small">{{ wf.content | excerpt(110) }}</td>
+    <td class="small">{{ wf.created_at | dt }}</td>
+    <td>{{ counts.get(wf.id, 0) }}</td>
+    <td>
+      {% if last %}<a href="/runs/{{ last.id }}"><span class="badge {{ last.status }}">{{ last.status_label }}</span></a>{% else %}<span class="muted">—</span>{% endif %}
+      {% if waiting.get(wf.id) %}<br><span class="highlight small">{{ waiting[wf.id] }} exécution(s) attendent votre action</span>{% endif %}
+    </td>
+    <td>
+      <div class="row-actions">
+        <form method="post" action="/workflows/{{ wf.id }}/run">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Exécuter</button>
+        </form>
+        <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">Historique</a>
+        <a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">Modifier</a>
+        <form method="post" action="/workflows/{{ wf.id }}/delete" onsubmit='return confirm({{ ("Supprimer le workflow « " ~ wf.name ~ " » et tout son historique ?") | tojson }})'>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary outline">Supprimer</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<article><p>Aucun workflow pour l'instant. Lancez un <a href="/prompt">prompt</a>, puis enregistrez-le comme workflow.</p></article>
+{% endif %}
+{% endblock %}

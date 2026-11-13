@@ -1,0 +1,19 @@
+# Développement local uniquement : fournit PostgreSQL 18 (même version que sur Upsun).
+# L'application et le worker tournent dans un virtualenv Python (voir README).
+# Aucune image de l'application n'est construite : sur Upsun, tout passe par .upsun/config.yaml.
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: dispatch
+      POSTGRES_PASSWORD: dispatch
+      POSTGRES_DB: dispatch
+    ports: ["5433:5432"]  # 5433 côté hôte pour ne pas gêner un Postgres local
+    volumes: [pgdata:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatch"]
+      interval: 2s
+      retries: 20
+
+volumes:
+  pgdata:

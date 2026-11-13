@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<section id="anthropic">
+<article>
+  <header><h2 style="margin:0">Anthropic <span class="badge {{ 'configured' if settings.is_configured else 'error' }}">{{ 'Configuré' if settings.is_configured else 'Obligatoire' }}</span></h2></header>
+  <form method="post" action="/settings/anthropic">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Clé API Anthropic
+      <input type="password" name="api_key" autocomplete="off"
+             placeholder="{{ '•••• •••• ' ~ settings.api_key_last4 ~ ' (laisser vide pour conserver)' if settings.api_key_last4 else 'sk-ant-api03-…' }}"
+             {% if not settings.is_configured %}required{% endif %}>
+    </label>
+    <small class="help">
+      Permet à l'application d'appeler Claude Managed Agents en votre nom. Créez-la dans la Claude Console → Settings → API Keys
+      (<a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com/settings/keys</a>).
+      Managed Agents est activé par défaut sur les comptes API. Utilisez de préférence un <strong>workspace dédié</strong> :
+      les vaults sont partagés à l'échelle du workspace. La clé est chiffrée au repos et jamais réaffichée.
+    </small>
+    <label>Modèle
+      <select name="model">
+        {% for value, label in models %}<option value="{{ value }}" {% if value == settings.model %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <small class="help">Modèle utilisé par votre agent. <code>claude-opus-5-5</code> par défaut. Changer de modèle met à jour l'agent (nouvelle version).</small>
+    <button type="submit">Enregistrer</button>
+  </form>
+</article>
+</section>
+
+<section id="resources">
+<article>
+  <header class="connector-head">
+    <h2 style="margin:0">Ressources Managed Agents</h2>
+    <form method="post" action="/settings/sync" style="margin:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" {% if not settings.is_configured %}disabled{% endif %}>Recréer / resynchroniser</button>
+    </form>
+  </header>
+  <p class="help" style="margin-top:0">Gérées automatiquement : créées ou mises à jour (sans doublon) quand la clé API ou un connecteur change. L'agent ne déclare que les serveurs MCP pour lesquels vous avez un credential.</p>
+  <table>
+    <tbody>
+      <tr><th>Agent ID</th><td class="mono">{{ settings.agent_id or '—' }}{% if settings.agent_version %} <span class="muted">(version {{ settings.agent_version }})</span>{% endif %}</td></tr>
+      <tr><th>Environment ID</th><td class="mono">{{ settings.environment_id or '—' }}</td></tr>
+      <tr><th>Vault ID</th><td class="mono">{{ settings.vault_id or '—' }}</td></tr>
+      <tr><th>Dernière synchronisation</th><td>{{ settings.last_sync_at | dt }}</td></tr>
+    </tbody>
+  </table>
+  {% if settings.last_sync_error %}<div class="flash error">Dernière erreur : {{ settings.last_sync_error }}</div>{% endif %}
+</article>
+</section>
+
+<section id="connectors">
+<h2>Connecteurs</h2>
+<p class="muted">Les jetons sont envoyés directement au vault Anthropic et ne sont pas conservés par l'application (seuls le type, l'URL, l'ID du credential, les 4 derniers caractères et la date sont stockés).</p>
+{% for key, prov in providers.items() %}
+{% set c = connectors.get(key) %}
+{% set status = c.status if c else 'not_configured' %}
+<article id="connector-{{ key }}">
+  <header class="connector-head">
+    <h3>{{ prov.label }}</h3>
+    <span class="badge {{ status }}">{{ {'not_configured': 'Non configuré', 'configured': 'Configuré', 'error': 'Erreur'}[status] }}</span>
+  </header>
+  {% if c %}
+  <p class="small">
+    Mode : <strong>{{ 'OAuth' if c.auth_type == 'mcp_oauth' else 'Jeton fixe' }}</strong> ·
+    URL : <code>{{ c.mcp_server_url }}</code> ·
+    {% if c.last4 %}Jeton : <code>••••{{ c.last4 }}</code> · {% endif %}
+    Mis à jour le {{ c.updated_at | dt }}
+    {% if c.credential_id %}<br><span class="muted">Credential : <code>{{ c.credential_id }}</code></span>{% endif %}
+  </p>
+  {% if c.status_message %}<p class="small {{ 'flash error' if c.status == 'error' else 'muted' }}">{{ c.status_message }}</p>{% endif %}
+  <div class="row-actions" style="margin-bottom:1rem">
+    <form method="post" action="/settings/connectors/{{ key }}/test">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary">Tester</button>
+    </form>
+    <form method="post" action="/settings/connectors/{{ key }}/delete" onsubmit="return confirm('Supprimer le connecteur {{ prov.label }} ? Le credential sera archivé dans le vault.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary outline">Supprimer</button>
+    </form>
+    <form method="post" action="/settings/connectors/{{ key }}/permission" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="permission_policy" aria-label="Permissions des outils" style="margin:0; width:auto">
+        {% for pv, pl in policies.items() %}<option value="{{ pv }}" {% if c.permission_policy == pv %}selected{% endif %}>{{ pl }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="secondary">Appliquer</button>
+    </form>
+  </div>
+  <small class="help">Permissions des outils : « Toujours demander » (par défaut) affiche une carte de validation avant chaque appel ; « Toujours autoriser » laisse Claude appeler les outils de {{ prov.label }} sans validation. Appliqué au <code>permission_policy</code> du toolset MCP.</small>
+  {% endif %}
+
+  {% if settings.is_configured %}
+  <details {% if not c %}open{% endif %}>
+    <summary>{{ 'Remplacer le jeton' if c else 'Configurer avec un jeton' }}</summary>
+    <form method="post" action="/settings/connectors/{{ key }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>URL du serveur MCP <input name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}" required></label>
+      <small class="help">{{ prov.url_help_html | safe }} L'URL doit correspondre exactement à celle déclarée dans l'agent (c'est automatique).</small>
+      <label>{{ prov.token_label }} <input type="password" name="token" required autocomplete="off"></label>
+      <small class="help">{{ prov.token_help_html | safe }}</small>
+      <button type="submit">Enregistrer et tester</button>
+    </form>
+  </details>
+  {% if oauth_apps.get(key) %}
+  <form method="post" action="/oauth/{{ key }}/start" style="margin-top:.5rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}">
+    <button type="submit" class="contrast">Se connecter avec {{ prov.label }}</button>
+    <small class="help" style="margin-top:.3rem">OAuth : Anthropic rafraîchit ensuite le jeton automatiquement.</small>
+  </form>
+  {% endif %}
+  {% else %}
+  <p class="muted small">Enregistrez d'abord votre clé API Anthropic.</p>
+  {% endif %}
+</article>
+{% endfor %}
+</section>
+
+{% if current_user.is_admin %}
+<section id="oauth-apps">
+<h2>Applications OAuth <span class="badge">admin</span></h2>
+<p class="muted">Si un client OAuth est configuré pour un service, les utilisateurs voient le bouton « Se connecter avec … ». L'application crée alors un credential <code>mcp_oauth</code> avec un bloc <code>refresh</code>.</p>
+<div class="grid-2">
+{% for key, prov in providers.items() %}
+{% set app = oauth_apps.get(key) %}
+<article>
+  <header class="connector-head"><h3>{{ prov.label }}</h3>
+    <span class="badge {{ 'configured' if app else 'not_configured' }}">{{ ('Enregistré dynamiquement' if app.dynamic else 'Configuré') if app else 'Non configuré' }}</span></header>
+  <p class="small">URL de callback à déclarer : <code>{{ callback_url(key) }}</code></p>
+  <small class="help">{{ prov.oauth_help_html | safe }}</small>
+  {% if app %}<p class="small">client_id : <code>{{ app.client_id }}</code></p>{% endif %}
+  <form method="post" action="/settings/oauth-apps/{{ key }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>client_id <input name="client_id" value="{{ app.client_id if app else '' }}" required></label>
+    <label>client_secret <input type="password" name="client_secret" autocomplete="off" placeholder="{{ 'inchangé si vide' if app else 'optionnel (client public)' }}"></label>
+    <button type="submit" class="secondary">Enregistrer</button>
+  </form>
+  <div class="row-actions">
+    {% if prov.supports_dcr %}
+    <form method="post" action="/settings/oauth-apps/{{ key }}/register">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Enregistrer automatiquement</button>
+    </form>
+    {% endif %}
+    {% if app %}
+    <form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit="return confirm('Supprimer cette application OAuth ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary outline">Supprimer</button>
+    </form>
+    {% endif %}
+  </div>
+</article>
+{% endfor %}
+</div>
+</section>
+{% endif %}
+{% endblock %}

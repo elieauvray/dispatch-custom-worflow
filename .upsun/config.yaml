@@ -1,0 +1,63 @@
+# Configuration Upsun : Upsun construit et déploie l'application à partir de ce fichier
+# (pas d'image Docker). Référence : https://developer.upsun.com/docs/languages/python
+applications:
+  app:
+    # Python 3.14 : seule version « supported » sur Upsun (3.12/3.13 sont dépréciées).
+    type: "python:3.14"
+
+    source:
+      root: "/"
+
+    # Relation vers le service PostgreSQL défini plus bas.
+    # Expose DATABASE_HOST, DATABASE_PORT, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH…
+    # DATABASE_URL est construit dans le fichier .environment.
+    relationships:
+      database:
+        service: db
+        endpoint: postgresql
+
+    variables:
+      env:
+        PYTHONUNBUFFERED: "1"
+        COOKIE_SECURE: "true"
+
+    hooks:
+      # Build : système de fichiers inscriptible, pas d'accès aux services.
+      build: |
+        set -eu
+        pip install --upgrade pip
+        pip install -r requirements.txt
+      # Deploy : exécuté uniquement sur le conteneur web (pas sur les workers).
+      deploy: |
+        set -eu
+        python -m alembic upgrade head
+
+    web:
+      commands:
+        start: "uvicorn app.asgi:application --host 0.0.0.0 --port $PORT --workers 2 --proxy-headers --forwarded-allow-ips '*'"
+      locations:
+        "/":
+          passthru: true
+        "/static":
+          root: "app/static"
+          expires: 1h
+          allow: true
+
+    # Worker : même code, autre commande. Pilote les sessions Managed Agents en arrière-plan.
+    # Hérite des relations et des variables de l'application.
+    workers:
+      runs:
+        commands:
+          start: "python -m app.worker"
+
+services:
+  db:
+    type: "postgresql:18"
+
+routes:
+  "https://{default}/":
+    type: upstream
+    upstream: "app:http"
+  "https://www.{default}/":
+    type: redirect
+    to: "https://{default}/"

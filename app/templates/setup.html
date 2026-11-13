@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Premier lancement{% endblock %}
+{% block content %}
+<article style="max-width: 480px; margin: 2rem auto;">
+  <header><h2 style="margin:0">Premier lancement</h2></header>
+  <p class="muted">Créez le compte administrateur. Cette page disparaîtra ensuite définitivement.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Login <input name="login" value="{{ login or '' }}" required autocomplete="username" autofocus></label>
+    <label>Mot de passe <input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
+    <small class="help">10 caractères minimum.</small>
+    <label>Confirmation <input type="password" name="password_confirm" required minlength="10" autocomplete="new-password"></label>
+    <button type="submit">Créer le compte admin</button>
+  </form>
+</article>
+{% endblock %}

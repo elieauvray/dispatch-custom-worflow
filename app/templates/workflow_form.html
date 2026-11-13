@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Modifier' if workflow else 'Nouveau' }} workflow{% endblock %}
+{% block content %}
+<h1>{{ 'Modifier le workflow' if workflow else 'Nouveau workflow' }}</h1>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<article>
+  <form method="post" action="{{ '/workflows/%d/edit' % workflow.id if workflow else '/workflows/new' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Nom <input name="name" value="{{ name }}" required maxlength="128"></label>
+    <small class="help">Unique parmi vos workflows.</small>
+    <label>Contenu (prompt) <textarea name="content" class="big" required>{{ content }}</textarea></label>
+    <small class="help">Envoyé à Claude à chaque exécution, entouré d'une balise <code>&lt;workflow name="…"&gt;</code>, après les skills actifs.</small>
+    <div class="row-actions">
+      <button type="submit">Enregistrer</button>
+      <a href="/workflows" role="button" class="secondary">Annuler</a>
+    </div>
+  </form>
+</article>
+{% if workflow and workflow.reference_result %}
+<details>
+  <summary>Résultat de référence (enregistré le {{ workflow.created_at | dt }} par {{ workflow.user.login }})</summary>
+  <div class="ev agent md">{{ workflow.reference_result | md }}</div>
+</details>
+{% endif %}
+{% endblock %}

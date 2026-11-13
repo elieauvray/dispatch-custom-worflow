@@ -1,0 +1,143 @@
+/* Dispatch — thème Upsun par-dessus Pico.css (mode clair par défaut, sombre auto). */
+:root {
+  --u-neutral-100: #ECEDEE;
+  --u-neutral-200: #D8DBDC;
+  --u-neutral-400: #8B9397;
+  --u-neutral-500: #646F75;
+  --u-neutral-800: #252D31;
+  --u-neutral-1000: #0C0F10;
+  --u-violet-600: #6046FF;
+  --u-violet-300: #BFB5FF;
+  --u-lime-600: #D5F800;
+  --u-orange-600: #FF4A11;
+  --u-blue-600: #00D0EC;
+  --u-pink-600: #E81CEC;
+
+  --bg: var(--u-neutral-100);
+  --surface: #ffffff;
+  --text: var(--u-neutral-1000);
+  --muted: var(--u-neutral-500);
+  --border: var(--u-neutral-200);
+  --accent: var(--u-violet-600);
+  --accent-contrast: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: var(--u-neutral-1000);
+    --surface: #151a1c;
+    --text: var(--u-neutral-100);
+    --muted: var(--u-neutral-400);
+    --border: var(--u-neutral-800);
+    --accent: var(--u-violet-300);
+    --accent-contrast: var(--u-neutral-1000);
+  }
+}
+
+/* Spécificité renforcée : Pico redéfinit ses variables par thème. */
+:root:root:root {
+  --pico-font-family: "Instrument Sans", Arial, sans-serif;
+  --pico-font-family-monospace: "Space Grotesk", Arial, monospace;
+  --pico-background-color: var(--bg);
+  --pico-color: var(--text);
+  --pico-muted-color: var(--muted);
+  --pico-muted-border-color: var(--border);
+  --pico-card-background-color: var(--surface);
+  --pico-card-sectioning-background-color: var(--surface);
+  --pico-primary: var(--accent);
+  --pico-primary-background: var(--accent);
+  --pico-primary-border: var(--accent);
+  --pico-primary-hover: var(--accent);
+  --pico-primary-underline: var(--accent);
+  --pico-secondary: var(--muted);
+  --pico-secondary-border: var(--border);
+  --pico-secondary-background: transparent;
+  --pico-secondary-hover-background: color-mix(in srgb, var(--accent) 10%, transparent);
+  --pico-secondary-inverse: var(--text);
+  --pico-contrast-background: var(--u-lime-600);
+  --pico-contrast-border: var(--u-lime-600);
+  --pico-contrast-inverse: var(--u-neutral-1000);
+  --pico-form-element-background-color: var(--bg);
+  --pico-form-element-border-color: var(--border);
+  --pico-primary-hover-background: var(--accent);
+  --pico-primary-inverse: var(--accent-contrast);
+  --pico-primary-focus: color-mix(in srgb, var(--accent) 30%, transparent);
+  --pico-border-radius: 6px;
+  --pico-font-size: 100%;
+  --pico-form-element-spacing-vertical: .55rem;
+}
+
+body { background: var(--bg); color: var(--text); }
+h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-weight: 600; }
+code, pre, kbd { font-family: var(--pico-font-family-monospace); font-weight: 500; }
+a { color: var(--accent); }
+
+/* Navigation */
+.topbar { border-bottom: 1px solid var(--border); background: var(--surface); margin-bottom: 1.5rem; }
+.topbar nav { padding: 0 1rem; max-width: 1200px; margin: 0 auto; }
+.brand { font-weight: 700; color: var(--text); text-decoration: none; display: flex; gap: .5rem; align-items: center; }
+.brand-mark { width: 14px; height: 14px; background: var(--u-violet-600); border-radius: 3px; display: inline-block; }
+.topbar nav a { color: var(--text); }
+.topbar nav a[aria-current="page"] { font-weight: 600; color: var(--accent); }
+.topbar nav ul li form { margin: 0; }
+.topbar nav button.linklike { background: none; border: none; color: var(--muted); padding: 0; margin: 0; cursor: pointer; }
+main.container { max-width: 1200px; padding: 0 1rem 3rem; }
+
+/* Bandeaux */
+.banner { padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem; border: 1px solid var(--border); background: var(--surface); }
+.banner.warning { background: var(--u-lime-600); color: var(--u-neutral-1000); border-color: var(--u-lime-600); }
+.banner.warning a { color: var(--u-neutral-1000); font-weight: 600; }
+.flash { padding: .7rem 1rem; border-radius: 6px; margin-bottom: .6rem; border-left: 4px solid var(--accent); background: var(--surface); }
+.flash.error { border-left-color: var(--u-orange-600); }
+.flash.success { border-left-color: var(--u-violet-600); }
+
+.help { display: block; color: var(--muted); font-size: .85rem; margin-top: -.4rem; margin-bottom: .9rem; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.mono { font-family: var(--pico-font-family-monospace); }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.row-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.row-actions form { margin: 0; }
+.row-actions button, .row-actions a[role="button"] { padding: .3rem .7rem; font-size: .85rem; margin: 0; }
+article { background: var(--surface); }
+table { font-size: .92rem; }
+
+/* Statuts */
+.badge { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+.badge.running { background: color-mix(in srgb, var(--u-blue-600) 22%, transparent); }
+.badge.waiting_input, .badge.waiting_approval { background: var(--u-lime-600); color: var(--u-neutral-1000); border-color: var(--u-lime-600); }
+.badge.completed, .badge.configured { background: color-mix(in srgb, var(--u-violet-600) 18%, transparent); }
+.badge.failed, .badge.error { background: color-mix(in srgb, var(--u-orange-600) 22%, transparent); }
+.badge.cancelled, .badge.not_configured { color: var(--muted); }
+
+/* Transcription */
+.transcript { display: flex; flex-direction: column; gap: .75rem; }
+.ev { border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1rem; background: var(--surface); }
+.ev .who { font-size: .75rem; font-weight: 600; text-transform: none; color: var(--muted); margin-bottom: .3rem; display: flex; gap: .5rem; align-items: center; }
+.ev.user { border-left: 4px solid var(--u-neutral-500); }
+.ev.agent { border-left: 4px solid var(--u-violet-600); }
+.ev.tool { border-left: 4px solid var(--u-blue-600); }
+.ev.result { border-left: 4px solid var(--u-blue-600); opacity: .95; }
+.ev.result.is-error { border-left-color: var(--u-orange-600); }
+.ev.error { border-left: 4px solid var(--u-orange-600); }
+.ev.system { padding: .35rem 1rem; font-size: .82rem; color: var(--muted); border-style: dashed; }
+.ev .md > :last-child { margin-bottom: 0; }
+.ev pre { max-height: 420px; overflow: auto; font-size: .8rem; margin: .4rem 0 0; }
+.ev details summary { font-size: .85rem; }
+.toolname { font-family: var(--pico-font-family-monospace); font-weight: 500; }
+
+.actions-panel { position: sticky; bottom: 0; background: var(--bg); padding-top: .75rem; }
+.confirm-card { border: 2px solid var(--u-lime-600); }
+.confirm-card header { background: var(--u-lime-600); color: var(--u-neutral-1000); }
+.inline-form { display: flex; gap: .5rem; align-items: flex-start; flex-wrap: wrap; }
+.inline-form input[type="text"] { flex: 1 1 240px; margin: 0; }
+.inline-form button { margin: 0; width: auto; }
+.btn-secondary { --pico-background-color: transparent; }
+.htmx-request .spinner, .spinner.htmx-request { display: inline-block; }
+.spinner { display: none; }
+.highlight { background: var(--u-lime-600); color: var(--u-neutral-1000); padding: 0 .25rem; border-radius: 3px; }
+.connector-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.connector-head h3 { margin: 0; }
+textarea.big { min-height: 14rem; font-family: var(--pico-font-family); }
+.skill-content { white-space: pre-wrap; max-height: 8rem; overflow: auto; font-size: .85rem; }

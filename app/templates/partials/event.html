@@ -1,0 +1,61 @@
+{%- set p = ev.p -%}
+{%- if ev.type == 'user.message' -%}
+<div class="ev user" id="ev-{{ ev.row.id }}">
+  <div class="who">Vous</div>
+  {%- set text = p.content | selectattr('type', 'equalto', 'text') | map(attribute='text') | join('\n') -%}
+  {%- if ev.is_initial and run.workflow_id -%}
+  <details><summary>Message initial envoyé à Claude (skills + workflow)</summary><pre>{{ text }}</pre></details>
+  {%- else -%}
+  <div class="md">{{ text | md }}</div>
+  {%- endif %}
+</div>
+{%- elif ev.type == 'agent.message' -%}
+<div class="ev agent" id="ev-{{ ev.row.id }}">
+  <div class="who">Claude</div>
+  <div class="md">{{ p.content | selectattr('type', 'equalto', 'text') | map(attribute='text') | join('\n') | md }}</div>
+</div>
+{%- elif ev.type in ['agent.mcp_tool_use', 'agent.tool_use', 'agent.custom_tool_use'] -%}
+<div class="ev tool" id="ev-{{ ev.row.id }}">
+  <div class="who">
+    Appel d'outil
+    {% if p.evaluated_permission == 'ask' %}<span class="badge waiting_approval">validation demandée</span>
+    {% elif p.evaluated_permission == 'deny' %}<span class="badge failed">refusé automatiquement</span>{% endif %}
+  </div>
+  <span class="toolname">{{ p.name }}</span>
+  {% if p.mcp_server_name %}<span class="muted small"> sur le serveur <strong>{{ p.mcp_server_name }}</strong></span>
+  {% else %}<span class="muted small"> (outil intégré du sandbox)</span>{% endif %}
+  <details><summary>Paramètres</summary><pre>{{ (p.input or {}) | pretty_json }}</pre></details>
+</div>
+{%- elif ev.type in ['agent.mcp_tool_result', 'agent.tool_result'] -%}
+<div class="ev result {{ 'is-error' if p.is_error }}" id="ev-{{ ev.row.id }}">
+  <div class="who">Résultat{% if ev.tool %} de <span class="toolname">{{ ev.tool.name }}</span>{% endif %}{% if p.is_error %} <span class="badge failed">erreur</span>{% endif %}</div>
+  {%- set parts = [] -%}
+  {%- for b in (p.content or []) -%}{%- if b.type == 'text' -%}{%- set _ = parts.append(b.text) -%}{%- endif -%}{%- endfor -%}
+  {%- set out = parts | join('\n') -%}
+  <details><summary>{{ (out | length) }} caractères</summary><pre>{{ out[:20000] }}{% if out | length > 20000 %}
+… (tronqué){% endif %}</pre></details>
+</div>
+{%- elif ev.type == 'user.tool_confirmation' -%}
+<div class="ev system" id="ev-{{ ev.row.id }}">
+  {% if p.result == 'allow' %}✔ Vous avez autorisé{% else %}✖ Vous avez refusé{% endif %}
+  {% if ev.tool %}<span class="toolname">{{ ev.tool.name }}</span>{% else %}l'appel d'outil{% endif %}
+  {% if p.deny_message %} — « {{ p.deny_message }} »{% endif %}
+</div>
+{%- elif ev.type == 'user.interrupt' -%}
+<div class="ev system" id="ev-{{ ev.row.id }}">Exécution interrompue à votre demande.</div>
+{%- elif ev.type == 'session.error' -%}
+<div class="ev error" id="ev-{{ ev.row.id }}">
+  <div class="who">Erreur de session</div>
+  <strong>{{ p.error.type if p.error else 'erreur' }}</strong>{% if p.error and p.error.mcp_server_name %} — serveur <strong>{{ p.error.mcp_server_name }}</strong>{% endif %}
+  <p style="margin:.3rem 0 0">{{ p.error.message if p.error else '' }}</p>
+  {% if p.error and p.error.type and ('mcp' in p.error.type or 'authentication' in p.error.type) %}
+  <p class="small" style="margin:.3rem 0 0">Vérifiez le connecteur concerné dans <a href="/settings#connectors">Settings</a>.</p>
+  {% endif %}
+</div>
+{%- elif ev.type == 'session.status_idle' and p.stop_reason and p.stop_reason.type == 'requires_action' -%}
+<div class="ev system" id="ev-{{ ev.row.id }}">En attente de votre validation…</div>
+{%- elif ev.type == 'session.status_terminated' -%}
+<div class="ev system" id="ev-{{ ev.row.id }}">Session terminée.</div>
+{%- elif ev.type == 'agent.thread_context_compacted' -%}
+<div class="ev system" id="ev-{{ ev.row.id }}">Contexte compacté automatiquement.</div>
+{%- endif -%}

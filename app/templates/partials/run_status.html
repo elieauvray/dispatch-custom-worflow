@@ -1,0 +1,2 @@
+<span class="badge {{ run.status }}">{{ run.status_label }}</span>
+{% if run.status in ['completed', 'failed', 'cancelled'] %}<span class="small muted">· durée {{ run.duration_seconds | duration }}</span>{% endif %}

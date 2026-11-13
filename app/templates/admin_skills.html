@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Skills{% endblock %}
+{% block content %}
+<h1>Skills</h1>
+<div class="banner">
+  Les skills <strong>actifs</strong> sont envoyés avant le contenu de chaque workflow lancé par n'importe quel utilisateur,
+  dans l'ordre ci-dessous, entourés d'une balise <code>&lt;instructions&gt;</code>. Claude les applique pendant toute l'exécution.
+  Le texte exact est figé dans chaque exécution au lancement. Ce sont de simples prompts stockés en base, pas des Agent Skills Anthropic.
+  Ils ne s'appliquent pas aux prompts libres.
+</div>
+
+{% if skills %}
+<table>
+  <thead><tr><th>Ordre</th><th>Nom</th><th>Contenu</th><th>Actif</th><th>Modifié le</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for s in skills %}
+  <tr>
+    <td>{{ s.position }}</td>
+    <td><strong>{{ s.name }}</strong></td>
+    <td><div class="skill-content">{{ s.content }}</div></td>
+    <td>{% if s.active %}<span class="badge configured">actif</span>{% else %}<span class="badge not_configured">inactif</span>{% endif %}</td>
+    <td class="small">{{ s.updated_at | dt }}</td>
+    <td>
+      <div class="row-actions">
+        <a href="/admin/skills?edit={{ s.id }}#form" role="button" class="secondary">Modifier</a>
+        <form method="post" action="/admin/skills/{{ s.id }}/delete" onsubmit='return confirm({{ ("Supprimer le skill « " ~ s.name ~ " » ?") | tojson }})'>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary outline">Supprimer</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Aucun skill.</p>
+{% endif %}
+
+<article id="form">
+  <header><h2 style="margin:0">{{ 'Modifier « ' ~ editing.name ~ ' »' if editing else 'Nouveau skill' }}</h2></header>
+  <form method="post" action="{{ '/admin/skills/%d' % editing.id if editing else '/admin/skills' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <label>Nom <input name="name" required maxlength="128" value="{{ editing.name if editing else '' }}"></label>
+      <label>Ordre <input type="number" name="position" value="{{ editing.position if editing else (skills | length) }}"></label>
+    </div>
+    <label>Instructions <textarea name="content" class="big" required>{{ editing.content if editing else '' }}</textarea></label>
+    <label><input type="checkbox" name="active" {% if not editing or editing.active %}checked{% endif %}> Actif</label>
+    <div class="row-actions">
+      <button type="submit">{{ 'Mettre à jour' if editing else 'Créer' }}</button>
+      {% if editing %}<a href="/admin/skills" role="button" class="secondary">Annuler</a>{% endif %}
+    </div>
+  </form>
+</article>
+{% endblock %}
