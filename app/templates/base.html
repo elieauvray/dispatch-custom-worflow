@@ -4,10 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dispatch{% endblock %} · Dispatch</title>
+  <script>
+    /* Applique le thème mémorisé avant l'affichage (évite un flash de la mauvaise couleur). */
+    (function () {
+      try {
+        var t = localStorage.getItem("dispatch-theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=5">
+  <link rel="stylesheet" href="/static/app.css?v=6">
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
 </head>
@@ -15,9 +24,9 @@
   <header class="topbar">
     <nav>
       <ul><li><a class="brand" href="/">{% include "partials/logo.svg.html" %}</a></li></ul>
+      <ul class="nav-right">
       {% if current_user %}
       {% set path = request.url.path %}
-      <ul>
         <li><a href="/prompt" {% if path.startswith('/prompt') or path.startswith('/runs') %}aria-current="page"{% endif %}>Prompt</a></li>
         <li><a href="/workflows" {% if path.startswith('/workflows') %}aria-current="page"{% endif %}>Custom Workflows</a></li>
         <li><a href="/settings" {% if path.startswith('/settings') %}aria-current="page"{% endif %}>Settings</a></li>
@@ -31,8 +40,9 @@
             <button type="submit" class="linklike" title="Connecté en tant que {{ current_user.login }}">Déconnexion</button>
           </form>
         </li>
-      </ul>
       {% endif %}
+        <li>{% include "partials/theme_toggle.html" %}</li>
+      </ul>
     </nav>
   </header>
   <main class="container">
@@ -45,5 +55,28 @@
     {% for f in flashes %}<div class="flash {{ f.category }}" role="status">{{ f.message }}</div>{% endfor %}
     {% block content %}{% endblock %}
   </main>
+  <script>
+    (function () {
+      var order = ["auto", "light", "dark"];
+      var labels = { auto: "Thème : automatique (système)", light: "Thème : clair", dark: "Thème : sombre" };
+      function current() { return document.documentElement.getAttribute("data-theme") || "auto"; }
+      function apply(mode) {
+        var root = document.documentElement;
+        if (mode === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", mode);
+        try {
+          if (mode === "auto") localStorage.removeItem("dispatch-theme"); else localStorage.setItem("dispatch-theme", mode);
+        } catch (e) {}
+        var btn = document.getElementById("theme-toggle");
+        if (btn) { btn.setAttribute("aria-label", labels[mode] + ". Cliquer pour changer."); btn.title = labels[mode]; }
+      }
+      var btn = document.getElementById("theme-toggle");
+      if (btn) {
+        apply(current());
+        btn.addEventListener("click", function () {
+          apply(order[(order.indexOf(current()) + 1) % order.length]);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
