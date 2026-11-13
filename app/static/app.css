@@ -88,7 +88,11 @@ main :not(nav) > ul ul > li::before { content: "\25CB"; font-size: .8em; top: .2
 .topbar { border-bottom: 1px solid var(--border); background: var(--surface); margin-bottom: 1.5rem; }
 .topbar nav { padding: 0 1rem; max-width: 1200px; margin: 0 auto; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; display: flex; gap: .5rem; align-items: center; }
-.brand-logo { height: 22px; width: auto; display: block; color: var(--text); }
+/* Logo complet : icône Upsun + chevron Pink 600 + mot « dispatch » (proportions du logo officiel). */
+.brand-logo { display: inline-flex; align-items: center; gap: .22em; font-size: 26px; line-height: 1; color: var(--text); }
+.brand-logo__icon { width: 1em; height: 1em; flex-shrink: 0; }
+.brand-logo__chevron { height: .4375em; width: auto; flex-shrink: 0; overflow: visible; }
+.brand-logo__word { height: .8em; width: auto; flex-shrink: 0; }
 .topbar nav a { color: var(--text); }
 .topbar nav a[aria-current="page"] { font-weight: 600; color: var(--accent); }
 .topbar nav ul li form { margin: 0; }
