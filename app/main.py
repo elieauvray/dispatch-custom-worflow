@@ -24,20 +24,21 @@ from app.workflows.routes import router as workflows_router
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 # Les en-têtes HTTP (dont les clés) ne doivent jamais apparaître dans les logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 logging.getLogger("anthropic").setLevel(logging.WARNING)
 
 SETUP_EXEMPT = ("/setup", "/static/", "/healthz", "/webhooks/")
 
 
-MISCONFIGURED_HTML = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<title>Configuration incomplète · Dispatch</title>
+MISCONFIGURED_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Incomplete configuration · Dispatch</title>
 <style>body{{font-family:Arial,sans-serif;background:#ECEDEE;color:#0C0F10;max-width:720px;margin:4rem auto;padding:0 1rem}}
 code,pre{{background:#fff;border:1px solid #D8DBDC;border-radius:6px;padding:.1rem .3rem}}pre{{padding:.8rem;overflow:auto}}
 h1{{font-size:1.6rem}}</style></head><body>
-<h1>Configuration incomplète</h1>
-<p>L'application ne peut pas démarrer : variable(s) d'environnement manquante(s) ou invalide(s) :
+<h1>Incomplete configuration</h1>
+<p>The app cannot start. These environment variables are missing or invalid:
 <strong>{names}</strong>.</p>
-<p>Sur Upsun, créez-les au niveau du projet (une commande par variable), puis redéployez :</p>
+<p>On Upsun, create them at the project level (one command per variable), then redeploy:</p>
 <pre>upsun variable:create --level project --name env:APP_SECRET_KEY --sensitive true --visible-build false \\
   --value "$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 
@@ -51,14 +52,14 @@ upsun redeploy</pre>
 def create_misconfigured_app(missing: list[str]) -> FastAPI:
     """App minimale servie quand les secrets manquent : évite un 502 muet."""
     logging.getLogger("dispatch").error(
-        "Configuration incomplète, variables manquantes ou invalides : %s", ", ".join(missing)
+        "Incomplete configuration, missing or invalid variables: %s", ", ".join(missing)
     )
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     html = MISCONFIGURED_HTML.format(names=", ".join(missing))
 
     @app.get("/healthz")
     def healthz() -> PlainTextResponse:
-        return PlainTextResponse("configuration incomplète", status_code=503)
+        return PlainTextResponse("incomplete configuration", status_code=503)
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "HEAD"])
     def everything(path: str) -> HTMLResponse:
@@ -115,12 +116,12 @@ def create_app() -> FastAPI:
             or request.url.path.startswith("/webhooks/")
         ):
             return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-        messages = {404: "Page introuvable.", 403: "Accès refusé."}
+        messages = {404: "Page not found.", 403: "Access denied."}
         detail = exc.detail if isinstance(exc.detail, str) and exc.status_code != 404 else None
         return render(
             request,
             "error.html",
-            {"status": exc.status_code, "message": detail or messages.get(exc.status_code, "Erreur.")},
+            {"status": exc.status_code, "message": detail or messages.get(exc.status_code, "Error.")},
             status_code=exc.status_code,
         )
 

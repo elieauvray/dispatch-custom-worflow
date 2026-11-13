@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Historique : {{ workflow.name }}{% endblock %}
+{% block title %}History: {{ workflow.name }}{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom Workflows</a></li><li>{{ workflow.name }}</li></ul></nav>
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ workflow.name }}</li></ul></nav>
 <header class="connector-head" style="margin-bottom:1rem">
-  <h1 style="margin:0">Historique : {{ workflow.name }}</h1>
+  <h1 style="margin:0">History: {{ workflow.name }}</h1>
   <form method="post" action="/workflows/{{ workflow.id }}/run" style="margin:0">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Exécuter</button>
+    <button type="submit">Run</button>
   </form>
 </header>
 {% if runs %}
 <table>
-  <thead><tr><th>#</th><th>Date</th><th>Utilisateur</th><th>Durée</th><th>Statut</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Date</th><th>User</th><th>Duration</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for r in runs %}
   <tr>
@@ -20,12 +20,12 @@
     <td>{{ r.user.login }}</td>
     <td>{{ r.duration_seconds | duration }}</td>
     <td><span class="badge {{ r.status }}">{{ r.status_label }}</span></td>
-    <td><a href="/runs/{{ r.id }}">Détail</a></td>
+    <td><a href="/runs/{{ r.id }}">Details</a></td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
 {% else %}
-<article><p class="muted">Ce workflow n'a pas encore été exécuté.</p></article>
+<article><p class="muted">This workflow has not been run yet.</p></article>
 {% endif %}
 {% endblock %}

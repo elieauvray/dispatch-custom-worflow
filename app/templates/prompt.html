@@ -5,25 +5,25 @@
 <article>
   <form method="post" action="/prompt">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Votre demande à Claude
-      <textarea name="prompt" class="big" required placeholder="Ex. : Liste les tickets Linear de l'équipe Plateforme ouverts depuis plus de 30 jours et propose un plan de priorisation."></textarea>
+    <label>Your request to Claude
+      <textarea name="prompt" class="big" required placeholder="Example: list the Platform team's Linear issues that have been open for more than 30 days and suggest a prioritization plan."></textarea>
     </label>
-    <small class="help">Claude travaille dans une session Managed Agents avec vos connecteurs (Settings). La session continue même si vous fermez le navigateur.</small>
-    <button type="submit">Envoyer</button>
+    <small class="help">Claude works in a Managed Agents session with your connectors (Settings). The session keeps running even if you close your browser.</small>
+    <button type="submit">Send</button>
   </form>
 </article>
 
 {% if recent %}
-<h2>Prompts récents</h2>
+<h2>Recent prompts</h2>
 <table>
-  <thead><tr><th>Date</th><th>Prompt</th><th>Statut</th><th></th></tr></thead>
+  <thead><tr><th>Date</th><th>Prompt</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for r in recent %}
   <tr>
     <td>{{ r.started_at | dt }}</td>
     <td>{{ r.content_snapshot | excerpt(100) }}</td>
     <td><span class="badge {{ r.status }}">{{ r.status_label }}</span></td>
-    <td><a href="/runs/{{ r.id }}">Ouvrir</a></td>
+    <td><a href="/runs/{{ r.id }}">Open</a></td>
   </tr>
   {% endfor %}
   </tbody>

@@ -62,9 +62,9 @@ def _release(run: WorkflowRun) -> None:
 
 def send_message(db: Session, user: User, run: WorkflowRun, text: str) -> None:
     if not run.session_id:
-        raise ManagedAgentsError("La session n'est pas encore créée, patientez un instant.")
+        raise ManagedAgentsError("The session is not created yet. Wait a moment.")
     if run.status == RunStatus.WAITING_APPROVAL:
-        raise ManagedAgentsError("Répondez d'abord aux demandes de validation en attente.")
+        raise ManagedAgentsError("Answer the pending approval requests first.")
     client_for(get_user_settings(db, user)).send_user_message(run.session_id, text)
     _release(run)
     run.stop_reason = None
@@ -75,7 +75,7 @@ def confirm_tool(
     db: Session, user: User, run: WorkflowRun, event_id: str, allow: bool, deny_message: str | None
 ) -> None:
     if not run.session_id or event_id not in (run.pending_event_ids or []):
-        raise ManagedAgentsError("Cette demande de validation n'est plus en attente.")
+        raise ManagedAgentsError("This approval request is no longer pending.")
     client_for(get_user_settings(db, user)).send_tool_confirmations(
         run.session_id, [(event_id, allow, (deny_message or "").strip() or None)]
     )

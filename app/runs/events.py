@@ -106,11 +106,11 @@ def apply_event(run: WorkflowRun, ev: dict[str, Any], last_text: str | None) -> 
         elif reason == "retries_exhausted":
             run.status = RunStatus.FAILED
             run.finished_at = utcnow()
-            run.error = run.error or "La session a épuisé ses tentatives (retries_exhausted)."
+            run.error = run.error or "The session ran out of retries (retries_exhausted)."
         elif reason == "budget_reached":
             run.status = RunStatus.FAILED
             run.finished_at = utcnow()
-            run.error = "Budget de la session atteint."
+            run.error = "The session budget was reached."
     elif etype == "session.status_terminated":
         run.status = RunStatus.FAILED if run.error and run.status != RunStatus.COMPLETED else RunStatus.COMPLETED
         run.pending_event_ids = []
@@ -152,4 +152,4 @@ def _flag_connector(db: Session, run: WorkflowRun, ev: dict[str, Any]) -> None:
     )
     if connector:
         connector.status = ConnectorStatus.ERROR
-        connector.status_message = "Authentification MCP refusée pendant une session : reconfigurez ce connecteur."
+        connector.status_message = "MCP authentication failed during a session: reconnect this connector."

@@ -3,7 +3,7 @@
 Application web (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) qui permet à une équipe d'envoyer des prompts à
 Claude via **Claude Managed Agents**. Claude accède à vos outils (Linear, GitHub, Jira/Confluence) par des
 serveurs **MCP distants**. Les prompts peuvent être enregistrés comme **Custom Workflows** réutilisables.
-L'application est prête à être déployée sur **Upsun**.
+L'application est prête à être déployée sur **Upsun**. L'interface est en anglais (américain, conforme à la charte Upsun) ; cette documentation est en français.
 
 ## Sommaire
 
@@ -48,9 +48,9 @@ Navigateur ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL �
 1. Le web crée un `workflow_run` au statut `en cours`. Les prompts libres ont `workflow_id = NULL`.
 2. Le worker le réserve, crée la session (`agent`, `environment_id`, `vault_ids`), ouvre le flux, relit l'historique (dédoublonnage par id d'événement), puis envoie le `user.message`.
 3. Chaque événement est enregistré dans `run_events` et met à jour le statut :
-   - `session.status_idle` + `requires_action` donne **en attente de validation**. Les `event_ids` bloquants sont mémorisés.
-   - `session.status_idle` + `end_turn` donne **en attente de réponse** si le dernier message de Claude se termine par une question, sinon **terminé**.
-   - `retries_exhausted` donne **échoué**. `session.error` est affiché ; une erreur `mcp_authentication_failed_error` passe le connecteur en « Erreur ».
+   - `session.status_idle` + `requires_action` donne **waiting for approval**. Les `event_ids` bloquants sont mémorisés.
+   - `session.status_idle` + `end_turn` donne **waiting for your reply** si le dernier message de Claude se termine par une question, sinon **completed**.
+   - `retries_exhausted` donne **failed**. `session.error` est affiché ; une erreur `mcp_authentication_failed_error` passe le connecteur en « Error ».
 4. Le navigateur suit en direct via `/runs/{id}/stream` (SSE). Le flux lit la base par polling court (1 s), après un premier affichage des événements déjà stockés.
 5. Les réponses (`user.message`) et les validations (`user.tool_confirmation` allow/deny + `deny_message`) partent du web directement vers l'API. L'exécution repasse alors au worker.
 
@@ -195,15 +195,15 @@ upsun logs deploy --lines 100
 ### Webhook Anthropic (optionnel)
 
 Dans la Claude Console, ouvrez **Manage → Webhooks** et ajoutez `https://<votre-domaine>/webhooks/anthropic`,
-abonné à `vault_credential.refresh_failed`. Le connecteur concerné passe alors en « Erreur » avec le message
-« Reconnexion nécessaire ».
+abonné à `vault_credential.refresh_failed`. Le connecteur concerné passe alors en « Error » avec le message
+« Reconnect needed ».
 
 ## Configuration des connecteurs
 
 Chaque utilisateur configure ses connecteurs dans **Settings**. Les jetons sont envoyés **directement au
 vault Anthropic**. La base ne garde que le type, l'URL, l'ID du credential, les 4 derniers caractères et la
 date. Avant l'enregistrement, l'application vérifie le jeton par un handshake MCP `initialize`.
-Le bouton « Tester » vérifie ensuite que le credential est présent dans le vault (et valide le jeton OAuth via
+Le bouton « Test » vérifie ensuite que le credential est présent dans le vault (et valide le jeton OAuth via
 `mcp_oauth_validate`), et que le serveur MCP répond.
 
 Informations vérifiées le 13/11/2026 :
@@ -216,16 +216,16 @@ Informations vérifiées le 13/11/2026 :
 
 ### Mode OAuth
 
-1. L'admin ouvre **Settings → Applications OAuth** :
-   - pour **Linear** ou **Atlassian**, il clique sur « Enregistrer automatiquement » (enregistrement dynamique RFC 7591) ;
+1. L'admin ouvre **Settings → OAuth apps** :
+   - pour **Linear** ou **Atlassian**, il clique sur « Register automatically » (enregistrement dynamique RFC 7591) ;
    - pour **GitHub**, il saisit le client_id / client_secret d'une OAuth App dont l'URL de callback est celle affichée (`https://<domaine>/oauth/github/callback`).
-2. Les utilisateurs voient alors « Se connecter avec » suivi du nom du service. L'application découvre le serveur d'autorisation (RFC 9728 / RFC 8414), utilise PKCE S256 et le paramètre `resource`, puis échange le code.
+2. Les utilisateurs voient alors « Sign in with » suivi du nom du service. L'application découvre le serveur d'autorisation (RFC 9728 / RFC 8414), utilise PKCE S256 et le paramètre `resource`, puis échange le code.
 3. Elle crée un credential `mcp_oauth` avec un bloc `refresh` (`token_endpoint`, `client_id`, `token_endpoint_auth`). **Anthropic rafraîchit ensuite le jeton** automatiquement.
 
 ### Permissions des outils
 
-Pour chaque connecteur, vous choisissez entre « Toujours demander » (`always_ask`, par défaut) et
-« Toujours autoriser » (`always_allow`). Ce choix est appliqué au `default_config.permission_policy` du
+Pour chaque connecteur, vous choisissez entre « Always ask » (`always_ask`, par défaut) et
+« Always allow » (`always_allow`). Ce choix est appliqué au `default_config.permission_policy` du
 `mcp_toolset`. Le modifier crée une nouvelle version de l'agent.
 
 ## Sécurité
@@ -265,8 +265,8 @@ TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/dispatch_test pytest -q
 
 - **Détection des questions** : heuristique, la dernière ligne du message de Claude doit se terminer par « ? ». Dans tous les cas, l'utilisateur peut continuer la conversation.
 - **Atlassian en jeton fixe** : les jetons API personnels (Basic `email:token`) ne sont pas compatibles avec `static_bearer`. Utilisez OAuth ou une clé de compte de service.
-- **Le bouton « Tester »** ne peut pas refaire le handshake authentifié pour un jeton fixe, puisque le jeton n'est pas conservé. Il vérifie le credential côté vault et la joignabilité du serveur. Le handshake complet a lieu à l'enregistrement.
+- **Le bouton « Test »** ne peut pas refaire le handshake authentifié pour un jeton fixe, puisque le jeton n'est pas conservé. Il vérifie le credential côté vault et la joignabilité du serveur. Le handshake complet a lieu à l'enregistrement.
 - **SSE par polling** de la base (1 s) plutôt que `LISTEN/NOTIFY` : c'est simple et robuste derrière le proxy Upsun, avec une légère latence.
 - **Workspace Anthropic** : les vaults sont partagés à l'échelle du workspace. Utilisez une clé API par workspace dédié.
-- **Recréation du vault** (clé API d'un autre workspace, vault archivé) : les jetons fixes doivent être ressaisis, et les connecteurs concernés passent en « Erreur ».
+- **Recréation du vault** (clé API d'un autre workspace, vault archivé) : les jetons fixes doivent être ressaisis, et les connecteurs concernés passent en « Error ».
 - Les fichiers produits par l'agent dans le sandbox (`/mnt/session/outputs`) ne sont pas affichés.

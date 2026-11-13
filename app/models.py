@@ -33,12 +33,12 @@ class RunStatus(enum.StrEnum):
 
 
 RUN_STATUS_LABELS: dict[str, str] = {
-    RunStatus.RUNNING: "en cours",
-    RunStatus.WAITING_INPUT: "en attente de réponse",
-    RunStatus.WAITING_APPROVAL: "en attente de validation",
-    RunStatus.COMPLETED: "terminé",
-    RunStatus.FAILED: "échoué",
-    RunStatus.CANCELLED: "annulé",
+    RunStatus.RUNNING: "running",
+    RunStatus.WAITING_INPUT: "waiting for your reply",
+    RunStatus.WAITING_APPROVAL: "waiting for approval",
+    RunStatus.COMPLETED: "completed",
+    RunStatus.FAILED: "failed",
+    RunStatus.CANCELLED: "canceled",
 }
 
 # Statuts où le worker doit piloter activement la session.

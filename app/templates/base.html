@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dispatch{% endblock %} · Dispatch</title>
   <script>
-    /* Applique le thème mémorisé avant l'affichage (évite un flash de la mauvaise couleur). */
+    /* Apply the saved theme before first paint (avoids a flash of the wrong colors). */
     (function () {
       try {
         var t = localStorage.getItem("dispatch-theme");
@@ -28,16 +28,16 @@
       {% if current_user %}
       {% set path = request.url.path %}
         <li><a href="/prompt" {% if path.startswith('/prompt') or path.startswith('/runs') %}aria-current="page"{% endif %}>Prompt</a></li>
-        <li><a href="/workflows" {% if path.startswith('/workflows') %}aria-current="page"{% endif %}>Custom Workflows</a></li>
+        <li><a href="/workflows" {% if path.startswith('/workflows') %}aria-current="page"{% endif %}>Custom workflows</a></li>
         <li><a href="/settings" {% if path.startswith('/settings') %}aria-current="page"{% endif %}>Settings</a></li>
         {% if current_user.is_admin %}
-        <li><a href="/admin/users" {% if path.startswith('/admin/users') %}aria-current="page"{% endif %}>Utilisateurs</a></li>
+        <li><a href="/admin/users" {% if path.startswith('/admin/users') %}aria-current="page"{% endif %}>Users</a></li>
         <li><a href="/admin/skills" {% if path.startswith('/admin/skills') %}aria-current="page"{% endif %}>Skills</a></li>
         {% endif %}
         <li>
           <form method="post" action="/logout">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="linklike" title="Connecté en tant que {{ current_user.login }}">Déconnexion</button>
+            <button type="submit" class="linklike" title="Signed in as {{ current_user.login }}">Log out</button>
           </form>
         </li>
       {% endif %}
@@ -48,17 +48,26 @@
   <main class="container">
     {% if current_user and not user_configured %}
     <div class="banner warning">
-      Vos settings obligatoires ne sont pas remplis : renseignez votre <a href="/settings#anthropic">clé API Anthropic</a>.
-      Les pages Prompt et Custom Workflows restent bloquées d'ici là.
+      Your required settings are incomplete. Add your <a href="/settings#anthropic">Anthropic API key</a>
+      to unlock the Prompt and Custom workflows pages.
     </div>
     {% endif %}
-    {% for f in flashes %}<div class="flash {{ f.category }}" role="status">{{ f.message }}</div>{% endfor %}
+    {% for f in flashes if not (sectioned and f.section) %}<div class="flash {{ f.category }}" role="status">{{ f.message }}</div>{% endfor %}
     {% block content %}{% endblock %}
   </main>
   <script>
+    // After a form post, bring the targeted card (e.g. /settings#anthropic) into view,
+    // even if the browser tries to restore the previous scroll position.
+    window.addEventListener("load", function () {
+      if (!location.hash) return;
+      var el = document.getElementById(location.hash.slice(1));
+      if (el) el.scrollIntoView({ block: "start" });
+    });
+  </script>
+  <script>
     (function () {
       var order = ["auto", "light", "dark"];
-      var labels = { auto: "Thème : automatique (système)", light: "Thème : clair", dark: "Thème : sombre" };
+      var labels = { auto: "Theme: automatic (system)", light: "Theme: light", dark: "Theme: dark" };
       function current() { return document.documentElement.getAttribute("data-theme") || "auto"; }
       function apply(mode) {
         var root = document.documentElement;
@@ -67,7 +76,7 @@
           if (mode === "auto") localStorage.removeItem("dispatch-theme"); else localStorage.setItem("dispatch-theme", mode);
         } catch (e) {}
         var btn = document.getElementById("theme-toggle");
-        if (btn) { btn.setAttribute("aria-label", labels[mode] + ". Cliquer pour changer."); btn.title = labels[mode]; }
+        if (btn) { btn.setAttribute("aria-label", labels[mode] + ". Click to change."); btn.title = labels[mode]; }
       }
       var btn = document.getElementById("theme-toggle");
       if (btn) {

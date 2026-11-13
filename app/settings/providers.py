@@ -1,4 +1,4 @@
-"""Registre des connecteurs MCP (vérifié le 2026-11-13, voir README)."""
+"""MCP connector registry (checked on 2026-11-13, see README)."""
 
 from __future__ import annotations
 
@@ -24,75 +24,75 @@ PROVIDERS: dict[str, Provider] = {
         key="linear",
         label="Linear",
         default_url="https://mcp.linear.app/mcp",
-        token_label="Clé API personnelle Linear",
+        token_label="Linear personal API key",
         url_help_html=(
-            "Serveur MCP officiel de Linear (Streamable HTTP). Variante lecture seule : "
+            "Official Linear MCP server (Streamable HTTP). Read-only variant: "
             "<code>https://mcp.linear.app/mcp/readonly</code>. "
             '<a href="https://linear.app/docs/mcp" target="_blank" rel="noopener">Documentation</a>.'
         ),
         token_help_html=(
-            "Linear → <strong>Settings → Account → Security &amp; Access → Personal API keys</strong> "
-            '(<a href="https://linear.app/settings/account/security" target="_blank" rel="noopener">ouvrir</a>). '
-            "Si l'option n'apparaît pas, un admin doit l'autoriser dans Settings → Administration → API. "
-            "Permissions conseillées : <em>Read</em> + <em>Create issues</em> + <em>Create comments</em> "
-            "(ou <em>Write</em> si Claude doit modifier des tickets), limitées aux équipes utiles. "
-            "La clé est envoyée en <code>Authorization: Bearer</code>."
+            "In Linear, go to <strong>Settings → Account → Security &amp; Access → Personal API keys</strong> "
+            '(<a href="https://linear.app/settings/account/security" target="_blank" rel="noopener">open</a>). '
+            "If the option is missing, an admin must allow it in Settings → Administration → API. "
+            "Recommended permissions: <em>Read</em>, <em>Create issues</em> and <em>Create comments</em> "
+            "(or <em>Write</em> if Claude must edit issues), limited to the teams you need. "
+            "The key is sent as <code>Authorization: Bearer</code>."
         ),
         supports_dcr=True,
         oauth_scopes=["read", "write"],
         oauth_help_html=(
-            "Linear accepte l'enregistrement dynamique de client (OAuth 2.1, RFC 7591) : "
-            "cliquez sur « Enregistrer automatiquement »."
+            "Linear supports dynamic client registration (OAuth 2.1, RFC 7591): "
+            "click <strong>Register automatically</strong>."
         ),
     ),
     "github": Provider(
         key="github",
         label="GitHub",
         default_url="https://api.githubcopilot.com/mcp/",
-        token_label="Personal Access Token (fine-grained)",
+        token_label="Fine-grained personal access token",
         url_help_html=(
-            "Serveur MCP distant officiel de GitHub. "
+            "Official GitHub remote MCP server. "
             '<a href="https://github.com/github/github-mcp-server" target="_blank" rel="noopener">Documentation</a>. '
-            "Dans une organisation Copilot Business/Enterprise, la politique « MCP servers in Copilot » doit être activée."
+            "In a Copilot Business or Enterprise organization, the <em>MCP servers in Copilot</em> policy must be enabled."
         ),
         token_help_html=(
-            "github.com → <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens → "
-            'Generate new token</strong> (<a href="https://github.com/settings/personal-access-tokens/new" '
-            'target="_blank" rel="noopener">ouvrir</a>). Choisissez « Only select repositories ». '
-            "Permissions minimales : <em>Contents</em>, <em>Issues</em>, <em>Pull requests</em> en lecture "
-            "(passez en lecture/écriture si Claude doit créer des issues ou des PR). "
-            "<em>Metadata: Read</em> est ajouté automatiquement."
+            "On github.com, go to <strong>Settings → Developer settings → Personal access tokens → "
+            'Fine-grained tokens → Generate new token</strong> (<a href="https://github.com/settings/personal-access-tokens/new" '
+            'target="_blank" rel="noopener">open</a>). Choose <em>Only select repositories</em>. '
+            "Minimum permissions: <em>Contents</em>, <em>Issues</em> and <em>Pull requests</em> set to read "
+            "(read and write if Claude must create issues or pull requests). "
+            "<em>Metadata: Read</em> is added automatically."
         ),
         supports_dcr=False,
         oauth_scopes=["repo", "read:org"],
         oauth_help_html=(
-            "GitHub ne propose pas l'enregistrement dynamique : créez une OAuth App "
+            "GitHub does not support dynamic client registration. Create an OAuth App "
             '(<a href="https://github.com/settings/developers" target="_blank" rel="noopener">Settings → Developer settings → OAuth Apps</a>) '
-            "avec l'URL de callback indiquée, puis saisissez son client_id / client_secret."
+            "with the callback URL shown here, then enter its client ID and client secret."
         ),
     ),
     "atlassian": Provider(
         key="atlassian",
         label="Jira / Atlassian",
         default_url="https://mcp.atlassian.com/v2/mcp",
-        token_label="Clé API de compte de service Atlassian",
+        token_label="Atlassian service account API key",
         url_help_html=(
-            "Serveur MCP Atlassian Rovo (Jira, Confluence, Compass). "
+            "Atlassian Rovo MCP server (Jira, Confluence, Compass). "
             '<a href="https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/" '
-            'target="_blank" rel="noopener">Documentation</a>. L\'ancien endpoint <code>/v1/mcp</code> fonctionne encore.'
+            'target="_blank" rel="noopener">Documentation</a>. The older <code>/v1/mcp</code> endpoint still works.'
         ),
         token_help_html=(
-            "OAuth est le mode par défaut et recommandé (bouton « Se connecter avec Jira / Atlassian »). "
-            "En mode jeton fixe, seule une <strong>clé API de compte de service</strong> (envoyée en Bearer) est "
-            "compatible : un admin la crée dans <strong>admin.atlassian.com → Directory → Service accounts</strong> "
-            "et doit activer <strong>Connectors → Atlassian MCP server → Authentication → API token</strong>. "
-            "Les jetons API personnels (email + jeton en Basic) ne sont pas supportés par le vault Anthropic."
+            "OAuth is the default and recommended mode (<strong>Sign in with Jira / Atlassian</strong> button). "
+            "For a static token, only a <strong>service account API key</strong> (sent as Bearer) works: "
+            "an admin creates it in <strong>admin.atlassian.com → Directory → Service accounts</strong> "
+            "and must enable <strong>Connectors → Atlassian MCP server → Authentication → API token</strong>. "
+            "Personal API tokens (email and token over Basic auth) are not supported by the Anthropic vault."
         ),
         supports_dcr=True,
         oauth_scopes=["offline_access"],
         oauth_help_html=(
-            "Atlassian accepte l'enregistrement dynamique de client : cliquez sur « Enregistrer automatiquement ». "
-            "L'admin Atlassian peut devoir autoriser le domaine de cette application dans Connectors."
+            "Atlassian supports dynamic client registration: click <strong>Register automatically</strong>. "
+            "Your Atlassian admin may need to allow this app's domain under Connectors."
         ),
     ),
 }

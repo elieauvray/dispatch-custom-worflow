@@ -21,7 +21,7 @@ def test_setup_creates_admin_then_404_forever(client):
         data={"login": "admin", "password": PASSWORD, "password_confirm": "autre-chose-123",
               "csrf_token": token},
     )
-    assert r.status_code == 400 and "ne correspondent pas" in r.text
+    assert r.status_code == 400 and "do not match" in r.text
 
     r = client.post(
         "/setup",
@@ -36,7 +36,7 @@ def test_setup_creates_admin_then_404_forever(client):
 
     # Connecté directement, settings non remplis => bandeau
     page = client.get("/settings")
-    assert page.status_code == 200 and "settings obligatoires" in page.text
+    assert page.status_code == 200 and "required settings are incomplete" in page.text
 
     assert client.get("/setup").status_code == 404
     token = csrf(client, "/settings")

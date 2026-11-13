@@ -22,26 +22,27 @@ from app.templating import flash, render
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-POLICIES = {"always_ask": "Toujours demander", "always_allow": "Toujours autoriser"}
+POLICIES = {"always_ask": "Always ask", "always_allow": "Always allow"}
 
 
-def _back() -> RedirectResponse:
-    return RedirectResponse("/settings", status_code=303)
+def _back(section: str | None = None) -> RedirectResponse:
+    """Back to Settings, scrolled to the card the message belongs to."""
+    return RedirectResponse(f"/settings#{section}" if section else "/settings", status_code=303)
 
 
 def _callback_url(provider: str) -> str:
     return f"{get_settings().public_base_url}/oauth/{provider}/callback"
 
 
-def _sync(request: Request, db: Session, user: User, force: bool = False) -> None:
+def _sync(request: Request, db: Session, user: User, force: bool = False, section: str = "resources") -> None:
     settings = get_user_settings(db, user)
     try:
         changes = sync_user_resources(db, user, settings, force=force)
     except ManagedAgentsError as exc:
-        flash(request, f"Synchronisation Managed Agents impossible : {exc}", "error")
+        flash(request, f"Could not sync Managed Agents resources: {exc}", "error", section=section)
         return
     if changes:
-        flash(request, "Ressources Managed Agents : " + ", ".join(changes) + ".", "success")
+        flash(request, "Managed Agents resources: " + ", ".join(changes) + ".", "success", section=section)
 
 
 @router.get("/settings")
@@ -58,6 +59,7 @@ def settings_page(
         request,
         "settings.html",
         {
+            "sectioned": True,
             "settings": settings,
             "models": AVAILABLE_MODELS,
             "providers": PROVIDERS,
@@ -77,35 +79,37 @@ def save_anthropic(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = "anthropic"
     settings = get_user_settings(db, user)
     if model not in {m for m, _ in AVAILABLE_MODELS}:
-        flash(request, "Modèle inconnu.", "error")
-        return _back()
+        flash(request, "Unknown model.", "error", section=sec)
+        return _back(sec)
     api_key = api_key.strip()
     if api_key:
         try:
             get_client(api_key).check_api_key()
         except ManagedAgentsError as exc:
-            flash(request, f"Clé API non enregistrée : {exc}", "error")
-            return _back()
+            flash(request, f"API key not saved. {exc}", "error", section=sec)
+            return _back(sec)
         settings.anthropic_api_key_encrypted = encrypt(api_key)
         settings.api_key_last4 = last4(api_key)
     elif not settings.anthropic_api_key_encrypted:
-        flash(request, "La clé API Anthropic est obligatoire.", "error")
-        return _back()
+        flash(request, "An Anthropic API key is required.", "error", section=sec)
+        return _back(sec)
     settings.model = model
     db.commit()
-    flash(request, "Paramètres Anthropic enregistrés.", "success")
-    _sync(request, db, user)
-    return _back()
+    flash(request, "Anthropic settings saved.", "success", section=sec)
+    _sync(request, db, user, section=sec)
+    return _back(sec)
 
 
 @router.post("/settings/sync", dependencies=[Depends(csrf_protect)])
 def resync(
     request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)
 ) -> Response:
-    _sync(request, db, user, force=True)
-    return _back()
+    sec = "resources"
+    _sync(request, db, user, force=True, section=sec)
+    return _back(sec)
 
 
 def _connector(db: Session, user: User, provider: str) -> Connector | None:
@@ -121,16 +125,16 @@ def _replace_credential(db: Session, user: User, connector: Connector | None) ->
         connector.credential_id = None
 
 
-def _ensure_vault(request: Request, db: Session, user: User) -> str | None:
+def _ensure_vault(request: Request, db: Session, user: User, section: str) -> str | None:
     settings = get_user_settings(db, user)
     if not settings.is_configured:
-        flash(request, "Enregistrez d'abord votre clé API Anthropic.", "error")
+        flash(request, "Save your Anthropic API key first.", "error", section=section)
         return None
     if not settings.vault_id:
         try:
             sync_user_resources(db, user, settings)
         except ManagedAgentsError as exc:
-            flash(request, f"Vault indisponible : {exc}", "error")
+            flash(request, f"Vault unavailable: {exc}", "error", section=section)
             return None
     return settings.vault_id
 
@@ -144,20 +148,21 @@ def save_connector(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = f"connector-{provider}"
     prov = get_provider(provider)
     if not prov:
         raise HTTPException(404)
     url, token = mcp_server_url.strip(), token.strip()
     if not url.startswith("https://") or not token:
-        flash(request, f"{prov.label} : URL HTTPS et jeton obligatoires.", "error")
-        return _back()
+        flash(request, f"{prov.label}: an HTTPS URL and a token are required.", "error", section=sec)
+        return _back(sec)
     ok, message = mcp_oauth.probe_mcp(url, token)
     if not ok:
-        flash(request, f"{prov.label} : {message} Le connecteur n'a pas été enregistré.", "error")
-        return _back()
-    vault_id = _ensure_vault(request, db, user)
+        flash(request, f"{prov.label}: {message} The connector was not saved.", "error", section=sec)
+        return _back(sec)
+    vault_id = _ensure_vault(request, db, user, sec)
     if not vault_id:
-        return _back()
+        return _back(sec)
     connector = _connector(db, user, provider)
     settings = get_user_settings(db, user)
     try:
@@ -166,8 +171,8 @@ def save_connector(
             vault_id, url, token, f"{prov.label} ({user.login})"
         )
     except ManagedAgentsError as exc:
-        flash(request, f"{prov.label} : envoi au vault impossible : {exc}", "error")
-        return _back()
+        flash(request, f"{prov.label}: could not store the token in the vault. {exc}", "error", section=sec)
+        return _back(sec)
     if connector is None:
         connector = Connector(user_id=user.id, provider=provider, permission_policy="always_ask")
         db.add(connector)
@@ -179,20 +184,21 @@ def save_connector(
     connector.status_message = message
     connector.updated_at = utcnow()
     db.commit()
-    flash(request, f"{prov.label} configuré ({message}).", "success")
-    _sync(request, db, user)
-    return _back()
+    flash(request, f"{prov.label} connected. {message}", "success", section=sec)
+    _sync(request, db, user, section=sec)
+    return _back(sec)
 
 
 @router.post("/settings/connectors/{provider}/test", dependencies=[Depends(csrf_protect)])
 def test_connector(
     request: Request, provider: str, user: User = Depends(require_user), db: Session = Depends(get_db)
 ) -> Response:
+    sec = f"connector-{provider}"
     prov = get_provider(provider)
     connector = _connector(db, user, provider)
     if not prov or not connector or not connector.credential_id:
-        flash(request, "Connecteur non configuré.", "error")
-        return _back()
+        flash(request, "This connector is not configured.", "error", section=sec)
+        return _back(sec)
     settings = get_user_settings(db, user)
     try:
         msg = client_for(settings).check_credential(
@@ -203,30 +209,31 @@ def test_connector(
             raise ManagedAgentsError(probe_msg)
         connector.status = ConnectorStatus.CONFIGURED
         connector.status_message = f"{msg} {probe_msg}"
-        flash(request, f"{prov.label} : {msg} {probe_msg}", "success")
+        flash(request, f"{prov.label}: {msg} {probe_msg}", "success", section=sec)
     except ManagedAgentsError as exc:
         connector.status = ConnectorStatus.ERROR
         connector.status_message = str(exc)
-        flash(request, f"{prov.label} : {exc}", "error")
+        flash(request, f"{prov.label}: {exc}", "error", section=sec)
     db.commit()
-    return _back()
+    return _back(sec)
 
 
 @router.post("/settings/connectors/{provider}/delete", dependencies=[Depends(csrf_protect)])
 def delete_connector(
     request: Request, provider: str, user: User = Depends(require_user), db: Session = Depends(get_db)
 ) -> Response:
+    sec = f"connector-{provider}"
     connector = _connector(db, user, provider)
     if connector:
         try:
             _replace_credential(db, user, connector)
         except ManagedAgentsError as exc:
-            flash(request, f"Archivage du credential impossible : {exc}", "error")
+            flash(request, f"Could not archive the credential. {exc}", "error", section=sec)
         db.delete(connector)
         db.commit()
-        flash(request, "Connecteur supprimé.", "success")
-        _sync(request, db, user)
-    return _back()
+        flash(request, "Connector removed.", "success", section=sec)
+        _sync(request, db, user, section=sec)
+    return _back(sec)
 
 
 @router.post("/settings/connectors/{provider}/permission", dependencies=[Depends(csrf_protect)])
@@ -237,18 +244,19 @@ def set_permission(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = f"connector-{provider}"
     connector = _connector(db, user, provider)
     if not connector or permission_policy not in POLICIES:
-        flash(request, "Connecteur ou politique invalide.", "error")
-        return _back()
+        flash(request, "Invalid connector or policy.", "error", section=sec)
+        return _back(sec)
     connector.permission_policy = permission_policy
     db.commit()
-    flash(request, f"Permissions : {POLICIES[permission_policy]}.", "success")
-    _sync(request, db, user)
-    return _back()
+    flash(request, f"Tool permissions: {POLICIES[permission_policy]}.", "success", section=sec)
+    _sync(request, db, user, section=sec)
+    return _back(sec)
 
 
-# --- Applications OAuth (admin) ---------------------------------------------
+# --- OAuth apps (admin) ---------------------------------------------
 
 
 @router.post("/settings/oauth-apps/{provider}", dependencies=[Depends(csrf_protect)])
@@ -260,9 +268,10 @@ def save_oauth_app(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = "oauth-apps"
     if not get_provider(provider) or not client_id.strip():
-        flash(request, "Fournisseur ou client_id invalide.", "error")
-        return _back()
+        flash(request, "Invalid provider or client_id.", "error", section=sec)
+        return _back(sec)
     app = db.get(OAuthApp, provider) or OAuthApp(provider=provider)
     app.client_id = client_id.strip()
     if client_secret.strip():
@@ -270,8 +279,8 @@ def save_oauth_app(
     app.dynamic = False
     db.add(app)
     db.commit()
-    flash(request, "Application OAuth enregistrée.", "success")
-    return _back()
+    flash(request, "OAuth app saved.", "success", section=sec)
+    return _back(sec)
 
 
 @router.post("/settings/oauth-apps/{provider}/register", dependencies=[Depends(csrf_protect)])
@@ -281,39 +290,41 @@ def register_oauth_app(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = "oauth-apps"
     prov = get_provider(provider)
     if not prov or not prov.supports_dcr:
-        flash(request, "Ce fournisseur ne propose pas l'enregistrement dynamique.", "error")
-        return _back()
+        flash(request, "This provider does not support dynamic client registration.", "error", section=sec)
+        return _back(sec)
     try:
         server = mcp_oauth.discover(prov.default_url)
         client_id, client_secret = mcp_oauth.register_client(server, _callback_url(provider))
     except mcp_oauth.OAuthError as exc:
-        flash(request, f"Enregistrement dynamique impossible : {exc}", "error")
-        return _back()
+        flash(request, f"Dynamic client registration failed. {exc}", "error", section=sec)
+        return _back(sec)
     app = db.get(OAuthApp, provider) or OAuthApp(provider=provider)
     app.client_id = client_id
     app.client_secret_encrypted = encrypt(client_secret) if client_secret else None
     app.dynamic = True
     db.add(app)
     db.commit()
-    flash(request, f"Client OAuth {prov.label} enregistré dynamiquement.", "success")
-    return _back()
+    flash(request, f"{prov.label} OAuth client registered automatically.", "success", section=sec)
+    return _back(sec)
 
 
 @router.post("/settings/oauth-apps/{provider}/delete", dependencies=[Depends(csrf_protect)])
 def delete_oauth_app(
     request: Request, provider: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> Response:
+    sec = "oauth-apps"
     app = db.get(OAuthApp, provider)
     if app:
         db.delete(app)
         db.commit()
-        flash(request, "Application OAuth supprimée.", "success")
-    return _back()
+        flash(request, "OAuth app removed.", "success", section=sec)
+    return _back(sec)
 
 
-# --- Flux OAuth utilisateur -------------------------------------------------
+# --- User OAuth flow -------------------------------------------------
 
 
 @router.post("/oauth/{provider}/start", dependencies=[Depends(csrf_protect)])
@@ -324,20 +335,21 @@ def oauth_start(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = f"connector-{provider}"
     prov = get_provider(provider)
     app = db.get(OAuthApp, provider)
     if not prov or not app:
-        flash(request, "OAuth n'est pas configuré pour ce fournisseur.", "error")
-        return _back()
+        flash(request, "OAuth is not set up for this provider.", "error", section=sec)
+        return _back(sec)
     url = mcp_server_url.strip() or prov.default_url
     if not url.startswith("https://"):
-        flash(request, "URL du serveur MCP invalide.", "error")
-        return _back()
+        flash(request, "Invalid MCP server URL.", "error", section=sec)
+        return _back(sec)
     try:
         server = mcp_oauth.discover(url)
     except mcp_oauth.OAuthError as exc:
-        flash(request, str(exc), "error")
-        return _back()
+        flash(request, str(exc), "error", section=sec)
+        return _back(sec)
     verifier, challenge = mcp_oauth.new_pkce()
     state = secrets.token_urlsafe(32)
     db.execute(delete(OAuthState).where(OAuthState.created_at < utcnow() - timedelta(minutes=15)))
@@ -372,16 +384,17 @@ def oauth_callback(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    sec = f"connector-{provider}"
     prov = get_provider(provider)
     pending = db.get(OAuthState, state) if state else None
     if not prov or not pending or pending.user_id != user.id or pending.provider != provider:
-        flash(request, "Retour OAuth invalide ou expiré. Recommencez.", "error")
-        return _back()
+        flash(request, "Invalid or expired OAuth response. Please try again.", "error", section=sec)
+        return _back(sec)
     db.delete(pending)
     db.commit()
     if error or not code:
-        flash(request, f"Connexion {prov.label} annulée ({error or 'pas de code'}).", "error")
-        return _back()
+        flash(request, f"{prov.label} sign-in canceled ({error or 'no code returned'}).", "error", section=sec)
+        return _back(sec)
     app = db.get(OAuthApp, provider)
     secret = decrypt(app.client_secret_encrypted) if app and app.client_secret_encrypted else None
     try:
@@ -390,11 +403,11 @@ def oauth_callback(
             _callback_url(provider), pending.resource,
         )
     except mcp_oauth.OAuthError as exc:
-        flash(request, str(exc), "error")
-        return _back()
-    vault_id = _ensure_vault(request, db, user)
+        flash(request, str(exc), "error", section=sec)
+        return _back(sec)
+    vault_id = _ensure_vault(request, db, user, sec)
     if not vault_id:
-        return _back()
+        return _back(sec)
     url = pending.resource or prov.default_url
     refresh = None
     if tokens.refresh_token:
@@ -416,8 +429,8 @@ def oauth_callback(
             f"{prov.label} OAuth ({user.login})",
         )
     except ManagedAgentsError as exc:
-        flash(request, f"Envoi au vault impossible : {exc}", "error")
-        return _back()
+        flash(request, f"Could not store the token in the vault. {exc}", "error", section=sec)
+        return _back(sec)
     if connector is None:
         connector = Connector(user_id=user.id, provider=provider, permission_policy="always_ask")
         db.add(connector)
@@ -427,11 +440,11 @@ def oauth_callback(
     connector.last4 = last4(tokens.access_token)
     connector.status = ConnectorStatus.CONFIGURED
     connector.status_message = (
-        "Connecté via OAuth, rafraîchissement géré par Anthropic."
+        "Connected with OAuth. Anthropic refreshes the token automatically."
         if refresh
-        else "Connecté via OAuth sans refresh token : à reconnecter à l'expiration."
+        else "Connected with OAuth, without a refresh token: reconnect when it expires."
     )
     db.commit()
-    flash(request, f"{prov.label} connecté via OAuth.", "success")
-    _sync(request, db, user)
-    return _back()
+    flash(request, f"{prov.label} connected with OAuth.", "success", section=sec)
+    _sync(request, db, user, section=sec)
+    return _back(sec)

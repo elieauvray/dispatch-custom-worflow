@@ -6,9 +6,9 @@ from collections.abc import Iterable
 from typing import Any
 
 SKILLS_INTRO = (
-    "Les instructions ci-dessous sont définies par l'administrateur de l'application. "
-    "Applique-les pendant toute l'exécution du workflow qui suit, à chaque étape et "
-    "jusqu'au résultat final."
+    "The instructions below are set by the administrator of this application. "
+    "Apply them throughout the execution of the workflow that follows, at every step "
+    "and up to the final result."
 )
 
 

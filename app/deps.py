@@ -50,7 +50,7 @@ def require_configured(request: Request, user: User = Depends(require_user)) -> 
 
 def require_admin(user: User = Depends(require_user)) -> User:
     if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Réservé à l'administrateur.")
+        raise HTTPException(status_code=403, detail="Admins only.")
     return user
 
 
@@ -71,4 +71,4 @@ async def csrf_protect(request: Request) -> None:
         value = form.get("csrf_token")
         token = value if isinstance(value, str) else None
     if not csrf_matches(request.session, token):
-        raise HTTPException(status_code=403, detail="Jeton CSRF invalide. Rechargez la page.")
+        raise HTTPException(status_code=403, detail="Invalid CSRF token. Reload the page and try again.")

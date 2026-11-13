@@ -55,12 +55,12 @@ def prompt_submit(
 ) -> Response:
     prompt = prompt.strip()
     if not prompt:
-        flash(request, "Le prompt est vide.", "error")
+        flash(request, "The prompt is empty.", "error")
         return RedirectResponse("/prompt", status_code=303)
     try:
         run = service.create_prompt_run(db, user, prompt)
     except ManagedAgentsError as exc:
-        flash(request, f"Impossible de lancer la session : {exc}", "error")
+        flash(request, f"Could not start the session. {exc}", "error")
         return RedirectResponse("/prompt", status_code=303)
     return RedirectResponse(f"/runs/{run.id}", status_code=303)
 
@@ -102,9 +102,9 @@ def workflows_list(
 
 def _validate(name: str, content: str) -> str | None:
     if not name or len(name) > 128:
-        return "Le nom doit contenir entre 1 et 128 caractères."
+        return "The name must be between 1 and 128 characters."
     if not content:
-        return "Le contenu est obligatoire."
+        return "Content is required."
     return None
 
 
@@ -127,11 +127,11 @@ def workflow_create(
         db.add(Workflow(user_id=user.id, name=name, content=content))
         try:
             db.commit()
-            flash(request, f"Workflow « {name} » créé.", "success")
+            flash(request, f"Workflow {name} created.", "success")
             return RedirectResponse("/workflows", status_code=303)
         except IntegrityError:
             db.rollback()
-            error = f"Vous avez déjà un workflow nommé « {name} »."
+            error = f"You already have a workflow named {name}."
     return render(
         request, "workflow_form.html",
         {"workflow": None, "name": name, "content": content, "error": error}, status_code=400,
@@ -162,11 +162,11 @@ def workflow_update(
         wf.name, wf.content = name, content
         try:
             db.commit()
-            flash(request, "Workflow mis à jour.", "success")
+            flash(request, "Workflow updated.", "success")
             return RedirectResponse("/workflows", status_code=303)
         except IntegrityError:
             db.rollback()
-            error = f"Vous avez déjà un workflow nommé « {name} »."
+            error = f"You already have a workflow named {name}."
     return render(
         request, "workflow_form.html",
         {"workflow": wf, "name": name, "content": content, "error": error}, status_code=400,
@@ -180,7 +180,7 @@ def workflow_delete(
     wf = get_owned_workflow(db, workflow_id, user)
     db.delete(wf)
     db.commit()
-    flash(request, "Workflow supprimé.", "success")
+    flash(request, "Workflow deleted.", "success")
     return RedirectResponse("/workflows", status_code=303)
 
 
@@ -192,7 +192,7 @@ def workflow_run(
     try:
         run = service.create_workflow_run(db, user, wf)
     except ManagedAgentsError as exc:
-        flash(request, f"Impossible de lancer le workflow : {exc}", "error")
+        flash(request, f"Could not start the workflow. {exc}", "error")
         return RedirectResponse("/workflows", status_code=303)
     return RedirectResponse(f"/runs/{run.id}", status_code=303)
 

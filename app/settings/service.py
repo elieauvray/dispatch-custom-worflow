@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 def client_for(settings: UserSettings) -> ManagedAgentsAPI:
     if not settings.anthropic_api_key_encrypted:
-        raise ManagedAgentsError("Aucune clé API Anthropic configurée.")
+        raise ManagedAgentsError("No Anthropic API key configured.")
     return get_client(decrypt(settings.anthropic_api_key_encrypted))
 
 
@@ -61,7 +61,7 @@ def sync_user_resources(db: Session, user: User, settings: UserSettings, force: 
             for c in connectors:
                 c.credential_id = None
                 c.status = ConnectorStatus.ERROR
-                c.status_message = "Le vault a été recréé : saisissez à nouveau ce connecteur."
+                c.status_message = "The vault was recreated: set up this connector again."
             db.flush()
             result = client.sync_resources(result.state, settings.model, [], user.login, False)
     except ManagedAgentsError as exc:
@@ -77,7 +77,7 @@ def sync_user_resources(db: Session, user: User, settings: UserSettings, force: 
     settings.last_sync_at = utcnow()
     settings.last_sync_error = None
     db.commit()
-    changes = [f"{x} créé" for x in result.created] + [f"{x} mis à jour" for x in result.updated]
+    changes = [f"{x} created" for x in result.created] + [f"{x} updated" for x in result.updated]
     return changes
 
 

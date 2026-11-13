@@ -33,7 +33,7 @@ def _fernet() -> Fernet:
     key = get_settings().encryption_key
     if not key:
         raise RuntimeError(
-            "ENCRYPTION_KEY n'est pas défini. Générez-la avec "
+            "ENCRYPTION_KEY is not set. Generate one with "
             "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`."
         )
     return Fernet(key.encode())
@@ -47,7 +47,7 @@ def decrypt(value: str) -> str:
     try:
         return _fernet().decrypt(value.encode()).decode()
     except InvalidToken as exc:  # clé changée ou donnée corrompue
-        raise RuntimeError("Impossible de déchiffrer la valeur stockée (ENCRYPTION_KEY ?)") from exc
+        raise RuntimeError("Could not decrypt a stored value (was ENCRYPTION_KEY changed?)") from exc
 
 
 def last4(value: str) -> str:

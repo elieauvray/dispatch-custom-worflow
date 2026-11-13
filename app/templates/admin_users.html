@@ -1,32 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Utilisateurs{% endblock %}
+{% block title %}Users{% endblock %}
 {% block content %}
-<h1>Utilisateurs</h1>
+<h1>Users</h1>
 <div class="overflow-auto">
 <table>
-  <thead><tr><th>Login</th><th>Rôle</th><th>Créé le</th><th>Dernière connexion</th><th>Configuration</th><th>Actions</th></tr></thead>
+  <thead><tr><th>Login</th><th>Role</th><th>Created</th><th>Last sign-in</th><th>Setup</th><th>Actions</th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr>
-    <td><strong>{{ u.login }}</strong>{% if u.id == current_user.id %} <span class="muted small">(vous)</span>{% endif %}</td>
-    <td>{{ 'Admin' if u.is_admin else 'Utilisateur' }}</td>
+    <td><strong>{{ u.login }}</strong>{% if u.id == current_user.id %} <span class="muted small">(you)</span>{% endif %}</td>
+    <td>{{ 'Admin' if u.is_admin else 'User' }}</td>
     <td class="small">{{ u.created_at | dt }}</td>
     <td class="small">{{ u.last_login_at | dt }}</td>
-    <td>{% if u.settings and u.settings.is_configured %}<span class="badge configured">Clé API présente</span>{% else %}<span class="badge not_configured">Clé API absente</span>{% endif %}</td>
+    <td>{% if u.settings and u.settings.is_configured %}<span class="badge configured">API key set</span>{% else %}<span class="badge not_configured">No API key</span>{% endif %}</td>
     <td>
       <div class="row-actions">
         <details style="margin:0">
-          <summary class="small">Mot de passe</summary>
+          <summary class="small">Password</summary>
           <form method="post" action="/admin/users/{{ u.id }}/password" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="password" name="password" minlength="10" required placeholder="Nouveau mot de passe" autocomplete="new-password">
-            <button type="submit" class="secondary">Réinitialiser</button>
+            <input type="password" name="password" minlength="10" required placeholder="New password" autocomplete="new-password">
+            <button type="submit" class="secondary">Reset</button>
           </form>
         </details>
         {% if u.id != current_user.id %}
-        <form method="post" action="/admin/users/{{ u.id }}/delete" onsubmit='return confirm({{ ("Supprimer « " ~ u.login ~ " » ? Son vault Anthropic sera archivé et ses workflows, exécutions et settings supprimés.") | tojson }})'>
+        <form method="post" action="/admin/users/{{ u.id }}/delete" onsubmit='return confirm({{ ("Delete " ~ u.login ~ "? Their Anthropic vault will be archived and their workflows, runs and settings deleted.") | tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary outline">Supprimer</button>
+          <button type="submit" class="secondary outline">Delete</button>
         </form>
         {% endif %}
       </div>
@@ -38,13 +38,13 @@
 </div>
 
 <article style="max-width: 520px">
-  <header><h2 style="margin:0">Créer un utilisateur</h2></header>
+  <header><h2 style="margin:0">Create a user</h2></header>
   <form method="post" action="/admin/users">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Login <input name="login" required maxlength="64" autocomplete="off"></label>
-    <label>Mot de passe initial <input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
-    <small class="help">10 caractères minimum. Communiquez-le à l'utilisateur par un canal sûr.</small>
-    <button type="submit">Créer</button>
+    <label>Initial password <input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
+    <small class="help">At least 10 characters. Share it with the user through a secure channel.</small>
+    <button type="submit">Create</button>
   </form>
 </article>
 {% endblock %}

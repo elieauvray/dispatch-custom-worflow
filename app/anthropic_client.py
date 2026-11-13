@@ -19,15 +19,15 @@ import anthropic
 
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Tu es l'assistant « Dispatch » d'une équipe produit et technique.
-Tu as accès, via des serveurs MCP, aux outils de l'utilisateur (Linear, GitHub, Jira/Confluence selon sa configuration).
+SYSTEM_PROMPT = """You are Dispatch, an assistant for a product and engineering team.
+Through MCP servers you can use the user's tools (Linear, GitHub, Jira and Confluence, depending on their setup).
 
-Règles :
-- Réponds dans la langue de l'utilisateur (français par défaut).
-- Utilise les outils MCP disponibles pour lire ou modifier les données plutôt que d'inventer.
-- Quand une information te manque pour continuer, pose UNE question claire et termine ton message par cette question.
-- Quand tu as terminé, donne un résultat final structuré et concis (Markdown).
-- Si un outil est refusé par l'utilisateur, tiens compte du motif et propose une alternative.
+Rules:
+- Reply in the user's language (English by default).
+- Use the available MCP tools to read or change data instead of guessing.
+- When you need information from the user to continue, ask ONE clear question and end your message with it.
+- When you are done, give a concise, structured final result in Markdown.
+- If the user denies a tool call, take their reason into account and suggest an alternative.
 """
 
 # Nom des serveurs MCP dans l'agent (référencés par mcp_toolset.mcp_server_name).
@@ -105,27 +105,39 @@ def event_to_dict(event: Any) -> dict[str, Any]:
         return event
     if hasattr(event, "model_dump"):
         return event.model_dump(mode="json", exclude_none=True)  # type: ignore[no-any-return]
-    raise TypeError(f"Événement non sérialisable : {type(event)!r}")
+    raise TypeError(f"Event is not serializable: {type(event)!r}")
+
+
+def _api_detail(exc: Exception) -> str | None:
+    try:
+        return exc.body.get("error", {}).get("message")  # type: ignore[attr-defined,union-attr,no-any-return]
+    except AttributeError:
+        return None
 
 
 def _api_error_message(exc: Exception) -> str:
+    detail = _api_detail(exc)
+    suffix = f" Anthropic says: {detail}" if detail else ""
     if isinstance(exc, anthropic.AuthenticationError):
-        return "Clé API Anthropic refusée (401). Vérifiez la clé dans Settings."
+        return (
+            "The Anthropic API rejected this key (401 invalid key). Check that you copied the full key, "
+            "that it has not been revoked or expired, and that it is a standard API key (sk-ant-api03-xxxx), "
+            "not an Admin key." + suffix
+        )
     if isinstance(exc, anthropic.PermissionDeniedError):
-        return "Accès refusé par l'API Anthropic (403) : Managed Agents est-il activé sur ce workspace ?"
+        return (
+            "The Anthropic API denied access (403). Check that Managed Agents is enabled for this "
+            "key's workspace." + suffix
+        )
     if isinstance(exc, anthropic.NotFoundError):
-        return "Ressource introuvable côté Anthropic (404)."
+        return "Resource not found on Anthropic (404)." + suffix
     if isinstance(exc, anthropic.RateLimitError):
-        return "Limite de débit Anthropic atteinte (429). Réessayez dans un instant."
+        return "Anthropic rate limit reached (429). Try again in a moment." + suffix
     if isinstance(exc, anthropic.APIStatusError):
-        try:
-            detail = exc.body.get("error", {}).get("message")  # type: ignore[union-attr]
-        except AttributeError:
-            detail = None
-        return f"Erreur API Anthropic ({exc.status_code}) : {detail or exc.__class__.__name__}"
+        return f"Anthropic API error ({exc.status_code}): {detail or exc.__class__.__name__}"
     if isinstance(exc, anthropic.APIConnectionError):
-        return "Impossible de joindre l'API Anthropic (réseau)."
-    return f"Erreur inattendue : {exc.__class__.__name__}"
+        return "Could not reach the Anthropic API (network error)."
+    return f"Unexpected error: {exc.__class__.__name__}"
 
 
 class ManagedAgentsAPI(Protocol):
@@ -215,7 +227,7 @@ class ManagedAgentsClient:
                     metadata={"app": "dispatch", "user": login},
                 )
                 st.environment_id = env.id
-                result.created.append("environnement")
+                result.created.append("environment")
 
             # Vault (un par utilisateur)
             if not st.vault_id or not self._exists(
@@ -301,7 +313,7 @@ class ManagedAgentsClient:
         with self._wrap():
             cred = self._client.beta.vaults.credentials.retrieve(credential_id, vault_id=vault_id)
             if getattr(cred, "archived_at", None):
-                raise ManagedAgentsError("Le credential a été archivé dans le vault.")
+                raise ManagedAgentsError("This credential was archived in the vault.")
             if auth_type == "mcp_oauth":
                 res = self._client.beta.vaults.credentials.mcp_oauth_validate(
                     credential_id, vault_id=vault_id
@@ -309,9 +321,9 @@ class ManagedAgentsClient:
                 data = event_to_dict(res)
                 status = data.get("status") or data.get("result") or "ok"
                 if str(status).lower() not in {"ok", "valid", "success", "succeeded"}:
-                    raise ManagedAgentsError(f"Validation OAuth : {status}")
-                return "Jeton OAuth validé par Anthropic."
-        return "Credential présent dans le vault."
+                    raise ManagedAgentsError(f"OAuth validation failed: {status}")
+                return "OAuth token validated by Anthropic."
+        return "Credential found in the vault."
 
     # -- sessions ------------------------------------------------------------
     def create_session(

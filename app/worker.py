@@ -102,7 +102,7 @@ class RunDriver:
                         f"Dispatch · {title}",
                     )
                     db.commit()
-                    log.info("Run %s : session %s créée", run.id, run.session_id)
+                    log.info("Run %s: session %s created", run.id, run.session_id)
                 if self._drive(db, client, run):
                     return
                 attempts = 0
@@ -116,7 +116,7 @@ class RunDriver:
                     stalls = 0
             except ManagedAgentsError as exc:
                 attempts += 1
-                log.warning("Run %s : erreur API (%s/%s) : %s", self.run_id, attempts, MAX_ATTEMPTS, exc)
+                log.warning("Run %s: API error (%s/%s): %s", self.run_id, attempts, MAX_ATTEMPTS, exc)
                 if attempts >= MAX_ATTEMPTS:
                     db.rollback()
                     run = self._load(db)
@@ -126,12 +126,12 @@ class RunDriver:
                 time.sleep(min(2**attempts, 30))
             except Exception:  # erreur réseau du flux, etc. : on se reconnecte
                 attempts += 1
-                log.exception("Run %s : erreur inattendue (%s/%s)", self.run_id, attempts, MAX_ATTEMPTS)
+                log.exception("Run %s: unexpected error (%s/%s)", self.run_id, attempts, MAX_ATTEMPTS)
                 if attempts >= MAX_ATTEMPTS:
                     db.rollback()
                     run = self._load(db)
                     if run and run.status == RunStatus.RUNNING:
-                        self._fail(db, run, "Le suivi de la session a échoué à plusieurs reprises.")
+                        self._fail(db, run, "Tracking this session failed repeatedly.")
                     return
                 time.sleep(min(2**attempts, 30))
             finally:
@@ -149,14 +149,14 @@ class RunDriver:
         if run.status != RunStatus.RUNNING:
             return
         if last_idle is None:
-            self._fail(db, run, "La session est inactive sans avoir produit de résultat.")
+            self._fail(db, run, "The session went idle without producing a result.")
             return
         apply_event(run, last_idle.payload_json, last_agent_text(db, run))
         if run.status == RunStatus.RUNNING:  # ex. dernier état = message en file
-            self._fail(db, run, "La session ne répond plus.")
+            self._fail(db, run, "The session stopped responding.")
             return
         db.commit()
-        log.info("Run %s : état réappliqué depuis le dernier idle (%s)", run.id, run.status)
+        log.info("Run %s: state restored from the last idle event (%s)", run.id, run.status)
 
     def _drive(self, db: Session, client: ManagedAgentsAPI, run: WorkflowRun) -> bool:
         """Retourne True quand le worker peut relâcher l'exécution."""
@@ -266,7 +266,7 @@ class Worker:
                 )
                 self.threads[run_id] = t
                 t.start()
-                log.info("Run %s pris en charge par %s", run_id, self.worker_id)
+                log.info("Run %s picked up by %s", run_id, self.worker_id)
             if time.monotonic() - self._last_heartbeat >= HEARTBEAT_SECONDS:
                 self.heartbeat(db)
                 self._last_heartbeat = time.monotonic()
@@ -274,12 +274,12 @@ class Worker:
             db.close()
 
     def serve(self) -> None:
-        log.info("Worker %s démarré", self.worker_id)
+        log.info("Worker %s started", self.worker_id)
         while not self.stop.is_set():
             try:
                 self.tick()
             except Exception:
-                log.exception("Erreur dans la boucle du worker")
+                log.exception("Error in the worker loop")
             self.stop.wait(POLL_SECONDS)
         # Arrêt propre : libère les réservations pour une reprise immédiate.
         db = SessionLocal()
@@ -292,19 +292,20 @@ class Worker:
             db.commit()
         finally:
             db.close()
-        log.info("Worker %s arrêté", self.worker_id)
+        log.info("Worker %s stopped", self.worker_id)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)
     from app.config import missing_secrets
 
     missing = missing_secrets()
     if missing:
         # Ne pas planter en boucle : on attend un redéploiement avec les bonnes variables.
-        log.error("Configuration incomplète (%s) : worker en attente.", ", ".join(missing))
+        log.error("Incomplete configuration (%s): worker waiting.", ", ".join(missing))
         stop = threading.Event()
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
         while not stop.wait(60):

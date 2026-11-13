@@ -29,13 +29,13 @@ async def anthropic_webhook(request: Request, db: Session = Depends(get_db)) -> 
     try:
         event = verifier.beta.webhooks.unwrap(body, headers=dict(request.headers), key=secret)
     except Exception:  # signature invalide, horodatage trop ancien, payload illisible
-        raise HTTPException(status_code=400, detail="Signature invalide.") from None
+        raise HTTPException(status_code=400, detail="Invalid signature.") from None
     data = event.data
     if data.type == "vault_credential.refresh_failed":
         connector = db.scalar(select(Connector).where(Connector.credential_id == data.id))
         if connector:
             connector.status = ConnectorStatus.ERROR
-            connector.status_message = "Reconnexion nécessaire : le rafraîchissement OAuth a échoué."
+            connector.status_message = "Reconnect needed: the OAuth token refresh failed."
             db.commit()
-            log.info("Connecteur %s marqué en erreur (refresh_failed)", connector.id)
+            log.info("Connector %s flagged as error (refresh_failed)", connector.id)
     return Response(status_code=204)

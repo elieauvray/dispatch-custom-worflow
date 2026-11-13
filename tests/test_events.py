@@ -102,7 +102,7 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
         assert run.pending_event_ids == ["sevt_tool"]
 
     page = client.get(f"/runs/{run_id}").text
-    assert "Claude veut exécuter" in page and "create_issue" in page and "Bug de login" in page
+    assert "Claude wants to run" in page and "create_issue" in page and "Bug de login" in page
 
     token = csrf(client, f"/runs/{run_id}")
     r = client.post(f"/runs/{run_id}/confirm", headers={"HX-Request": "true"}, data={
@@ -124,7 +124,7 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     with SessionLocal() as db:
         assert db.get(WorkflowRun, run_id).status == RunStatus.WAITING_INPUT
     page = client.get(f"/runs/{run_id}").text
-    assert "Claude attend votre réponse" in page
+    assert "Claude is waiting for your reply" in page
 
     r = client.post(f"/runs/{run_id}/message", data={"text": "Équipe Web", "csrf_token": token},
                     follow_redirects=False)
@@ -150,7 +150,7 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     page = client.get("/workflows").text
     assert "Ticket bug" in page
     r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Ticket bug", "csrf_token": token})
-    assert "déjà un workflow" in r.text
+    assert "already have a workflow" in r.text
 
 
 def test_cancel_interrupts_session(client, fake):
@@ -176,7 +176,7 @@ def test_cancel_interrupts_session(client, fake):
         store_event(db, run, {"id": "sevt_late", "type": "session.status_running"})
         db.commit()
         assert db.get(WorkflowRun, run_id).status == RunStatus.CANCELLED
-    assert "Exécution annulée" in client.get(f"/runs/{run_id}").text
+    assert "Run canceled" in client.get(f"/runs/{run_id}").text
 
 
 def test_worker_resumes_stale_claims(client, fake):

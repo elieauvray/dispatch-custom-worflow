@@ -54,9 +54,9 @@ def create_user(
         db.commit()
     except IntegrityError:
         db.rollback()
-        flash(request, f"Le login « {login} » existe déjà.", "error")
+        flash(request, f"The login {login} already exists.", "error")
         return RedirectResponse("/admin/users", status_code=303)
-    flash(request, f"Utilisateur « {login} » créé.", "success")
+    flash(request, f"User {login} created.", "success")
     return RedirectResponse("/admin/users", status_code=303)
 
 
@@ -79,7 +79,7 @@ def reset_password(
         db.commit()
         if user.id == admin.id:
             request.session["pwd"] = user.password_hash[-16:]
-        flash(request, f"Mot de passe de « {user.login} » réinitialisé.", "success")
+        flash(request, f"Password reset for {user.login}.", "success")
     return RedirectResponse("/admin/users", status_code=303)
 
 
@@ -91,14 +91,14 @@ def delete_user(
     if user is None:
         raise HTTPException(404)
     if user.id == admin.id:
-        flash(request, "Vous ne pouvez pas supprimer votre propre compte.", "error")
+        flash(request, "You cannot delete your own account.", "error")
         return RedirectResponse("/admin/users", status_code=303)
     settings = user.settings
     if settings and settings.vault_id and settings.anthropic_api_key_encrypted:
         try:
             client_for(settings).archive_vault(settings.vault_id)
         except (ManagedAgentsError, RuntimeError) as exc:
-            flash(request, f"Vault non archivé ({exc}) : suppression annulée.", "error")
+            flash(request, f"The vault could not be archived ({exc}). The user was not deleted.", "error")
             return RedirectResponse("/admin/users", status_code=303)
     login = user.login
     run_ids = select(WorkflowRun.id).where(WorkflowRun.user_id == user.id)
@@ -108,7 +108,7 @@ def delete_user(
     db.execute(delete(OAuthState).where(OAuthState.user_id == user.id))
     db.delete(user)  # cascade ORM : settings, connecteurs
     db.commit()
-    flash(request, f"Utilisateur « {login} » supprimé (vault archivé).", "success")
+    flash(request, f"User {login} deleted and their vault archived.", "success")
     return RedirectResponse("/admin/users", status_code=303)
 
 
@@ -128,11 +128,11 @@ def skills_page(
 def _skill_form(name: str, content: str, position: str) -> tuple[str, str, int] | str:
     name, content = name.strip(), content.strip()
     if not name or len(name) > 128 or not content:
-        return "Nom (128 caractères max) et contenu obligatoires."
+        return "Name (128 characters max) and content are required."
     try:
         pos = int(position)
     except ValueError:
-        return "L'ordre doit être un nombre entier."
+        return "Order must be a whole number."
     return name, content, pos
 
 
@@ -152,7 +152,7 @@ def create_skill(
     else:
         db.add(Skill(name=parsed[0], content=parsed[1], position=parsed[2], active=active is not None))
         db.commit()
-        flash(request, "Skill créé.", "success")
+        flash(request, "Skill created.", "success")
     return RedirectResponse("/admin/skills", status_code=303)
 
 
@@ -177,7 +177,7 @@ def update_skill(
     skill.name, skill.content, skill.position = parsed
     skill.active = active is not None
     db.commit()
-    flash(request, "Skill mis à jour.", "success")
+    flash(request, "Skill updated.", "success")
     return RedirectResponse("/admin/skills", status_code=303)
 
 
@@ -189,5 +189,5 @@ def delete_skill(
     if skill:
         db.delete(skill)
         db.commit()
-        flash(request, "Skill supprimé.", "success")
+        flash(request, "Skill deleted.", "success")
     return RedirectResponse("/admin/skills", status_code=303)

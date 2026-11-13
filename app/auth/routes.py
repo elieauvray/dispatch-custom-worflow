@@ -25,11 +25,11 @@ def users_exist(db: Session) -> bool:
 
 def validate_new_credentials(login: str, password: str, confirm: str | None = None) -> str | None:
     if not login or len(login) > 64 or not login.replace("-", "").replace("_", "").replace(".", "").isalnum():
-        return "Login invalide (lettres, chiffres, . _ - ; 64 caractères max)."
+        return "Invalid login (letters, digits, dot, underscore or hyphen; 64 characters max)."
     if len(password) < MIN_PASSWORD_LENGTH:
-        return f"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères."
+        return f"The password must be at least {MIN_PASSWORD_LENGTH} characters long."
     if confirm is not None and password != confirm:
-        return "Les deux mots de passe ne correspondent pas."
+        return "The two passwords do not match."
     return None
 
 
@@ -110,7 +110,7 @@ def login_submit(
         return render(
             request,
             "login.html",
-            {"error": "Trop de tentatives. Réessayez dans 15 minutes.", "login": login},
+            {"error": "Too many attempts. Try again in 15 minutes.", "login": login},
             status_code=429,
         )
 
@@ -123,7 +123,7 @@ def login_submit(
         return render(
             request,
             "login.html",
-            {"error": "Login ou mot de passe incorrect.", "login": login},
+            {"error": "Incorrect login or password.", "login": login},
             status_code=401,
         )
     db.execute(delete(LoginAttempt).where(LoginAttempt.key == keys[0]))

@@ -18,24 +18,24 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 _md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
-_PARIS = ZoneInfo("Europe/Paris")
+_TZ = ZoneInfo("Europe/Paris")
 
 
 def markdown(text: str | None) -> Markup:
-    return Markup(_md.render(text or ""))  # html désactivé : contenu échappé
+    return Markup(_md.render(text or ""))  # raw HTML disabled: content is escaped
 
 
 def format_dt(value: datetime | None) -> str:
     if not value:
-        return "Jamais"
+        return "Never"
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
-    return value.astimezone(_PARIS).strftime("%d/%m/%Y %H:%M")
+    return value.astimezone(_TZ).strftime("%b %d, %Y %H:%M")
 
 
 def format_duration(seconds: int | None) -> str:
     if seconds is None:
-        return "Inconnue"
+        return "Unknown"
     if seconds < 60:
         return f"{seconds} s"
     minutes, sec = divmod(seconds, 60)
@@ -61,9 +61,10 @@ templates.env.filters["pretty_json"] = pretty_json
 templates.env.filters["excerpt"] = excerpt
 
 
-def flash(request: Request, message: str, category: str = "info") -> None:
+def flash(request: Request, message: str, category: str = "info", section: str | None = None) -> None:
+    """Queue a message. `section` displays it inside a given card of the next page (e.g. Settings)."""
     messages = list(request.session.get("flash", []))
-    messages.append({"message": message, "category": category})
+    messages.append({"message": message, "category": category, "section": section})
     request.session["flash"] = messages
 
 

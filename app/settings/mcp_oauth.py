@@ -82,7 +82,7 @@ def discover(mcp_url: str, client: httpx.Client | None = None) -> AuthServer:
             if meta and meta.get("token_endpoint"):
                 break
         if not meta or not meta.get("authorization_endpoint"):
-            raise OAuthError("Impossible de découvrir le serveur d'autorisation OAuth de ce serveur MCP.")
+            raise OAuthError("Could not discover the OAuth authorization server for this MCP server.")
         return AuthServer(
             issuer=str(meta.get("issuer", as_url)),
             authorization_endpoint=str(meta["authorization_endpoint"]),
@@ -99,7 +99,7 @@ def register_client(
     server: AuthServer, redirect_uri: str, client_name: str = "Dispatch (Claude Managed Agents)"
 ) -> tuple[str, str | None]:
     if not server.registration_endpoint:
-        raise OAuthError("Ce serveur ne propose pas l'enregistrement dynamique de client.")
+        raise OAuthError("This server does not support dynamic client registration.")
     body = {
         "client_name": client_name,
         "redirect_uris": [redirect_uri],
@@ -110,7 +110,7 @@ def register_client(
     with httpx.Client(timeout=TIMEOUT) as c:
         r = c.post(server.registration_endpoint, json=body)
     if r.status_code not in (200, 201):
-        raise OAuthError(f"Enregistrement dynamique refusé ({r.status_code}).")
+        raise OAuthError(f"Dynamic client registration was refused ({r.status_code}).")
     data = r.json()
     return str(data["client_id"]), data.get("client_secret")
 
@@ -185,10 +185,10 @@ def exchange_code(
     with httpx.Client(timeout=TIMEOUT) as c:
         r = c.post(token_endpoint, data=data, auth=auth, headers={"Accept": "application/json"})
     if r.status_code != 200:
-        raise OAuthError(f"Échange du code OAuth refusé ({r.status_code}).")
+        raise OAuthError(f"The OAuth code exchange was refused ({r.status_code}).")
     payload = r.json()
     if "access_token" not in payload:
-        raise OAuthError("Réponse OAuth sans access_token.")
+        raise OAuthError("The OAuth response has no access_token.")
     expires_at = None
     if payload.get("expires_in"):
         expires_at = datetime.now(UTC) + timedelta(seconds=int(payload["expires_in"]))
@@ -222,11 +222,11 @@ def probe_mcp(url: str, token: str | None) -> tuple[bool, str]:
         with httpx.Client(timeout=TIMEOUT, follow_redirects=True) as c:
             r = c.post(url, json=body, headers=headers)
     except httpx.HTTPError as exc:
-        return False, f"Serveur injoignable ({exc.__class__.__name__})."
+        return False, f"Server unreachable ({exc.__class__.__name__})."
     if r.status_code == 200:
-        return True, "Handshake MCP réussi."
+        return True, "MCP handshake succeeded."
     if r.status_code in (401, 403):
         if token:
-            return False, f"Jeton refusé par le serveur MCP ({r.status_code})."
-        return True, "Serveur MCP joignable (authentification requise, comme attendu)."
-    return False, f"Réponse inattendue du serveur MCP ({r.status_code})."
+            return False, f"The MCP server rejected the token ({r.status_code})."
+        return True, "MCP server reachable (authentication required, as expected)."
+    return False, f"Unexpected response from the MCP server ({r.status_code})."

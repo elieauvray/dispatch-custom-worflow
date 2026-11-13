@@ -212,9 +212,9 @@ def run_message(
     run = get_owned_run(db, run_id, user)
     error = None
     if not text.strip():
-        error = "Le message est vide."
+        error = "The message is empty."
     elif run.status in {RunStatus.CANCELLED, RunStatus.FAILED}:
-        error = "Cette exécution est terminée : relancez-en une nouvelle."
+        error = "This run has ended. Start a new one."
     else:
         try:
             service.send_message(db, user, run, text.strip())
@@ -267,7 +267,7 @@ def run_save_workflow(
     run = get_owned_run(db, run_id, user)
     name = name.strip()
     if run.workflow_id is not None or not name or len(name) > 128:
-        flash(request, "Nom invalide (1 à 128 caractères).", "error")
+        flash(request, "Invalid name (1 to 128 characters).", "error")
         return RedirectResponse(f"/runs/{run.id}", status_code=303)
     wf = Workflow(
         user_id=user.id,
@@ -280,7 +280,7 @@ def run_save_workflow(
         db.commit()
     except IntegrityError:
         db.rollback()
-        flash(request, f"Vous avez déjà un workflow nommé « {name} ».", "error")
+        flash(request, f"You already have a workflow named {name}.", "error")
         return RedirectResponse(f"/runs/{run.id}", status_code=303)
-    flash(request, f"Workflow « {name} » enregistré.", "success")
+    flash(request, f"Workflow {name} saved.", "success")
     return RedirectResponse("/workflows", status_code=303)

@@ -64,10 +64,10 @@ def test_admin_pages_and_user_management(client, fake):
     token = csrf(client, "/admin/users")
 
     r = client.post(f"/admin/users/{admin_id}/delete", data={"csrf_token": token})
-    assert "propre compte" in r.text
+    assert "your own account" in r.text
 
     r = client.post("/admin/users", data={"login": "carol", "password": "court", "csrf_token": token})
-    assert "10 caractères" in r.text
+    assert "at least 10 characters" in r.text
     r = client.post("/admin/users", data={"login": "carol", "password": "mot-de-passe-ok", "csrf_token": token})
     assert "carol" in r.text
 

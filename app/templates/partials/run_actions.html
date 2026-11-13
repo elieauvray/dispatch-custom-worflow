@@ -2,61 +2,61 @@
 {% if run.error and run.status in ['failed', 'running', 'waiting_input', 'completed'] %}
 <div class="flash error">
   {{ run.error }}
-  {% if 'mcp' in run.error or 'authentication' in run.error or 'Clé API' in run.error %}. <a href="/settings">Ouvrir Settings</a>{% endif %}
+  {% if 'mcp' in run.error or 'authentication' in run.error or 'API key' in run.error %} <a href="/settings">Open Settings</a>{% endif %}
 </div>
 {% endif %}
 
 {% if run.status == 'waiting_approval' %}
   {% for tool in pending_tools %}
   <article class="confirm-card">
-    <header><strong>Claude veut exécuter <code>{{ tool.name }}</code></strong>
-      {% if tool.mcp_server_name %} sur <strong>{{ tool.mcp_server_name }}</strong>{% endif %} avec ces paramètres :</header>
+    <header><strong>Claude wants to run <code>{{ tool.name }}</code></strong>
+      {% if tool.mcp_server_name %} on <strong>{{ tool.mcp_server_name }}</strong>{% endif %} with these parameters:</header>
     <pre>{{ (tool.input or {}) | pretty_json }}</pre>
     <form hx-post="/runs/{{ run.id }}/confirm" hx-target="#run-actions" hx-swap="innerHTML" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="event_id" value="{{ tool.id }}">
-      <input type="text" name="deny_message" placeholder="Motif du refus (optionnel)">
-      <button type="submit" name="decision" value="allow">Autoriser</button>
-      <button type="submit" name="decision" value="deny" class="secondary">Refuser</button>
+      <input type="text" name="deny_message" placeholder="Reason for denying (optional)">
+      <button type="submit" name="decision" value="allow">Allow</button>
+      <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
     </form>
   </article>
   {% else %}
-  <p class="muted">Validation en attente. <a href="/runs/{{ run.id }}">recharger</a></p>
+  <p class="muted">Approval pending. <a href="/runs/{{ run.id }}">Reload</a></p>
   {% endfor %}
 {% elif run.status == 'running' %}
   <article class="row-actions" style="justify-content: space-between">
-    <span aria-busy="true">Claude travaille. Vous pouvez fermer cette page, l'exécution continue.</span>
-    <form hx-post="/runs/{{ run.id }}/cancel" hx-target="#run-actions" hx-swap="innerHTML" hx-confirm="Annuler cette exécution ?">
+    <span aria-busy="true">Claude is working. You can close this page, the run keeps going.</span>
+    <form hx-post="/runs/{{ run.id }}/cancel" hx-target="#run-actions" hx-swap="innerHTML" hx-confirm="Cancel this run?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary outline">Annuler</button>
+      <button type="submit" class="secondary outline">Cancel</button>
     </form>
   </article>
 {% elif run.status in ['waiting_input', 'completed'] %}
   <article>
-    {% if run.status == 'waiting_input' %}<p><span class="highlight">Claude attend votre réponse.</span></p>{% endif %}
+    {% if run.status == 'waiting_input' %}<p><span class="highlight">Claude is waiting for your reply.</span></p>{% endif %}
     <form hx-post="/runs/{{ run.id }}/message" hx-target="#run-actions" hx-swap="innerHTML">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>{{ 'Votre réponse' if run.status == 'waiting_input' else 'Continuer la conversation' }}
+      <label>{{ 'Your reply' if run.status == 'waiting_input' else 'Continue the conversation' }}
         <textarea name="text" rows="3" required></textarea>
       </label>
       <div class="row-actions">
-        <button type="submit">Envoyer</button>
+        <button type="submit">Send</button>
       </div>
     </form>
     {% if can_save %}
     <details>
-      <summary>Valider et enregistrer comme workflow</summary>
+      <summary>Approve and save as a workflow</summary>
       <form method="post" action="/runs/{{ run.id }}/save-workflow" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="text" name="name" required maxlength="128" placeholder="Nom du workflow (unique)">
-        <button type="submit">Enregistrer</button>
+        <input type="text" name="name" required maxlength="128" placeholder="Workflow name (unique)">
+        <button type="submit">Save</button>
       </form>
-      <small class="help" style="margin-top:.4rem">Le prompt initial devient le contenu du workflow (modifiable ensuite). Le dernier résultat est gardé comme référence.</small>
+      <small class="help" style="margin-top:.4rem">The initial prompt becomes the workflow content (you can edit it later). The latest result is kept as a reference.</small>
     </details>
     {% endif %}
   </article>
 {% elif run.status == 'cancelled' %}
-  <p class="muted">Exécution annulée.</p>
+  <p class="muted">Run canceled.</p>
 {% elif run.status == 'failed' %}
-  <p class="muted">Exécution échouée.</p>
+  <p class="muted">Run failed.</p>
 {% endif %}

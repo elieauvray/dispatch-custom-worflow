@@ -3,29 +3,29 @@
 {% block content %}
 <h1>Skills</h1>
 <div class="banner">
-  Les skills <strong>actifs</strong> sont envoyés avant le contenu de chaque workflow lancé par n'importe quel utilisateur,
-  dans l'ordre ci-dessous, entourés d'une balise <code>&lt;instructions&gt;</code>. Claude les applique pendant toute l'exécution.
-  Le texte exact est figé dans chaque exécution au lancement. Ce sont de simples prompts stockés en base, pas des Agent Skills Anthropic.
-  Ils ne s'appliquent pas aux prompts libres.
+  <strong>Active</strong> skills are sent before the content of every workflow run by any user,
+  in the order below, wrapped in an <code>&lt;instructions&gt;</code> tag. Claude applies them throughout the run.
+  Their exact text is frozen in each run at launch. They are plain prompts stored in the database, not Anthropic Agent Skills,
+  and they do not apply to free prompts.
 </div>
 
 {% if skills %}
 <table>
-  <thead><tr><th>Ordre</th><th>Nom</th><th>Contenu</th><th>Actif</th><th>Modifié le</th><th>Actions</th></tr></thead>
+  <thead><tr><th>Order</th><th>Name</th><th>Content</th><th>Active</th><th>Updated</th><th>Actions</th></tr></thead>
   <tbody>
   {% for s in skills %}
   <tr>
     <td>{{ s.position }}</td>
     <td><strong>{{ s.name }}</strong></td>
     <td><div class="skill-content">{{ s.content }}</div></td>
-    <td>{% if s.active %}<span class="badge configured">actif</span>{% else %}<span class="badge not_configured">inactif</span>{% endif %}</td>
+    <td>{% if s.active %}<span class="badge configured">active</span>{% else %}<span class="badge not_configured">inactive</span>{% endif %}</td>
     <td class="small">{{ s.updated_at | dt }}</td>
     <td>
       <div class="row-actions">
-        <a href="/admin/skills?edit={{ s.id }}#form" role="button" class="secondary">Modifier</a>
-        <form method="post" action="/admin/skills/{{ s.id }}/delete" onsubmit='return confirm({{ ("Supprimer le skill « " ~ s.name ~ " » ?") | tojson }})'>
+        <a href="/admin/skills?edit={{ s.id }}#form" role="button" class="secondary">Edit</a>
+        <form method="post" action="/admin/skills/{{ s.id }}/delete" onsubmit='return confirm({{ ("Delete the skill " ~ s.name ~ "?") | tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary outline">Supprimer</button>
+          <button type="submit" class="secondary outline">Delete</button>
         </form>
       </div>
     </td>
@@ -34,22 +34,22 @@
   </tbody>
 </table>
 {% else %}
-<p class="muted">Aucun skill.</p>
+<p class="muted">No skills yet.</p>
 {% endif %}
 
 <article id="form">
-  <header><h2 style="margin:0">{{ 'Modifier « ' ~ editing.name ~ ' »' if editing else 'Nouveau skill' }}</h2></header>
+  <header><h2 style="margin:0">{{ 'Edit ' ~ editing.name if editing else 'New skill' }}</h2></header>
   <form method="post" action="{{ '/admin/skills/%d' % editing.id if editing else '/admin/skills' }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="grid">
-      <label>Nom <input name="name" required maxlength="128" value="{{ editing.name if editing else '' }}"></label>
-      <label>Ordre <input type="number" name="position" value="{{ editing.position if editing else (skills | length) }}"></label>
+      <label>Name <input name="name" required maxlength="128" value="{{ editing.name if editing else '' }}"></label>
+      <label>Order <input type="number" name="position" value="{{ editing.position if editing else (skills | length) }}"></label>
     </div>
     <label>Instructions <textarea name="content" class="big" required>{{ editing.content if editing else '' }}</textarea></label>
-    <label><input type="checkbox" name="active" {% if not editing or editing.active %}checked{% endif %}> Actif</label>
+    <label><input type="checkbox" name="active" {% if not editing or editing.active %}checked{% endif %}> Active</label>
     <div class="row-actions">
-      <button type="submit">{{ 'Mettre à jour' if editing else 'Créer' }}</button>
-      {% if editing %}<a href="/admin/skills" role="button" class="secondary">Annuler</a>{% endif %}
+      <button type="submit">{{ 'Update' if editing else 'Create' }}</button>
+      {% if editing %}<a href="/admin/skills" role="button" class="secondary">Cancel</a>{% endif %}
     </div>
   </form>
 </article>

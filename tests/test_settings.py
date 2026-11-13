@@ -46,7 +46,7 @@ def test_bad_api_key_is_rejected(client, fake):
     login(client, "bob")
     token = csrf(client, "/settings")
     r = client.post("/settings/anthropic", data={"api_key": "sk-bad", "model": "claude-opus-5-5", "csrf_token": token})
-    assert "Clé API non enregistrée" in r.text
+    assert "API key not saved" in r.text
     assert _settings(uid).anthropic_api_key_encrypted is None
 
 
@@ -92,6 +92,24 @@ def test_connector_with_rejected_token_is_not_saved(client, fake, monkeypatch):
         "/settings/connectors/github",
         data={"mcp_server_url": "https://api.githubcopilot.com/mcp/", "token": "ghp_x", "csrf_token": token},
     )
-    assert "pas été enregistré" in r.text
+    assert "was not saved" in r.text
     with SessionLocal() as db:
         assert db.scalar(select(Connector).where(Connector.user_id == uid)) is None
+
+
+def test_rejected_key_message_is_shown_inside_the_anthropic_card(client, fake):
+    make_user("admin", admin=True)
+    make_user("bob", configured=False)
+    fake.bad_key = True
+    login(client, "bob")
+    token = csrf(client, "/settings")
+    r = client.post(
+        "/settings/anthropic",
+        data={"api_key": "sk-bad", "model": "claude-opus-5-5", "csrf_token": token},
+        follow_redirects=False,
+    )
+    # The browser lands on the Anthropic card, not wherever it was scrolled before.
+    assert r.status_code == 303 and r.headers["location"] == "/settings#anthropic"
+    page = client.get("/settings").text
+    card = page[page.index('id="anthropic"'):page.index('id="resources"')]
+    assert "API key not saved" in card and 'role="alert"' in card

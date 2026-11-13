@@ -4,34 +4,34 @@
 <nav aria-label="breadcrumb">
   <ul>
     {% if run.workflow_id %}
-    <li><a href="/workflows">Custom Workflows</a></li>
+    <li><a href="/workflows">Custom workflows</a></li>
     <li><a href="/workflows/{{ run.workflow_id }}/history">{{ run.workflow_name_snapshot }}</a></li>
     {% else %}
     <li><a href="/prompt">Prompt</a></li>
     {% endif %}
-    <li>Exécution #{{ run.id }}</li>
+    <li>Run #{{ run.id }}</li>
   </ul>
 </nav>
 
 <div hx-ext="sse" sse-connect="/runs/{{ run.id }}/stream?after={{ last_event_id }}">
   <header class="connector-head" style="margin-bottom:1rem">
-    <h1 style="margin:0">{{ run.workflow_name_snapshot or 'Prompt libre' }}</h1>
+    <h1 style="margin:0">{{ run.workflow_name_snapshot or 'Free prompt' }}</h1>
     <div id="run-status" sse-swap="status" hx-swap="innerHTML">{% include "partials/run_status.html" %}</div>
   </header>
   <p class="small muted">
-    Lancé le {{ run.started_at | dt }} par <strong>{{ run.user.login }}</strong>
+    Started {{ run.started_at | dt }} by <strong>{{ run.user.login }}</strong>
     {% if run.session_id %}· Session <code>{{ run.session_id }}</code>{% endif %}
   </p>
 
   {% if run.workflow_id %}
   <details>
-    <summary>Skills envoyés ({{ run.skills_snapshot | length }})</summary>
+    <summary>Skills sent ({{ run.skills_snapshot | length }})</summary>
     {% for s in run.skills_snapshot %}
     <article><strong>{{ s.name }}</strong><pre class="skill-content">{{ s.content }}</pre></article>
-    {% else %}<p class="muted">Aucun skill actif lors du lancement.</p>{% endfor %}
+    {% else %}<p class="muted">No active skills at launch time.</p>{% endfor %}
   </details>
   <details>
-    <summary>Contenu du workflow (figé au lancement)</summary>
+    <summary>Workflow content (frozen at launch)</summary>
     <div class="ev user md">{{ run.content_snapshot | md }}</div>
   </details>
   {% endif %}
@@ -45,7 +45,7 @@
   </div>
 </div>
 <script>
-  // Garde la vue en bas quand de nouveaux événements arrivent (si l'utilisateur est déjà en bas).
+  // Keep the view pinned to the bottom when new events arrive (if the user is already at the bottom).
   document.body.addEventListener("htmx:sseBeforeMessage", function () {
     window.__stick = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 120;
   });
