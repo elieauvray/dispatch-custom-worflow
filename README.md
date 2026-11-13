@@ -131,11 +131,11 @@ Upsun construit et déploie l'application à partir de **`.upsun/config.yaml`**.
 | Élément | Configuration |
 |---|---|
 | Application | `python:3.14`, dépendances installées par `pip install -r requirements.txt` (hook `build`) |
-| Web | `uvicorn app.asgi:application --port $PORT` ; `/static` servi directement |
+| Web | `python -m uvicorn app.asgi:application --port $PORT` ; `/static` servi directement |
 | Worker `runs` | `python -m app.worker` (même code, autre commande ; hérite de la relation BDD) |
 | Migrations | `python -m alembic upgrade head` dans le hook `deploy` (exécuté sur le conteneur web uniquement) |
 | PostgreSQL | service `database` de type `postgresql:18`, déclaré sous `services:`, relié à l'app par `relationships: database:` |
-| `DATABASE_URL` | construit dans `.environment` à partir des variables `DATABASE_*` |
+| Connexion BDD | construite par l'app depuis `PLATFORM_RELATIONSHIPS` (relation `database`), mot de passe encodé |
 | Route | `https://{default}/` vers `app`, avec redirection de `www` |
 
 ### Étapes
@@ -173,6 +173,24 @@ git push upsun main
 | `ENCRYPTION_KEY` | oui | Clé Fernet de chiffrement au repos (clé API Anthropic, secrets OAuth). **Ne la changez pas** : les données chiffrées deviendraient illisibles |
 | `ANTHROPIC_WEBHOOK_SECRET` | non | Secret `whsec_xxxx` du webhook. Sans lui, `/webhooks/anthropic` répond 404 |
 | `PUBLIC_BASE_URL` | non | Déduite de la route principale Upsun. Sert à construire les URL de callback OAuth |
+
+### Dépannage : 502 Bad Gateway
+
+Un 502 signifie que le processus web ne répond pas. Consultez les logs :
+
+```bash
+upsun logs app --lines 100
+```
+
+```bash
+upsun logs deploy --lines 100
+```
+
+- **Variables manquantes** : si `APP_SECRET_KEY` ou `ENCRYPTION_KEY` manque ou est invalide, l'app ne plante pas.
+  Elle répond **503** avec une page qui indique les commandes à lancer. Créez les variables, puis lancez
+  `upsun redeploy`. Les variables créées après un push ne sont prises en compte qu'au déploiement suivant.
+- **Migrations** : le hook `deploy` lance `python -m alembic upgrade head`. Une erreur à cette étape apparaît dans
+  `upsun logs deploy`.
 
 ### Webhook Anthropic (optionnel)
 

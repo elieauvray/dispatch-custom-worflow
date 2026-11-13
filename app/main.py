@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.routes import router as admin_router
 from app.auth.routes import router as auth_router
-from app.config import get_settings
+from app.config import get_settings, missing_secrets
 from app.db import SessionLocal
 from app.deps import RedirectError
 from app.models import User
@@ -29,10 +29,49 @@ logging.getLogger("anthropic").setLevel(logging.WARNING)
 SETUP_EXEMPT = ("/setup", "/static/", "/healthz", "/webhooks/")
 
 
+MISCONFIGURED_HTML = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Configuration incomplète · Dispatch</title>
+<style>body{{font-family:Arial,sans-serif;background:#ECEDEE;color:#0C0F10;max-width:720px;margin:4rem auto;padding:0 1rem}}
+code,pre{{background:#fff;border:1px solid #D8DBDC;border-radius:6px;padding:.1rem .3rem}}pre{{padding:.8rem;overflow:auto}}
+h1{{font-size:1.6rem}}</style></head><body>
+<h1>Configuration incomplète</h1>
+<p>L'application ne peut pas démarrer : variable(s) d'environnement manquante(s) ou invalide(s) :
+<strong>{names}</strong>.</p>
+<p>Sur Upsun, créez-les au niveau du projet (une commande par variable), puis redéployez :</p>
+<pre>upsun variable:create --level project --name env:APP_SECRET_KEY --sensitive true --visible-build false \\
+  --value "$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+
+upsun variable:create --level project --name env:ENCRYPTION_KEY --sensitive true --visible-build false \\
+  --value "$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+
+upsun redeploy</pre>
+</body></html>"""
+
+
+def create_misconfigured_app(missing: list[str]) -> FastAPI:
+    """App minimale servie quand les secrets manquent : évite un 502 muet."""
+    logging.getLogger("dispatch").error(
+        "Configuration incomplète, variables manquantes ou invalides : %s", ", ".join(missing)
+    )
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    html = MISCONFIGURED_HTML.format(names=", ".join(missing))
+
+    @app.get("/healthz")
+    def healthz() -> PlainTextResponse:
+        return PlainTextResponse("configuration incomplète", status_code=503)
+
+    @app.api_route("/{path:path}", methods=["GET", "POST", "HEAD"])
+    def everything(path: str) -> HTMLResponse:
+        return HTMLResponse(html, status_code=503)
+
+    return app
+
+
 def create_app() -> FastAPI:
+    missing = missing_secrets()
+    if missing:
+        return create_misconfigured_app(missing)
     cfg = get_settings()
-    if not cfg.secret_key or len(cfg.secret_key) < 32:
-        raise RuntimeError("APP_SECRET_KEY doit être défini (32 caractères minimum).")
 
     app = FastAPI(title="Dispatch", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.has_users = False

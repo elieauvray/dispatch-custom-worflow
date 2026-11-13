@@ -299,6 +299,17 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)
+    from app.config import missing_secrets
+
+    missing = missing_secrets()
+    if missing:
+        # Ne pas planter en boucle : on attend un redéploiement avec les bonnes variables.
+        log.error("Configuration incomplète (%s) : worker en attente.", ", ".join(missing))
+        stop = threading.Event()
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
+        while not stop.wait(60):
+            pass
+        return
     worker = Worker()
     signal.signal(signal.SIGTERM, lambda *_: worker.stop.set())
     signal.signal(signal.SIGINT, lambda *_: worker.stop.set())

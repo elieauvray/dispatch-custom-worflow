@@ -10,7 +10,7 @@ applications:
 
     # Relation vers le service PostgreSQL « database » déclaré plus bas (forme courte :
     # même nom que le service, endpoint par défaut). Upsun expose DATABASE_HOST, DATABASE_PORT,
-    # DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH ; DATABASE_URL est construit dans .environment.
+    # DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH ; l'app construit l'URL elle-même (app/config.py).
     relationships:
       database:
 
@@ -32,7 +32,7 @@ applications:
 
     web:
       commands:
-        start: "uvicorn app.asgi:application --host 0.0.0.0 --port $PORT --workers 2 --proxy-headers --forwarded-allow-ips '*'"
+        start: "python -m uvicorn app.asgi:application --host 0.0.0.0 --port $PORT --workers 2 --proxy-headers --forwarded-allow-ips '*'"
       locations:
         "/":
           passthru: true
