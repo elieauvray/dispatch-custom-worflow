@@ -71,12 +71,21 @@ Le texte exact des skills actifs est figé dans `workflow_runs.skills_snapshot` 
 
 ## Installation locale
 
-Prérequis : Python 3.12 ou plus (3.14 recommandé, comme sur Upsun), et PostgreSQL 18. Le plus simple est le
-`docker-compose.yml` fourni, qui ne lance **que** PostgreSQL. Aucune image de l'application n'est construite.
+Prérequis : Python 3.12 ou plus (3.14 recommandé, comme sur Upsun) et une base PostgreSQL. Pas de Docker.
+Deux options pour la base :
 
-```bash
-docker compose up -d db
-```
+- **Option A, recommandée** : utiliser le service PostgreSQL déclaré dans `.upsun/config.yaml`, via un tunnel
+  SSH ouvert par le CLI Upsun. Le projet doit déjà avoir été déployé une fois. Utilisez de préférence un
+  environnement de développement (une branche Upsun), pas la production.
+
+  ```bash
+  upsun tunnel:single --relationship database
+  ```
+
+  La commande affiche une URL `pgsql://…@127.0.0.1:<port>/main`. Copiez-la telle quelle dans `DATABASE_URL`
+  (le préfixe `pgsql://` est accepté) et laissez le terminal ouvert.
+- **Option B** : n'importe quel PostgreSQL 14 à 18 installé localement, par exemple
+  `postgresql://user:pass@localhost:5432/dispatch`.
 
 ```bash
 python3.14 -m venv .venv && . .venv/bin/activate
@@ -90,8 +99,8 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
-Remplissez `APP_SECRET_KEY` et `ENCRYPTION_KEY` dans `.env` (les commandes de génération sont indiquées dans
-le fichier), puis chargez les variables et lancez les migrations :
+Remplissez `APP_SECRET_KEY`, `ENCRYPTION_KEY` et `DATABASE_URL` dans `.env` (les commandes de génération sont
+indiquées dans le fichier), puis chargez les variables et lancez les migrations :
 
 ```bash
 set -a; . ./.env; set +a
@@ -117,7 +126,7 @@ Ouvrez http://localhost:8000. Au premier lancement, vous êtes redirigé vers `/
 
 ## Déploiement sur Upsun
 
-Upsun construit et déploie l'application à partir de **`.upsun/config.yaml`**. Il n'y a ni Dockerfile ni image.
+Upsun construit et déploie l'application à partir de **`.upsun/config.yaml`**. Il n'y a ni Dockerfile ni image : l'application, le worker et le service PostgreSQL sont tous déclarés dans ce fichier.
 
 | Élément | Configuration |
 |---|---|
@@ -125,7 +134,7 @@ Upsun construit et déploie l'application à partir de **`.upsun/config.yaml`**.
 | Web | `uvicorn app.asgi:application --port $PORT` ; `/static` servi directement |
 | Worker `runs` | `python -m app.worker` (même code, autre commande ; hérite de la relation BDD) |
 | Migrations | `python -m alembic upgrade head` dans le hook `deploy` (exécuté sur le conteneur web uniquement) |
-| PostgreSQL | service `db` de type `postgresql:18`, relation `database` |
+| PostgreSQL | service `database` de type `postgresql:18`, déclaré sous `services:`, relié à l'app par `relationships: database:` |
 | `DATABASE_URL` | construit dans `.environment` à partir des variables `DATABASE_*` |
 | Route | `https://{default}/` vers `app`, avec redirection de `www` |
 
@@ -228,10 +237,10 @@ L'API Anthropic est remplacée par un faux client (`tests/conftest.py`). Les tes
 - la composition du message (skills actifs, dans l'ordre, avant le contenu ; snapshot figé) ;
 - la gestion de `requires_action` (validation et refus avec motif), de `end_turn` (question ou terminé), de l'annulation, de la reprise par le worker et du flux SSE.
 
-Pour lancer les mêmes tests sur PostgreSQL :
+Pour lancer les mêmes tests sur PostgreSQL (base dédiée, vidée à chaque test, jamais celle d'Upsun) :
 
 ```bash
-TEST_DATABASE_URL=postgresql://dispatch:dispatch@localhost:5433/dispatch_test pytest -q
+TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/dispatch_test pytest -q
 ```
 
 ## Limites connues

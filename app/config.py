@@ -35,8 +35,10 @@ def _database_url() -> str:
     if not url:
         url = "postgresql://dispatch:dispatch@localhost:5432/dispatch"
     # SQLAlchemy + psycopg 3
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://") :]
+    # `upsun tunnel:single` renvoie une URL en pgsql:// ; Heroku-like : postgres://
+    for prefix in ("pgsql://", "postgres://"):
+        if url.startswith(prefix):
+            url = "postgresql://" + url[len(prefix) :]
     if url.startswith("postgresql://"):
         url = "postgresql+psycopg://" + url[len("postgresql://") :]
     return url

@@ -8,13 +8,11 @@ applications:
     source:
       root: "/"
 
-    # Relation vers le service PostgreSQL défini plus bas.
-    # Expose DATABASE_HOST, DATABASE_PORT, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH…
-    # DATABASE_URL est construit dans le fichier .environment.
+    # Relation vers le service PostgreSQL « database » déclaré plus bas (forme courte :
+    # même nom que le service, endpoint par défaut). Upsun expose DATABASE_HOST, DATABASE_PORT,
+    # DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH ; DATABASE_URL est construit dans .environment.
     relationships:
       database:
-        service: db
-        endpoint: postgresql
 
     variables:
       env:
@@ -51,7 +49,8 @@ applications:
           start: "python -m app.worker"
 
 services:
-  db:
+  # Service PostgreSQL géré par Upsun (versions supportées : 14 à 18).
+  database:
     type: "postgresql:18"
 
 routes:
