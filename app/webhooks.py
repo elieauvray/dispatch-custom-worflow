@@ -35,7 +35,7 @@ async def anthropic_webhook(request: Request, db: Session = Depends(get_db)) -> 
         connector = db.scalar(select(Connector).where(Connector.credential_id == data.id))
         if connector:
             connector.status = ConnectorStatus.ERROR
-            connector.status_message = "Erreur – reconnexion nécessaire (rafraîchissement OAuth échoué)."
+            connector.status_message = "Reconnexion nécessaire : le rafraîchissement OAuth a échoué."
             db.commit()
             log.info("Connecteur %s marqué en erreur (refresh_failed)", connector.id)
     return Response(status_code=204)

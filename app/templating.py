@@ -27,7 +27,7 @@ def markdown(text: str | None) -> Markup:
 
 def format_dt(value: datetime | None) -> str:
     if not value:
-        return "—"
+        return "Jamais"
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(_PARIS).strftime("%d/%m/%Y %H:%M")
@@ -35,7 +35,7 @@ def format_dt(value: datetime | None) -> str:
 
 def format_duration(seconds: int | None) -> str:
     if seconds is None:
-        return "—"
+        return "Inconnue"
     if seconds < 60:
         return f"{seconds} s"
     minutes, sec = divmod(seconds, 60)

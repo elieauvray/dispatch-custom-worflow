@@ -2,7 +2,7 @@
 {% if run.error and run.status in ['failed', 'running', 'waiting_input', 'completed'] %}
 <div class="flash error">
   {{ run.error }}
-  {% if 'mcp' in run.error or 'authentication' in run.error or 'Clé API' in run.error %} — <a href="/settings">ouvrir Settings</a>{% endif %}
+  {% if 'mcp' in run.error or 'authentication' in run.error or 'Clé API' in run.error %}. <a href="/settings">Ouvrir Settings</a>{% endif %}
 </div>
 {% endif %}
 
@@ -21,11 +21,11 @@
     </form>
   </article>
   {% else %}
-  <p class="muted">Validation en attente… <a href="/runs/{{ run.id }}">recharger</a></p>
+  <p class="muted">Validation en attente. <a href="/runs/{{ run.id }}">recharger</a></p>
   {% endfor %}
 {% elif run.status == 'running' %}
   <article class="row-actions" style="justify-content: space-between">
-    <span aria-busy="true">Claude travaille… vous pouvez fermer cette page, l'exécution continue.</span>
+    <span aria-busy="true">Claude travaille. Vous pouvez fermer cette page, l'exécution continue.</span>
     <form hx-post="/runs/{{ run.id }}/cancel" hx-target="#run-actions" hx-swap="innerHTML" hx-confirm="Annuler cette exécution ?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary outline">Annuler</button>

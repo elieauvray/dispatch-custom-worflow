@@ -19,7 +19,7 @@
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>
     <td>
-      {% if last %}<a href="/runs/{{ last.id }}"><span class="badge {{ last.status }}">{{ last.status_label }}</span></a>{% else %}<span class="muted">—</span>{% endif %}
+      {% if last %}<a href="/runs/{{ last.id }}"><span class="badge {{ last.status }}">{{ last.status_label }}</span></a>{% else %}<span class="muted">Jamais exécuté</span>{% endif %}
       {% if waiting.get(wf.id) %}<br><span class="highlight small">{{ waiting[wf.id] }} exécution(s) attendent votre action</span>{% endif %}
     </td>
     <td>

@@ -10,7 +10,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Clé API Anthropic
       <input type="password" name="api_key" autocomplete="off"
-             placeholder="{{ '•••• •••• ' ~ settings.api_key_last4 ~ ' (laisser vide pour conserver)' if settings.api_key_last4 else 'sk-ant-api03-…' }}"
+             placeholder="{{ '•••• •••• ' ~ settings.api_key_last4 ~ ' (laisser vide pour conserver)' if settings.api_key_last4 else 'sk-ant-api03-xxxx' }}"
              {% if not settings.is_configured %}required{% endif %}>
     </label>
     <small class="help">
@@ -42,9 +42,9 @@
   <p class="help" style="margin-top:0">Gérées automatiquement : créées ou mises à jour (sans doublon) quand la clé API ou un connecteur change. L'agent ne déclare que les serveurs MCP pour lesquels vous avez un credential.</p>
   <table>
     <tbody>
-      <tr><th>Agent ID</th><td class="mono">{{ settings.agent_id or '—' }}{% if settings.agent_version %} <span class="muted">(version {{ settings.agent_version }})</span>{% endif %}</td></tr>
-      <tr><th>Environment ID</th><td class="mono">{{ settings.environment_id or '—' }}</td></tr>
-      <tr><th>Vault ID</th><td class="mono">{{ settings.vault_id or '—' }}</td></tr>
+      <tr><th>Agent ID</th><td class="mono">{{ settings.agent_id or 'Non créé' }}{% if settings.agent_version %} <span class="muted">(version {{ settings.agent_version }})</span>{% endif %}</td></tr>
+      <tr><th>Environment ID</th><td class="mono">{{ settings.environment_id or 'Non créé' }}</td></tr>
+      <tr><th>Vault ID</th><td class="mono">{{ settings.vault_id or 'Non créé' }}</td></tr>
       <tr><th>Dernière synchronisation</th><td>{{ settings.last_sync_at | dt }}</td></tr>
     </tbody>
   </table>
@@ -122,7 +122,7 @@
 {% if current_user.is_admin %}
 <section id="oauth-apps">
 <h2>Applications OAuth <span class="badge">admin</span></h2>
-<p class="muted">Si un client OAuth est configuré pour un service, les utilisateurs voient le bouton « Se connecter avec … ». L'application crée alors un credential <code>mcp_oauth</code> avec un bloc <code>refresh</code>.</p>
+<p class="muted">Si un client OAuth est configuré pour un service, les utilisateurs voient le bouton « Se connecter avec » suivi du nom du service. L'application crée alors un credential <code>mcp_oauth</code> avec un bloc <code>refresh</code>.</p>
 <div class="grid-2">
 {% for key, prov in providers.items() %}
 {% set app = oauth_apps.get(key) %}

@@ -9,7 +9,7 @@
     <label>Nom <input name="name" value="{{ name }}" required maxlength="128"></label>
     <small class="help">Unique parmi vos workflows.</small>
     <label>Contenu (prompt) <textarea name="content" class="big" required>{{ content }}</textarea></label>
-    <small class="help">Envoyé à Claude à chaque exécution, entouré d'une balise <code>&lt;workflow name="…"&gt;</code>, après les skills actifs.</small>
+    <small class="help">Envoyé à Claude à chaque exécution, entouré d'une balise <code>&lt;workflow name="nom"&gt;</code>, après les skills actifs.</small>
     <div class="row-actions">
       <button type="submit">Enregistrer</button>
       <a href="/workflows" role="button" class="secondary">Annuler</a>

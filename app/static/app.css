@@ -25,7 +25,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: var(--u-neutral-1000);
-    --surface: #151a1c;
+    --surface: var(--u-neutral-1000);
     --text: var(--u-neutral-100);
     --muted: var(--u-neutral-400);
     --border: var(--u-neutral-800);
@@ -72,12 +72,23 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.01em; }
 h3 { font-weight: 600; }
 code, pre, kbd { font-family: var(--pico-font-family-monospace); font-weight: 500; }
 a { color: var(--accent); }
+/* Liens : soulignés, Violet 600 (clair) / Violet 300 (sombre). La navigation et les boutons sont exclus. */
+main a:not([role="button"]):not(.brand) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  --pico-underline: var(--accent);
+}
+/* Puces : carré plein au premier niveau, cercle vide au niveau imbriqué */
+main :not(nav) > ul > li { list-style: none; position: relative; padding-left: 1.2em; }
+main :not(nav) > ul > li::before { content: "\25A0"; position: absolute; left: 0; font-size: .7em; top: .35em; color: var(--text); }
+main :not(nav) > ul ul > li::before { content: "\25CB"; font-size: .8em; top: .25em; }
 
 /* Navigation */
 .topbar { border-bottom: 1px solid var(--border); background: var(--surface); margin-bottom: 1.5rem; }
 .topbar nav { padding: 0 1rem; max-width: 1200px; margin: 0 auto; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; display: flex; gap: .5rem; align-items: center; }
-.brand-mark { width: 14px; height: 14px; background: var(--u-violet-600); border-radius: 3px; display: inline-block; }
+.brand-logo { height: 22px; width: auto; display: block; color: var(--text); }
 .topbar nav a { color: var(--text); }
 .topbar nav a[aria-current="page"] { font-weight: 600; color: var(--accent); }
 .topbar nav ul li form { margin: 0; }
@@ -100,7 +111,7 @@ main.container { max-width: 1200px; padding: 0 1rem 3rem; }
 .row-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .row-actions form { margin: 0; }
 .row-actions button, .row-actions a[role="button"] { padding: .3rem .7rem; font-size: .85rem; margin: 0; }
-article { background: var(--surface); }
+article { background: var(--surface); border: 1px solid var(--border); box-shadow: none; }
 table { font-size: .92rem; }
 
 /* Statuts */

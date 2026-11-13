@@ -87,7 +87,7 @@ def build_agent_config(model: str, connectors: list[ConnectorSpec], login: str) 
             }
         )
     return {
-        "name": f"Dispatch – {login}",
+        "name": f"Dispatch · {login}",
         "model": model,
         "system": SYSTEM_PROMPT,
         "mcp_servers": mcp_servers,
@@ -224,7 +224,7 @@ class ManagedAgentsClient:
                 if st.vault_id:
                     result.vault_recreated = True
                 vault = beta.vaults.create(
-                    display_name=f"Dispatch – {login}",
+                    display_name=f"Dispatch · {login}",
                     metadata={"app": "dispatch", "user": login},
                 )
                 st.vault_id = vault.id

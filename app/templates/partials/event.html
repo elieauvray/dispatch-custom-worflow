@@ -33,27 +33,27 @@
   {%- for b in (p.content or []) -%}{%- if b.type == 'text' -%}{%- set _ = parts.append(b.text) -%}{%- endif -%}{%- endfor -%}
   {%- set out = parts | join('\n') -%}
   <details><summary>{{ (out | length) }} caractères</summary><pre>{{ out[:20000] }}{% if out | length > 20000 %}
-… (tronqué){% endif %}</pre></details>
+[contenu tronqué]{% endif %}</pre></details>
 </div>
 {%- elif ev.type == 'user.tool_confirmation' -%}
 <div class="ev system" id="ev-{{ ev.row.id }}">
   {% if p.result == 'allow' %}✔ Vous avez autorisé{% else %}✖ Vous avez refusé{% endif %}
   {% if ev.tool %}<span class="toolname">{{ ev.tool.name }}</span>{% else %}l'appel d'outil{% endif %}
-  {% if p.deny_message %} — « {{ p.deny_message }} »{% endif %}
+  {% if p.deny_message %}, motif : « {{ p.deny_message }} »{% endif %}
 </div>
 {%- elif ev.type == 'user.interrupt' -%}
 <div class="ev system" id="ev-{{ ev.row.id }}">Exécution interrompue à votre demande.</div>
 {%- elif ev.type == 'session.error' -%}
 <div class="ev error" id="ev-{{ ev.row.id }}">
   <div class="who">Erreur de session</div>
-  <strong>{{ p.error.type if p.error else 'erreur' }}</strong>{% if p.error and p.error.mcp_server_name %} — serveur <strong>{{ p.error.mcp_server_name }}</strong>{% endif %}
+  <strong>{{ p.error.type if p.error else 'erreur' }}</strong>{% if p.error and p.error.mcp_server_name %}, serveur <strong>{{ p.error.mcp_server_name }}</strong>{% endif %}
   <p style="margin:.3rem 0 0">{{ p.error.message if p.error else '' }}</p>
   {% if p.error and p.error.type and ('mcp' in p.error.type or 'authentication' in p.error.type) %}
   <p class="small" style="margin:.3rem 0 0">Vérifiez le connecteur concerné dans <a href="/settings#connectors">Settings</a>.</p>
   {% endif %}
 </div>
 {%- elif ev.type == 'session.status_idle' and p.stop_reason and p.stop_reason.type == 'requires_action' -%}
-<div class="ev system" id="ev-{{ ev.row.id }}">En attente de votre validation…</div>
+<div class="ev system" id="ev-{{ ev.row.id }}">En attente de votre validation.</div>
 {%- elif ev.type == 'session.status_terminated' -%}
 <div class="ev system" id="ev-{{ ev.row.id }}">Session terminée.</div>
 {%- elif ev.type == 'agent.thread_context_compacted' -%}

@@ -58,12 +58,12 @@ Navigateur ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL �
 
 ```xml
 <instructions>
-Les instructions ci-dessous sont définies par l'administrateur… Applique-les pendant toute l'exécution…
-<skill name="…">…</skill>
+Les instructions ci-dessous sont définies par l'administrateur de l'application. Applique-les pendant toute l'exécution du workflow qui suit.
+<skill name="NOM DU SKILL">TEXTE DU SKILL</skill>
 </instructions>
 
-<workflow name="…">
-…contenu du workflow…
+<workflow name="NOM DU WORKFLOW">
+CONTENU DU WORKFLOW
 </workflow>
 ```
 
@@ -82,7 +82,7 @@ Deux options pour la base :
   upsun tunnel:single --relationship database
   ```
 
-  La commande affiche une URL `pgsql://…@127.0.0.1:<port>/main`. Copiez-la telle quelle dans `DATABASE_URL`
+  La commande affiche une URL `pgsql://<user>:<password>@127.0.0.1:<port>/main`. Copiez-la telle quelle dans `DATABASE_URL`
   (le préfixe `pgsql://` est accepté) et laissez le terminal ouvert.
 - **Option B** : n'importe quel PostgreSQL 14 à 18 installé localement, par exemple
   `postgresql://user:pass@localhost:5432/dispatch`.
@@ -171,14 +171,14 @@ git push upsun main
 |---|---|---|
 | `APP_SECRET_KEY` | oui | Signature du cookie de session (32 caractères minimum) |
 | `ENCRYPTION_KEY` | oui | Clé Fernet de chiffrement au repos (clé API Anthropic, secrets OAuth). **Ne la changez pas** : les données chiffrées deviendraient illisibles |
-| `ANTHROPIC_WEBHOOK_SECRET` | non | Secret `whsec_…` du webhook. Sans lui, `/webhooks/anthropic` répond 404 |
+| `ANTHROPIC_WEBHOOK_SECRET` | non | Secret `whsec_xxxx` du webhook. Sans lui, `/webhooks/anthropic` répond 404 |
 | `PUBLIC_BASE_URL` | non | Déduite de la route principale Upsun. Sert à construire les URL de callback OAuth |
 
 ### Webhook Anthropic (optionnel)
 
 Dans la Claude Console, ouvrez **Manage → Webhooks** et ajoutez `https://<votre-domaine>/webhooks/anthropic`,
-abonné à `vault_credential.refresh_failed`. Le connecteur concerné passe alors en « Erreur – reconnexion
-nécessaire ».
+abonné à `vault_credential.refresh_failed`. Le connecteur concerné passe alors en « Erreur » avec le message
+« Reconnexion nécessaire ».
 
 ## Configuration des connecteurs
 
@@ -201,7 +201,7 @@ Informations vérifiées le 13/11/2026 :
 1. L'admin ouvre **Settings → Applications OAuth** :
    - pour **Linear** ou **Atlassian**, il clique sur « Enregistrer automatiquement » (enregistrement dynamique RFC 7591) ;
    - pour **GitHub**, il saisit le client_id / client_secret d'une OAuth App dont l'URL de callback est celle affichée (`https://<domaine>/oauth/github/callback`).
-2. Les utilisateurs voient alors « Se connecter avec … ». L'application découvre le serveur d'autorisation (RFC 9728 / RFC 8414), utilise PKCE S256 et le paramètre `resource`, puis échange le code.
+2. Les utilisateurs voient alors « Se connecter avec » suivi du nom du service. L'application découvre le serveur d'autorisation (RFC 9728 / RFC 8414), utilise PKCE S256 et le paramètre `resource`, puis échange le code.
 3. Elle crée un credential `mcp_oauth` avec un bloc `refresh` (`token_endpoint`, `client_id`, `token_endpoint_auth`). **Anthropic rafraîchit ensuite le jeton** automatiquement.
 
 ### Permissions des outils
