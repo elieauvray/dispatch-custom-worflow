@@ -262,7 +262,8 @@ class ManagedAgentsAPI(Protocol):
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]: ...
     def design_workflow(self, model: str, description: str, services: list[str],
                         previous: dict[str, Any] | None, feedback: str | None,
-                        instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
+                        instructions: str = "", diagram: dict[str, Any] | None = None,
+                        on_progress: Callable[[int, str], None] | None = None) -> dict[str, Any]: ...
     def check_tools(self, model: str, description: str, instructions: str = "",
                     diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def clarify_workflow(self, model: str, description: str, services: list[str],
@@ -475,8 +476,12 @@ class ManagedAgentsClient:
     # -- Maestro designer --------------------------------------------------------
     def design_workflow(self, model: str, description: str, services: list[str],
                         previous: dict[str, Any] | None, feedback: str | None,
-                        instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Turn a process description into a Maestro design (structured JSON, streamed: long output)."""
+                        instructions: str = "", diagram: dict[str, Any] | None = None,
+                        on_progress: Callable[[int, str], None] | None = None) -> dict[str, Any]:
+        """Turn a process description into a Maestro design (structured JSON, streamed: long output).
+
+        on_progress(chars, tail) is called as the JSON is written: characters so far and the last ones.
+        """
         from app.maestro.knowledge import DESIGN_SCHEMA, DESIGNER_SYSTEM, DISPATCH_KNOWLEDGE
 
         listed = ", ".join(services) if services else "none yet (the user can add connectors later)"
@@ -503,6 +508,14 @@ class ManagedAgentsClient:
         params["messages"][0]["content"] = with_diagram(params["messages"][0]["content"], diagram)
         with self._wrap():
             with self._client.beta.messages.stream(**params) as stream:
+                written, tail = 0, ""
+                for event in stream:
+                    delta = getattr(event, "delta", None) if event.type == "content_block_delta" else None
+                    if delta is not None and getattr(delta, "type", "") == "text_delta":
+                        written += len(delta.text)
+                        tail = (tail + delta.text)[-4000:]
+                        if on_progress:
+                            on_progress(written, tail)
                 response = stream.get_final_message()
         if response.stop_reason == "refusal":
             raise ManagedAgentsError("Claude declined to design this workflow.")

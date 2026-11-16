@@ -320,3 +320,29 @@ details.fold.inner > summary { font-weight: 400; color: var(--muted); }
 .card-title .service-logo { padding: .45rem; box-sizing: content-box; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 /* The blocked / failed panel already shows the description in an editable field. */
 #maestro-status:has(textarea[name="description"]) + details { display: none; }
+
+/* --- Design generation progress --------------------------------------------- */
+.gen-progress { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.3rem; }
+.gen-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+  padding: 0; margin: 0 0 .7rem; background: none; border: 0; }
+.gen-bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; position: relative; }
+.gen-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent);
+  transition: width 1.9s linear; position: relative; overflow: hidden; }
+.gen-bar > span::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, #fff 45%, transparent), transparent);
+  animation: gen-shimmer 1.6s ease-in-out infinite; }
+.gen-bar.total { height: 8px; margin-bottom: 1.1rem; }
+.gen-steps { list-style: none; padding: 0; margin: 0 0 .9rem; display: grid; gap: .8rem; }
+.gen-step { display: flex; gap: .75rem; align-items: flex-start; margin: 0; }
+.gen-icon { width: 1.6rem; height: 1.6rem; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: .8rem; font-weight: 700; border: 1px solid var(--border); color: var(--muted); }
+.gen-step.done .gen-icon { background: var(--u-lime-600); border-color: var(--u-lime-600); color: var(--u-neutral-1000); }
+.gen-step.active .gen-icon { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.gen-step.pending .gen-label { color: var(--muted); }
+.gen-body { flex: 1; min-width: 0; }
+.gen-label { font-weight: 600; margin-top: .15rem; }
+.gen-step.active .gen-bar { margin-top: .45rem; }
+.gen-dots::after { content: "…"; display: inline-block; margin-left: .1rem; animation: gen-blink 1.2s steps(2, start) infinite; }
+@keyframes gen-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes gen-blink { 50% { opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { .gen-bar > span { transition: none; } .gen-bar > span::after, .gen-dots::after { animation: none; } }

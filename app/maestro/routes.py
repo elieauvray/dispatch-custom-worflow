@@ -33,9 +33,12 @@ def _maestro(db: Session, workflow_id: int, user: User) -> Workflow:
     return wf
 
 
-def _panel_ctx(request: Request, wf: Workflow) -> dict[str, Any]:
+def _panel_ctx(request: Request, wf: Workflow, db: Session | None = None) -> dict[str, Any]:
     design = wf.design_json or {}
+    progress = (service.progress_view(wf, service.design_estimates(db))
+                if db is not None and wf.design_status in {"queued", "generating"} else None)
     return {
+        "progress": progress,
         "request": request,
         "csrf_token": get_or_create_csrf_token(request.session),
         "wf": wf,
@@ -104,7 +107,7 @@ def design_page(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = _maestro(db, workflow_id, user)
-    ctx = _panel_ctx(request, wf)
+    ctx = _panel_ctx(request, wf, db)
     ctx.pop("request"), ctx.pop("csrf_token")
     ctx["missing"] = service.missing_connectors(db, user, wf) if wf.design_status == "ready" else []
     ctx["steps_info"] = [step_info(st) for st in (wf.design_json or {}).get("steps") or []] if ctx["svg"] else []
@@ -120,7 +123,7 @@ def design_panel(
     if wf.design_status == "ready":
         # Generation finished: reload the full page (config form, schedule, prompt).
         return Response(status_code=204, headers={"HX-Redirect": f"/workflows/{wf.id}/design"})
-    return HTMLResponse(templates.get_template("partials/maestro_status.html").render(_panel_ctx(request, wf)))
+    return HTMLResponse(templates.get_template("partials/maestro_status.html").render(_panel_ctx(request, wf, db)))
 
 
 @router.post("/workflows/{workflow_id}/design/revise", dependencies=[Depends(csrf_protect)])

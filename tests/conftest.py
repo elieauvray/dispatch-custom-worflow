@@ -164,7 +164,10 @@ class FakeManagedAgents:
         self.diagrams_seen.append(("tools", diagram))
         return self.tools_response
 
-    def design_workflow(self, model, description, services, previous, feedback, instructions="", diagram=None):  # type: ignore[no-untyped-def]
+    def design_workflow(self, model, description, services, previous, feedback, instructions="", diagram=None,  # type: ignore[no-untyped-def]
+                        on_progress=None):
+        if on_progress:
+            on_progress(20, '{"summary": "x", "steps": [')
         self.design_calls.append({"description": description, "services": services,
                                   "previous": previous, "feedback": feedback})
         self.instructions_seen.append(("design", instructions))

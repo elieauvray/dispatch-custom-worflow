@@ -47,7 +47,7 @@ def test_description_becomes_a_design_with_actors(client, fake):
     _setup(client)
     wf_id = _create(client)
     page = client.get(f"/workflows/{wf_id}/design").text
-    assert "Maestro is designing the workflow" in page and f"/workflows/{wf_id}/design/panel" in page
+    assert "Maestro is designing your workflow" in page and f"/workflows/{wf_id}/design/panel" in page
 
     _design(wf_id)
     assert fake.design_calls[0]["description"] == DESCRIPTION
@@ -225,7 +225,7 @@ def test_home_is_describe_your_workflow_and_only_maestro_workflows_exist(client,
     assert r.headers["location"] == "/"
     home = client.get("/").text
     assert "Describe your workflow" in home and 'action="/maestro/new"' in home
-    assert 'href="/prompt"' not in home and "New workflow" in home
+    assert 'href="/prompt"' not in home and ">Create<" in home
     assert client.get("/prompt").status_code == 404
     assert client.get("/workflows/new").status_code in (404, 405)
     with SessionLocal() as db:
@@ -401,3 +401,43 @@ def test_placeholder_repeat_and_loop_are_hidden():
 
     assert step_tags({"actor": "maestro", "repeat": "Every run", "loop": "none"}) == ["↻ Every run"]
     assert step_tags({"actor": "maestro", "repeat": "N/A", "loop": "Until merged"}) == ["⟲ Until merged"]
+
+
+def test_design_progress_is_recorded_and_shown(client, fake):
+    from datetime import timedelta
+
+    from app.models import utcnow
+
+    _setup(client)
+    wf_id = _create(client)
+    page = client.get(f"/workflows/{wf_id}/design/panel").text
+    assert "Checking the tools it needs" in page and "Starting" in page
+
+    _design(wf_id)  # the fake designer reports 20 characters written
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        timings = wf.design_progress["timings"]
+        assert set(timings) >= {"tools", "design"} and timings["design_chars"] == 20
+        assert "stage" not in wf.design_progress  # nothing in progress any more
+        estimates = service.design_estimates(db)
+        assert estimates["design_chars"] == 20
+
+        # A generation in the middle of writing the design
+        now = utcnow()
+        wf.design_status = "generating"
+        wf.design_progress = {"started": (now - timedelta(seconds=90)).isoformat(),
+                              "stage": "design", "stage_started": (now - timedelta(seconds=60)).isoformat(),
+                              "done": ["tools", "clarify"], "phase": "writing", "chars": 9000,
+                              "writing": "Drawing the steps"}
+        view = service.progress_view(wf, {"tools": 10, "clarify": 30, "design": 200, "design_chars": 18000})
+    states = [r["state"] for r in view["rows"]]
+    assert states == ["done", "done", "active"]
+    design_row = view["rows"][2]
+    assert 60 <= design_row["pct"] <= 70 and "Drawing the steps · 9,000 characters" == design_row["note"]
+    assert 0 < view["pct"] < 97 and view["remaining"] and view["elapsed"] == "1 min 30 s"
+
+
+def test_writing_label_follows_the_json_being_written():
+    assert service.writing_label('{"summary": "x", "steps": [{"id": "S1"') == "Drawing the steps"
+    assert service.writing_label('"schedule": {}, "orchestration_prompt": "# Mission') == "Writing the orchestration prompt"
+    assert service.writing_label("") is None

@@ -192,6 +192,8 @@ class Workflow(Base):
     # Clarification questions asked before the design and the user's answers
     clarifications: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     design_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Live progress of the design generation (stage, characters written) and the timings of the last one.
+    design_progress: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     schedule_cron: Mapped[str | None] = mapped_column(String(64))
     schedule_timezone: Mapped[str] = mapped_column(String(64), default="Europe/Paris")
     budget_cents: Mapped[int | None] = mapped_column(Integer)

@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from datetime import timedelta
+import statistics
+import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, update
@@ -198,6 +200,162 @@ def answer_questions(db: Session, wf: Workflow, answers: dict[str, str]) -> list
     return []
 
 
+# --- Design progress -------------------------------------------------------------
+
+STAGES = ("tools", "clarify", "design")
+STAGE_LABELS = {
+    "tools": "Checking the tools it needs",
+    "clarify": "Looking for decisions to ask you",
+    "design": "Designing the workflow",
+}
+# Typical durations (seconds) and design length (characters) before any generation has been timed.
+DEFAULT_TIMINGS = {"tools": 15.0, "clarify": 40.0, "design": 240.0, "design_chars": 20000.0}
+# What the designer is writing, by JSON key, in output order.
+WRITING_LABELS = [
+    ("summary", "Summarizing the process"),
+    ("steps", "Drawing the steps"),
+    ("config", "Listing the settings"),
+    ("assumptions", "Writing assumptions and limits"),
+    ("schedule", "Choosing a schedule"),
+    ("orchestration_prompt", "Writing the orchestration prompt"),
+]
+PROGRESS_EVERY = 1.5  # seconds between two progress writes while streaming
+
+
+def _iso(dt: datetime) -> str:
+    return dt.isoformat()
+
+
+def _parse(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    dt = datetime.fromisoformat(value)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _set_progress(db: Session, wf: Workflow, **changes: Any) -> None:
+    wf.design_progress = {**(wf.design_progress or {}), **changes, "updated": _iso(utcnow())}
+    db.commit()
+
+
+def _start_stage(db: Session, wf: Workflow, stage: str) -> None:
+    progress = dict(wf.design_progress or {})
+    now = utcnow()
+    timings = dict(progress.get("current_timings") or {})
+    previous, started = progress.get("stage"), _parse(progress.get("stage_started"))
+    if previous in STAGES and started and previous != stage:
+        timings[previous] = round((now - started).total_seconds(), 1)
+    done = list(progress.get("done") or [])
+    if previous in STAGES and previous != stage and previous not in done:
+        done.append(previous)
+    _set_progress(db, wf, stage=stage, stage_started=_iso(now), done=done, current_timings=timings,
+                  phase="thinking" if stage == "design" else None, chars=0, writing=None)
+
+
+def _begin_generation(db: Session, wf: Workflow) -> None:
+    last = (wf.design_progress or {}).get("timings")
+    wf.design_progress = {"started": _iso(utcnow()), "timings": last}
+    _start_stage(db, wf, "tools")
+
+
+def _finish_generation(db: Session, wf: Workflow, design_chars: int | None) -> None:
+    """Keep this generation's timings: they make the next estimates more accurate."""
+    progress = dict(wf.design_progress or {})
+    timings = dict(progress.get("current_timings") or {})
+    started = _parse(progress.get("stage_started"))
+    if progress.get("stage") in STAGES and started:
+        timings[progress["stage"]] = round((utcnow() - started).total_seconds(), 1)
+    if design_chars:
+        timings["design_chars"] = design_chars
+    if "design" in timings:  # only complete generations teach the estimates
+        progress["timings"] = timings
+    wf.design_progress = {"timings": progress.get("timings")}
+
+
+def design_estimates(db: Session) -> dict[str, float]:
+    """Median durations of recent design generations (all users), falling back to typical values."""
+    samples: dict[str, list[float]] = {k: [] for k in DEFAULT_TIMINGS}
+    rows = db.scalars(
+        select(Workflow.design_progress).where(Workflow.design_progress.is_not(None))
+        .order_by(Workflow.design_updated_at.desc()).limit(40)
+    )
+    for progress in rows:
+        for key, value in ((progress or {}).get("timings") or {}).items():
+            if key in samples and isinstance(value, (int, float)) and value > 0:
+                samples[key].append(float(value))
+    return {k: (statistics.median(v) if v else DEFAULT_TIMINGS[k]) for k, v in samples.items()}
+
+
+def progress_view(wf: Workflow, estimates: dict[str, float]) -> dict[str, Any] | None:
+    """What the design page shows while Maestro designs: one row per stage, an overall bar, time left."""
+    if wf.design_status not in {"queued", "generating"}:
+        return None
+    progress = wf.design_progress or {}
+    now = utcnow()
+    stage = progress.get("stage") if wf.design_status == "generating" else None
+    done = set(progress.get("done") or [])
+    stage_started = _parse(progress.get("stage_started"))
+    elapsed_stage = (now - stage_started).total_seconds() if stage_started and stage else 0.0
+    rows, remaining, total, spent = [], 0.0, 0.0, 0.0
+    for key in STAGES:
+        expected = max(estimates[key], 1.0)
+        total += expected
+        if key in done:
+            state, pct, note = "done", 100, ""
+            spent += expected
+        elif key == stage:
+            state = "active"
+            time_ratio = elapsed_stage / expected
+            note = ""
+            if key == "design":
+                chars = int(progress.get("chars") or 0)
+                if progress.get("phase") == "writing" and chars:
+                    # Writing: the characters written are the best measure of how far it is.
+                    char_ratio = chars / max(estimates["design_chars"], 1.0)
+                    time_ratio = max(time_ratio, 0.35 + 0.65 * char_ratio)
+                    note = f"{progress.get('writing') or 'Writing the design'} · {chars:,} characters"
+                else:
+                    time_ratio = min(time_ratio, 0.35)  # thinking comes first, writing is the larger part
+                    note = "Thinking about the process"
+            ratio = min(time_ratio, 0.97)
+            pct = round(ratio * 100)
+            spent += expected * ratio
+            remaining += max(expected - elapsed_stage, expected * (1 - ratio))
+        else:
+            state, pct, note = "pending", 0, ""
+            remaining += expected
+        rows.append({"key": key, "label": STAGE_LABELS[key], "state": state, "pct": pct, "note": note})
+    started = _parse(progress.get("started"))
+    elapsed = (now - started).total_seconds() if started and stage else 0.0
+    return {
+        "rows": rows,
+        "pct": min(round(spent / total * 100), 97) if stage else 0,
+        "remaining": _human_seconds(remaining) if stage else None,
+        "elapsed": _human_seconds(elapsed) if stage else None,
+        "queued": stage is None,
+    }
+
+
+def _human_seconds(seconds: float) -> str:
+    seconds = max(int(seconds), 0)
+    if seconds < 15:
+        return "a few seconds"
+    if seconds < 60:
+        return f"{round(seconds / 5) * 5} s"
+    minutes, rest = divmod(seconds, 60)
+    return f"{minutes} min {rest:02d} s" if minutes < 10 else f"{minutes} min"
+
+
+def writing_label(text_tail: str) -> str | None:
+    """Which part of the design the streamed JSON is in, from the last key seen."""
+    best, label = -1, None
+    for key, name in WRITING_LABELS:
+        pos = text_tail.rfind(f'"{key}"')
+        if pos > best:
+            best, label = pos, name
+    return label
+
+
 def generate_design(db: Session, wf_id: int) -> None:
     """Called by the worker in a background thread."""
     wf = db.get(Workflow, wf_id)
@@ -207,6 +365,7 @@ def generate_design(db: Session, wf_id: int) -> None:
     assert user is not None
     settings = get_user_settings(db, user)
     try:
+        _begin_generation(db, wf)
         client = client_for(settings)
         # System instructions (admin) apply to every workflow and take precedence over the description.
         skills = current_instructions(db)
@@ -221,6 +380,7 @@ def generate_design(db: Session, wf_id: int) -> None:
             wf.design_status = "blocked"
             wf.design_error = blocked
             wf.design_updated_at = utcnow()
+            _finish_generation(db, wf, None)
             db.commit()
             return
         # 2. Clarify: ask the user the decisions that make the workflow executable (once per request)
@@ -228,6 +388,7 @@ def generate_design(db: Session, wf_id: int) -> None:
         clar = dict(wf.clarifications or {})
         request_hash = hashlib.sha256((text + ihash + fingerprint(wf.diagram_data)).encode()).hexdigest()
         if clar.get("for") != request_hash:
+            _start_stage(db, wf, "clarify")
             asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services, instructions, diagram)
             questions = normalize_questions(asked.get("questions") or [])
             clar = {"for": request_hash, "questions": questions, "decisions": clar.get("decisions") or []}
@@ -236,13 +397,24 @@ def generate_design(db: Session, wf_id: int) -> None:
             wf.design_status = "needs_answers"
             wf.design_error = None
             wf.design_updated_at = utcnow()
+            _finish_generation(db, wf, None)
             db.commit()
             return
         # 3. Full design, with the user's decisions
+        _start_stage(db, wf, "design")
+        written = {"chars": 0, "at": 0.0}
+
+        def on_progress(chars: int, tail: str) -> None:
+            written["chars"] = chars
+            if time.monotonic() - written["at"] >= PROGRESS_EVERY:
+                written["at"] = time.monotonic()
+                _set_progress(db, wf, phase="writing", chars=chars, writing=writing_label(tail))
+
         raw = client.design_workflow(
             settings.model, wf.description + decisions_block(clar), services,
-            wf.design_json, wf.design_feedback, instructions, diagram,
+            wf.design_json, wf.design_feedback, instructions, diagram, on_progress=on_progress,
         )
+        _finish_generation(db, wf, written["chars"] or None)
         wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}
         wf.content = str(raw["orchestration_prompt"]).strip()
         if not wf.schedule_cron:
@@ -255,6 +427,7 @@ def generate_design(db: Session, wf_id: int) -> None:
     except (ManagedAgentsError, RuntimeError) as exc:
         wf.design_status = "failed"
         wf.design_error = str(exc)
+        wf.design_progress = {"timings": (wf.design_progress or {}).get("timings")}
     wf.design_updated_at = utcnow()
     db.commit()
     if wf.design_status == "ready" and wf.deployment_id:

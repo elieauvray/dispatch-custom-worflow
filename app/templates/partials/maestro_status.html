@@ -1,7 +1,34 @@
 <div id="maestro-status">
 {% if wf.design_status in ['queued', 'generating'] %}
-  <div hx-get="/workflows/{{ wf.id }}/design/panel" hx-trigger="every 3s" hx-target="#maestro-status" hx-swap="outerHTML">
-    <article><p aria-busy="true">Maestro is designing the workflow. This can take a few minutes for a detailed description.</p></article>
+  <div hx-get="/workflows/{{ wf.id }}/design/panel" hx-trigger="every 2s" hx-target="#maestro-status" hx-swap="outerHTML">
+    <article class="gen-progress" aria-live="polite">
+      <header class="gen-head">
+        <strong>Maestro is designing your workflow</strong>
+        <span class="small muted">
+          {% if progress and progress.queued %}Starting…
+          {% elif progress %}About {{ progress.remaining }} left · {{ progress.elapsed }} so far{% endif %}
+        </span>
+      </header>
+      <div class="gen-bar total" role="progressbar" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="100"
+           aria-valuenow="{{ progress.pct if progress else 0 }}">
+        <span style="width: {{ progress.pct if progress else 0 }}%"></span>
+      </div>
+      <ol class="gen-steps">
+        {% for row in (progress.rows if progress else []) %}
+        <li class="gen-step {{ row.state }}">
+          <span class="gen-icon" aria-hidden="true">{% if row.state == 'done' %}✓{% else %}{{ loop.index }}{% endif %}</span>
+          <div class="gen-body">
+            <div class="gen-label">{{ row.label }}{% if row.state == 'active' %}<span class="gen-dots" aria-hidden="true"></span>{% endif %}</div>
+            {% if row.note %}<div class="small muted">{{ row.note }}</div>{% endif %}
+            {% if row.state == 'active' %}
+            <div class="gen-bar" role="progressbar" aria-label="{{ row.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ row.pct }}"><span style="width: {{ row.pct }}%"></span></div>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      <p class="small muted" style="margin:0">Estimated from recent designs; a long description or a diagram takes longer. You can leave this page, the design keeps going.</p>
+    </article>
   </div>
 {% elif wf.design_status == 'needs_answers' %}
   <article class="clarify">
