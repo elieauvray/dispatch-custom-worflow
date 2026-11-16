@@ -78,6 +78,18 @@ For every step, decide WHO does it:
 - "upsun": Upsun Cloud work (preview/acceptance environments, deploys).
 - "external": other systems (CI, email sent by a person, a third-party tool).
 
+List the steps in the order the work flows, with these rules for paths and loops:
+- Alternative paths: when the process splits into exclusive paths after a decision (for example a request
+  is either a bug or a new feature), put the deciding step first, then every step of the first path, then
+  every step of the second path, and so on. Give each step of a path the same short "branch" label naming
+  the path ("Bug", "New feature"). Leave "branch" empty for steps on the common path, before the split
+  and after the paths join again. The step after the last path is where all paths join.
+- Loops back: when a step can send the work back to an earlier step (a pull request refused, a request
+  incomplete, a test failed), set "loop_to" to the id of that earlier step and "loop" to the condition in a
+  few words ("PR closed without merge"). Otherwise leave "loop_to" empty. A loop never interacts with a
+  running Dispatch workflow: it starts again from the earlier step once the Dispatch run has ended.
+- "repeat" is only for a step done once per item (per page, per ticket).
+
 Then write the orchestration prompt that Maestro will follow on every run. It must be self-contained,
 in English (agents read it), precise and operational:
 1. Mission and definition of done.
@@ -134,13 +146,15 @@ DESIGN_SCHEMA: dict = {
                     "gate_owner": {"type": "string"},
                     "repeat": {"type": "string"},
                     "loop": {"type": "string"},
+                    "branch": {"type": "string"},
+                    "loop_to": {"type": "string"},
                     "done_when": {
                         "type": "string",
                         "enum": ["none", "pr_merged", "pr_approved", "issue_closed", "pr_opened"],
                     },
                 },
                 "required": ["id", "phase", "title", "detail", "actor", "dispatch_workflow",
-                             "gate_owner", "repeat", "loop", "done_when"],
+                             "gate_owner", "repeat", "loop", "done_when", "branch", "loop_to"],
                 "additionalProperties": False,
             },
         },

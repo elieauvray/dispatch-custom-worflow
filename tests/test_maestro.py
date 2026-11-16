@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 from app.db import SessionLocal
 from app.maestro import service
@@ -441,3 +442,24 @@ def test_writing_label_follows_the_json_being_written():
     assert service.writing_label('{"summary": "x", "steps": [{"id": "S1"') == "Drawing the steps"
     assert service.writing_label('"schedule": {}, "orchestration_prompt": "# Mission') == "Writing the orchestration prompt"
     assert service.writing_label("") is None
+
+
+def test_branches_render_side_by_side_and_loops_go_back():
+    def st(i, title, actor="maestro", branch="", loop_to="", loop=""):
+        return {"id": i, "phase": "P", "title": title, "detail": "", "actor": actor, "dispatch_workflow": "none",
+                "gate_owner": "", "repeat": "", "loop": loop, "done_when": "none", "branch": branch, "loop_to": loop_to}
+
+    raw = {"steps": [st("S1", "Triage"), st("S2", "Bug spec", branch="Bug"), st("S3", "SFD", branch="Feature"),
+                     st("S4", "Build", "dispatch"), st("S5", "Approve", "human", loop_to="S4", loop="PR refused"),
+                     st("S6", "Bad loop", loop_to="S9")]}
+    design = service._normalize_design(raw, None)
+    assert design["steps"][4]["loop_to"] == "S4" and design["steps"][5]["loop_to"] == ""  # unknown target dropped
+    svg = str(render_design_svg(design))
+    xs = {m.group(1): float(m.group(2)) for m in re.finditer(r'data-step="(S\d)">.*?<rect class="ms-ring" x="([\d.]+)"', svg, re.S)}
+    ys = {m.group(1): float(m.group(2)) for m in re.finditer(r'data-step="(S\d)">.*?<rect class="ms-ring" x="[\d.]+" y="([\d.]+)"', svg, re.S)}
+    assert ys["S2"] == ys["S3"] and xs["S2"] < xs["S3"]  # the two paths are side by side
+    assert ">Bug<" in svg and ">Feature<" in svg
+    assert 'stroke-dasharray="5 4"' in svg and "No · PR refused" in svg and ">Yes<" in svg
+    from app.maestro.render import step_tags
+
+    assert "⟲ back to S4 when PR refused" in step_tags(design["steps"][4])

@@ -102,7 +102,15 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
             "repeat": tag_text(st.get("repeat")),
             "loop": tag_text(st.get("loop")),
             "done_when": st.get("done_when") if actor == "dispatch" and st.get("done_when") in DONE_WHEN else "none",
+            "branch": tag_text(st.get("branch"))[:40],
+            "loop_to": str(st.get("loop_to") or "").strip()[:12],
         })
+    # A loop can only go back to an earlier step.
+    seen: set[str] = set()
+    for st in steps:
+        if st["loop_to"] not in seen:
+            st["loop_to"] = ""
+        seen.add(st["id"])
     config = [
         {"key": str(c.get("key", "")).strip()[:64], "description": str(c.get("description", "")).strip()[:200],
          "value": old_values.get(str(c.get("key", "")).strip()[:64], "")}
@@ -472,12 +480,17 @@ def run_context(wf: Workflow, trigger: str) -> str:
     rows = "\n".join(f"| {c['key']} | {c.get('value') or '<not set: ask the user>'} |" for c in config)
     table = f"| Key | Value |\n|-----|-------|\n{rows}\n" if rows else "No config values.\n"
     steps = (wf.design_json or {}).get("steps") or []
-    step_rows = "\n".join(f"| {st['id']} | {st['actor']} | {st['title']} |" for st in steps)
+    step_rows = "\n".join(
+        f"| {st['id']} | {st['actor']} | {st['title']} | {st.get('branch') or ''} |"
+        + (f" back to {st['loop_to']} when {st.get('loop') or 'needed'}" if st.get("loop_to") else "")
+        for st in steps
+    )
     markers = (
         "## Step markers\n"
         "The person following this run sees the workflow diagram and the step you are on. Whenever you start "
         "working on a step, or report on one, begin that message with its marker on its own line, for example "
-        f"`[step: {steps[0]['id']}]`. Use only these ids:\n\n| Id | Actor | Step |\n|----|-------|------|\n"
+        f"`[step: {steps[0]['id']}]`. Use only these ids (Path: the alternative a step belongs to; only the "
+        "path chosen for an item is followed):\n\n| Id | Actor | Step | Path |\n|----|-------|------|------|\n"
         f"{step_rows}\n\n{_report_marker_rule(steps)}\n\n"
         if steps else ""
     )

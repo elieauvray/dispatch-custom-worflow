@@ -81,7 +81,7 @@ def tag_text(value: Any) -> str:
     return "" if text.lower().rstrip(".") in NO_VALUE else text
 
 
-def step_tags(s: dict[str, Any]) -> list[str]:
+def step_tags(s: dict[str, Any], with_loop: bool = True) -> list[str]:
     tags = []
     if s.get("actor") == "human":
         tags.append("GATE" + (f" · {s.get('gate_owner')}" if s.get("gate_owner") else ""))
@@ -89,10 +89,15 @@ def step_tags(s: dict[str, Any]) -> list[str]:
         tags.append("done when " + DONE_LABELS[s["done_when"]])
     if s.get("actor") == "dispatch" and s.get("dispatch_workflow") in DISPATCH_LABELS:
         tags.append(DISPATCH_LABELS[s["dispatch_workflow"]])
-    for key, icon in (("repeat", "↻"), ("loop", "⟲")):
-        text = tag_text(s.get(key))
-        if text:
-            tags.append(f"{icon} {text}")
+    repeat = tag_text(s.get("repeat"))
+    if repeat:
+        tags.append(f"↻ {repeat}")
+    loop = tag_text(s.get("loop"))
+    if s.get("loop_to"):
+        if with_loop:
+            tags.append(f"⟲ back to {s['loop_to']}" + (f" when {loop}" if loop else ""))
+    elif loop:
+        tags.append(f"⟲ {loop}")
     return tags
 
 
@@ -116,16 +121,51 @@ def _tooltip(s: dict[str, Any]) -> str:
     return "<title>" + escape("\n".join(line for line in lines if line)) + "</title>"
 
 
+PILL_H = 22
+LOOP_LANE = 16
+
+
+def _pill(cx: float, cy: float, label: str, *, fill: str = SURFACE, stroke: str = BORDER, color: str = TEXT,
+          weight: int = 600, size: int = 11, dashed: bool = False) -> str:
+    w = max(len(label) * 6.3 + 18, 34)
+    dash = ' stroke-dasharray="4 3"' if dashed else ""
+    return (
+        f'<rect x="{cx - w / 2:.1f}" y="{cy - PILL_H / 2:.1f}" width="{w:.1f}" height="{PILL_H}" rx="{PILL_H / 2}" '
+        f'fill="{fill}" stroke="{stroke}" stroke-width="1"{dash}/>'
+        + _t(cx, cy, label, size=size, weight=weight, fill=color)
+    )
+
+
+def _blocks(steps: list[dict[str, Any]]) -> list[tuple[str, Any]]:
+    """Main steps one by one, and each run of branch steps as one block of side-by-side paths."""
+    blocks: list[tuple[str, Any]] = []
+    for s in steps:
+        label = str(s.get("branch") or "").strip()
+        if not label:
+            blocks.append(("step", s))
+            continue
+        if not blocks or blocks[-1][0] != "branches":
+            blocks.append(("branches", {}))
+        blocks[-1][1].setdefault(label, []).append(s)
+    return blocks
+
+
 def render_design_svg(design: dict[str, Any]) -> Markup:
     steps: list[dict[str, Any]] = design.get("steps") or []
+    ids = {str(s.get("id", "")) for s in steps}
+    loops = [s for s in steps if s.get("loop_to") and s.get("loop_to") in ids]
+    gutter = (LOOP_LANE * len(loops) + 14) if loops else 0
+    width = W - gutter
     used = [a for a in ACTOR_ORDER if any(s.get("actor") == a for s in steps)] or ["maestro"]
-    col_w = (W - LABEL_W) / len(used)
+    col_w = (width - LABEL_W) / len(used)
     box_w = col_w - 20
-    chars = int(box_w / 6.9)  # ~6.9px per character at 11-13px, with padding
     col_x = {a: LABEL_W + i * col_w for i, a in enumerate(used)}
 
     parts: list[str] = []
-    # Column headers and lane separators
+    overlays: list[str] = []  # drawn last: labels sitting on arrows
+    arrows: list[str] = []
+    boxes: dict[str, tuple[float, float, float]] = {}  # id -> (x, y, w)
+
     for a in used:
         fill, op, stroke, tcolor = ACTOR_STYLE[a]
         x = col_x[a]
@@ -135,56 +175,138 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         )
         parts.append(_t(x + col_w / 2, 29, ACTOR_LABELS[a], size=13, weight=700, fill=tcolor))
 
-    y = TOP
-    centers: list[tuple[float, float, float]] = []  # (cx, top, bottom)
-    current_phase = None
-    for s in steps:
-        phase = s.get("phase") or ""
-        if phase and phase != current_phase:
-            current_phase = phase
-            parts.append(
-                f'<rect x="0" y="{y}" width="{W}" height="{BAND_H - 6}" rx="4" fill="{BG}" stroke="{BORDER}" '
-                f'stroke-width="1"/>'
-            )
-            parts.append(_t(12, y + (BAND_H - 6) / 2, _clip(phase, 120), size=12, weight=700, fill=TEXT,
-                            anchor="start"))
-            y += BAND_H
+    def arrow(d: str, dashed: bool = False) -> None:
+        dash = ' stroke-dasharray="5 4"' if dashed else ""
+        color = ACCENT if dashed else MUTED
+        arrows.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="1.3"{dash} '
+                      f'marker-end="url(#ms-arrow)"/>')
+
+    def link(x1: float, b1: float, x2: float, t2: float, turn: float) -> None:
+        if abs(x1 - x2) < 1:
+            arrow(f"M{x1:.1f} {b1:.1f} L{x2:.1f} {t2 - 3:.1f}")
+        else:
+            arrow(f"M{x1:.1f} {b1:.1f} L{x1:.1f} {turn:.1f} L{x2:.1f} {turn:.1f} L{x2:.1f} {t2 - 3:.1f}")
+
+    def draw_step(s: dict[str, Any], x: float, y: float, w: float, show_actor: bool) -> None:
         actor = s.get("actor") if s.get("actor") in ACTOR_STYLE else "maestro"
         fill, op, stroke, tcolor = ACTOR_STYLE[actor]
-        x = col_x.get(actor, col_x[used[0]]) + 10
-        cx = x + box_w / 2
-        # One group per step so the run page can highlight it (current, past, viewed in history).
+        chars = int(w / 6.9)
+        cx = x + w / 2
         parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">' + _tooltip(s))
         parts.append(
-            f'<rect class="ms-ring" x="{x - 5:.1f}" y="{y - 5}" width="{box_w + 10:.1f}" height="{ROW_H + 10}" '
+            f'<rect class="ms-ring" x="{x - 5:.1f}" y="{y - 5:.1f}" width="{w + 10:.1f}" height="{ROW_H + 10}" '
             f'rx="11" fill="none" stroke="{ACCENT}" stroke-width="3" visibility="hidden"/>'
         )
         parts.append(
-            f'<rect x="{x:.1f}" y="{y}" width="{box_w:.1f}" height="{ROW_H}" rx="8" fill="{fill}" '
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{ROW_H}" rx="8" fill="{fill}" '
             f'fill-opacity="{op}" stroke="{stroke}" stroke-width="1"/>'
         )
         sub = MUTED if actor != "human" else NEUTRAL_1000
-        tags = step_tags({**s, "actor": actor})
+        tags = step_tags({**s, "actor": actor}, with_loop=False)
+        if show_actor and actor != "human":  # inside a path the column no longer says who does it
+            tags = [ACTOR_LABELS[actor], *tags]
         parts.append(_t(x + 10, y + 14, _clip(f"{s.get('id', '')} " + " · ".join(tags), chars + 4), size=10,
                         fill=sub, anchor="start"))
         parts.append(_t(cx, y + 34, _clip(s.get("title", ""), chars - 2), size=13, weight=700, fill=tcolor))
         if s.get("detail"):
             parts.append(_t(cx, y + 53, _clip(s["detail"], chars), size=11, fill=sub))
         parts.append("</g>")
-        centers.append((cx, y, y + ROW_H))
-        y += ROW_H + GAP
+        boxes[str(s.get("id", ""))] = (x, y, w)
 
-    # Arrows between consecutive steps (drawn on top so phase bands never hide them)
-    arrows = []
-    for (cx1, _t1, b1), (cx2, t2, _b2) in zip(centers, centers[1:]):
-        mid = b1 + (t2 - b1) / 2
-        if abs(cx1 - cx2) < 1:
-            d = f"M{cx1:.1f} {b1} L{cx2:.1f} {t2 - 3}"
-        else:
-            d = f"M{cx1:.1f} {b1} L{cx1:.1f} {mid:.1f} L{cx2:.1f} {mid:.1f} L{cx2:.1f} {t2 - 3}"
-        arrows.append(
-            f'<path d="{d}" fill="none" stroke="{MUTED}" stroke-width="1.2" marker-end="url(#ms-arrow)"/>'
-        )
+    def band(y: float, phase: str) -> None:
+        parts.append(f'<rect x="0" y="{y}" width="{width}" height="{BAND_H - 6}" rx="4" fill="{BG}" '
+                     f'stroke="{BORDER}" stroke-width="1"/>')
+        parts.append(_t(12, y + (BAND_H - 6) / 2, _clip(phase, 120), size=12, weight=700, fill=TEXT,
+                        anchor="start"))
+
+    y = TOP
+    tails: list[tuple[float, float, dict[str, Any]]] = []  # (cx, bottom, step) the next block starts from
+    current_phase = None
+    for kind, block in _blocks(steps):
+        if kind == "step":
+            s = block
+            phase = s.get("phase") or ""
+            if phase and phase != current_phase:
+                current_phase = phase
+                band(y, phase)
+                y += BAND_H
+            actor = s.get("actor") if s.get("actor") in ACTOR_STYLE else "maestro"
+            x = col_x.get(actor, col_x[used[0]]) + 10
+            draw_step(s, x, y, box_w, show_actor=False)
+            cx = x + box_w / 2
+            for tx, tb, _ts in tails:  # one arrow, or several when paths join here
+                link(tx, tb, cx, y, y - GAP / 2)
+            tails = [(cx, y + ROW_H, s)]
+            y += ROW_H + GAP
+            continue
+
+        # Alternative paths, side by side, each under a labeled arrow from the deciding step.
+        paths: dict[str, list[dict[str, Any]]] = block
+        n = len(paths)
+        lane = (width - 20) / n
+        path_w = min(box_w, lane - 20) if n > 1 else box_w
+        fork_y = y - GAP / 2
+        top = y + PILL_H + 14
+        bottom = top
+        new_tails: list[tuple[float, float, dict[str, Any]]] = []
+        if tails:
+            fx, fb, _fs = tails[0]
+            # decision diamond where the paths split
+            overlays.append(
+                f'<path d="M{fx:.1f} {fork_y - 7:.1f} L{fx + 7:.1f} {fork_y:.1f} L{fx:.1f} {fork_y + 7:.1f} '
+                f'L{fx - 7:.1f} {fork_y:.1f} Z" fill="{SURFACE}" stroke="{ACCENT}" stroke-width="1.5"/>'
+            )
+        for i, (label, path_steps) in enumerate(paths.items()):
+            lx = 10 + i * lane
+            x = lx + (lane - path_w) / 2
+            cx = x + path_w / 2
+            if n > 1:
+                parts.append(f'<rect x="{lx + 4:.1f}" y="{y - 4:.1f}" width="{lane - 8:.1f}" '
+                             f'height="{{H}}" rx="10" fill="none" stroke="{BORDER}" stroke-dasharray="3 4"/>')
+            for tx, tb, _ts in tails:
+                link(tx, tb, cx, top, fork_y)
+            overlays.append(_pill(cx, y + PILL_H / 2 + 2, label, fill=ACCENT, stroke=ACCENT,
+                                  color="var(--accent-contrast, #FFFFFF)"))
+            py = top
+            prev: tuple[float, float] | None = None
+            for s in path_steps:
+                draw_step(s, x, py, path_w, show_actor=True)
+                if prev:
+                    link(prev[0], prev[1], cx, py, py - GAP / 2)
+                prev = (cx, py + ROW_H)
+                py += ROW_H + GAP
+            new_tails.append((cx, py - GAP, path_steps[-1]))
+            bottom = max(bottom, py)
+        block_h = bottom - y - GAP + 12
+        parts[:] = [p.replace("{H}", f"{block_h:.1f}") for p in parts]
+        # Shorter paths: extend to the common bottom so the join reads clearly.
+        tails = [(cx, b, st) for cx, b, st in new_tails]
+        y = bottom + 8
+
+    # Loops back: dashed arrow from the step to the earlier one, through the right gutter, labeled "No".
+    for i, s in enumerate(loops):
+        src, dst = boxes.get(str(s.get("id"))), boxes.get(str(s.get("loop_to")))
+        if not src or not dst:
+            continue
+        sx, sy, sw = src
+        dx, dy, dw = dst
+        gx = width + 8 + i * LOOP_LANE
+        y1, y2 = sy + ROW_H / 2 + 6, dy + ROW_H / 2 - 6
+        arrow(f"M{sx + sw:.1f} {y1:.1f} L{gx:.1f} {y1:.1f} L{gx:.1f} {y2:.1f} L{dx + dw + 3:.1f} {y2:.1f}",
+              dashed=True)
+        label = "No" + (f" · {_clip(str(s.get('loop')), 28)}" if s.get("loop") else "")
+        lx = (sx + sw + gx) / 2 if gx - (sx + sw) > len(label) * 6.3 + 24 else sx + sw - len(label) * 3.2 - 14
+        overlays.append(_pill(lx, y1, label, fill=SURFACE, stroke=ACCENT, color=TEXT, size=10, dashed=True))
+
+    # "Yes" on the way forward out of every step that can loop back (not on the very last step).
+    last_id = str(steps[-1].get("id")) if steps else ""
+    for s in loops:
+        box = boxes.get(str(s.get("id")))
+        if box and str(s.get("id")) != last_id:
+            bx, by, bw = box
+            overlays.append(_pill(bx + bw / 2, by + ROW_H + 10, "Yes", fill=LIME, stroke=LIME,
+                                  color=NEUTRAL_1000, size=10))
+
     height = y + 10
     summary = escape(design.get("summary") or "Maestro workflow")
     svg = (
@@ -193,7 +315,8 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         f'</title><desc id="ms-desc">{summary}</desc><defs><marker id="ms-arrow" viewBox="0 0 10 10" '
         f'refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path '
         f'd="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" '
-        f'stroke-linejoin="round"/></marker></defs>' + "".join(parts) + "".join(arrows) + "</svg>"
+        f'stroke-linejoin="round"/></marker></defs>' + "".join(parts) + "".join(arrows) + "".join(overlays)
+        + "</svg>"
     )
     return Markup(svg)
 
@@ -228,6 +351,10 @@ def render_design_map(design: dict[str, Any]) -> Markup:
             meta = " · ".join(x for x in (DISPATCH_LABELS.get(s.get("dispatch_workflow", ""), "Upsun Dispatch"),
                                           ("done when " + DONE_LABELS[s["done_when"]])
                                           if s.get("done_when") in DONE_LABELS else "") if x)
+        if s.get("branch"):
+            meta = f"{s['branch']} path · {meta}"
+        if s.get("loop_to"):
+            meta += f" · if not: back to {s['loop_to']}"
         parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">' + _tooltip(s))
         parts.append(
             f'<rect class="ms-ring" x="3" y="{y - 3}" width="{CW - 6}" height="{C_ROW + 6}" rx="10" fill="none" '
