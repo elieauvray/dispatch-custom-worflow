@@ -17,7 +17,7 @@ DISPATCH_KNOWLEDGE = """# Upsun Dispatch: capabilities and limits (as of Novembe
   steered with REVIEW.md files in the repository.
 - CVE scan: dependency vulnerability scan, manual or daily.
 - There are NO custom workflows, no workflow builder and no public API to start Issue to code or to
-  answer its gates. Everything else (triage, specs, multi-step chains, loops, tests on environments,
+  answer its gates. Everything else (triage, specs, chains of several Dispatch workflows, checks between them,
   reports, emails) must be orchestrated by Maestro.
 
 ## Triggers and protocol (driven through the tracker, like a person)
@@ -27,12 +27,10 @@ DISPATCH_KNOWLEDGE = """# Upsun Dispatch: capabilities and limits (as of Novembe
 - Trigger: a separate comment whose whole content is exactly "@upsun-dispatch implement". Never in a
   title or body, never by editing a comment. Triggers posted by bot accounts are ignored. A trigger
   posted while a run is active is dropped: wait for the link-back, blocked or failed comment first.
-- Corrections: Dispatch does not iterate on its own. To fix findings or failing tests, post a comment
-  starting with CORRECTION listing every finding, then a fresh trigger. Cap the attempts (usually 3)
-  and escalate to a person after that.
-- Plan approval gate (Jira, documented inconsistently for other trackers): "plan approve",
-  "plan reject", "plan revise: <feedback>" as comments. It is set per organization or repository, not
-  per issue. Prefer pull request approval as the human gate when in doubt.
+- Inside a running Dispatch workflow, people (not Maestro) handle its human steps: plan approval
+  ("plan approve", "plan reject", "plan revise: <feedback>" comments, documented for Jira), pull request
+  review and approval, merge, and any correction comment followed by a new trigger. Plan approval is set
+  per organization or repository, not per issue.
 - Code hosts: GitHub. GitLab publishing is not guaranteed (Premium/Ultimate and an instance reachable
   from Dispatch's SaaS): plan a go/no-go test first. Dispatch is SaaS only.
 - Context is bounded: keep each issue focused (about 8 files or less to change) and give it explicit
@@ -48,13 +46,18 @@ DISPATCH_KNOWLEDGE = """# Upsun Dispatch: capabilities and limits (as of Novembe
 ## Maestro (the orchestrator this design is for)
 - Maestro is Claude running in Claude Managed Agents. Each run gets a fresh session with: MCP connectors
   configured by the user (Linear, GitHub, Jira/Confluence), a sandbox with bash and files, and the
-  orchestration prompt you write. It can be started by hand or on a schedule (cron), for example hourly.
-- Runs are short-lived: a run must never wait for days. State lives in the trackers: a "ledger" comment
-  edited in place on each tracked item (and/or labels), so every run can resume where the last one stopped.
-- Human gates happen in the trackers and code host (PR approval, issue comments). Maestro detects them on
-  its next run. Maestro can also ask the person who launched it a question in the Maestro app.
-- Maestro cannot run long waits: after a trigger it checks back on its next run; within one run it may
-  wait a few minutes between checks, never more than 30 minutes in total.
+  orchestration prompt you write. It runs by hand or on a schedule (cron), for example hourly.
+- Maestro STARTS Dispatch workflows (writes the issue, posts the trigger comment) and DETECTS when they are
+  finished. It never interacts with a Dispatch workflow while it runs: no comments, no plan decisions, no
+  corrections, no re-triggers, no reviews, no merges. People do Dispatch's own validations themselves.
+- Completion is detected on Maestro's next run by reading the tracker and the code host: pull request merged,
+  pull request approved, or issue closed. Then Maestro continues the meta-workflow, for example by starting
+  the next Issue to code. A failed or blocked Dispatch run, or a pull request closed without merge, is
+  reported to the user, not repaired by Maestro.
+- Runs are short-lived and never wait for Dispatch. State lives in the trackers: a "ledger" comment edited in
+  place on each tracked item, so every run resumes where the last one stopped.
+- Maestro can do its own work between Dispatch workflows (triage, writing issues, checks, tracker updates,
+  reports, publishing documents) and can ask the person who launched it a question in the Maestro app.
 """
 
 DESIGNER_SYSTEM = """You design meta-workflows for Maestro, an orchestrator that drives Upsun Dispatch.
@@ -63,11 +66,15 @@ The user describes a process (often with stages, agents, validations, loops and 
 an executable design that respects what Dispatch can and cannot do today.
 
 For every step, decide WHO does it:
-- "dispatch": only what a built-in Dispatch workflow does (Issue to code, Code review, full review, CVE scan).
-- "maestro": orchestration and everything Dispatch cannot do (triage, tracker updates, issue writing,
-  triggers, corrections, checks, reports, relaying questions).
+- "dispatch": a whole built-in Dispatch workflow run (Issue to code, Code review, full review, CVE scan),
+  treated as a black box. Give it a completion signal in "done_when": "pr_merged", "pr_approved",
+  "issue_closed" or "pr_opened".
+- "maestro": orchestration and everything Dispatch cannot do (triage, writing the issue, posting the
+  trigger, detecting completion, tracker updates, checks between Dispatch workflows, reports). Maestro never
+  intervenes inside a running Dispatch workflow: no corrections, no plan decisions, no reviews, no merges.
 - "human": a decision or validation by a named role (a gate). Say where it happens (PR approval,
-  issue comment, plan approval).
+  issue comment, Dispatch plan approval). Validations that belong to a Dispatch workflow are done by people
+  directly in the tracker or on the pull request, never relayed by Maestro.
 - "upsun": Upsun Cloud work (preview/acceptance environments, deploys).
 - "external": other systems (CI, email sent by a person, a third-party tool).
 
@@ -80,9 +87,12 @@ in English (agents read it), precise and operational:
    CORRECTION protocol; attempt caps; things never to do.
 5. State and resumption: the ledger format (comment marker, table of items, event log) and the rule to
    read every ledger first and advance each active item as far as possible, then stop.
+   For every Dispatch step: start it (issue + trigger comment), record it in the ledger, then only check its
+   completion signal on the next runs; never interact with the issue or the pull request in between.
 6. The stages, in order, each with: who does it, inputs, the exact issue/comment templates to post, the
    expected outputs, the checks, and the gate.
-7. Per-run budget: stop after about 30 minutes of waiting in a run; the next scheduled run continues.
+7. Runs never wait for Dispatch: start what can be started, check what has finished, then stop; the next
+   scheduled run continues.
 8. The end-of-run status report: a Markdown table of items with their current stage, state
    (working | waiting for Dispatch | waiting for a person | escalated | done), owner and links.
 
@@ -114,9 +124,13 @@ DESIGN_SCHEMA: dict = {
                     "gate_owner": {"type": "string"},
                     "repeat": {"type": "string"},
                     "loop": {"type": "string"},
+                    "done_when": {
+                        "type": "string",
+                        "enum": ["none", "pr_merged", "pr_approved", "issue_closed", "pr_opened"],
+                    },
                 },
                 "required": ["id", "phase", "title", "detail", "actor", "dispatch_workflow",
-                             "gate_owner", "repeat", "loop"],
+                             "gate_owner", "repeat", "loop", "done_when"],
                 "additionalProperties": False,
             },
         },

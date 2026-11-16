@@ -49,7 +49,7 @@ def test_description_becomes_a_design_with_actors(client, fake):
 
     page = client.get(f"/workflows/{wf_id}/design").text
     for text in ("Upsun Dispatch", "People (gates)", "Upsun Cloud", "GATE · PO", "Issue to code",
-                 "Custom Dispatch workflow", "Save config", "Schedule Maestro", "Run now"):
+                 "Custom Dispatch workflow", "Save config", "Schedule Maestro", "Run now", "done when PR merged"):
         assert text in page, text
     # The panel endpoint tells HTMX to reload the page once the design is ready
     r = client.get(f"/workflows/{wf_id}/design/panel", headers={"HX-Request": "true"})
@@ -70,7 +70,7 @@ def test_run_now_sends_orchestration_prompt_config_and_skills(client, fake):
     with SessionLocal() as db:
         msg = db.get(WorkflowRun, run_id).initial_message
     assert msg.index("Be concise.") < msg.index("# Mission") < msg.index("Trigger: manual")
-    assert "| REPO | acme/shop |" in msg
+    assert "| REPO | acme/shop |" in msg and "never interact with it" in msg
 
 
 def test_schedule_lifecycle_and_scheduled_runs_import(client, fake):

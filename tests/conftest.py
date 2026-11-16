@@ -155,7 +155,7 @@ class FakeManagedAgents:
                  "actor": "maestro", "dispatch_workflow": "none", "gate_owner": "", "repeat": "per page", "loop": ""},
                 {"id": "S2", "phase": "Spec", "title": "Generate the spec", "detail": "Issue to code run",
                  "actor": "dispatch", "dispatch_workflow": "issue_to_code", "gate_owner": "", "repeat": "",
-                 "loop": "max 3 corrections"},
+                 "loop": "", "done_when": "pr_merged"},
                 {"id": "S3", "phase": "Spec", "title": "Approve the spec PR", "detail": "",
                  "actor": "human", "dispatch_workflow": "none", "gate_owner": "PO", "repeat": "", "loop": ""},
                 {"id": "S4", "phase": "Tests", "title": "Run e2e on <preview>", "detail": "",

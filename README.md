@@ -29,11 +29,16 @@ Maestro permet de décrire un processus complet (étapes, validations, boucles, 
    automatique quand le prompt, la config ou les skills changent ; suppression du workflow = archivage du
    déploiement.
 
-**Déclenchement de Dispatch.** Maestro n'appelle pas d'API Dispatch (il n'y en a pas pour Issue to code) :
-il crée le ticket et poste le commentaire `@upsun-dispatch implement` via les connecteurs MCP (GitHub,
-Linear, Jira), avec **les credentials de l'utilisateur**. Dispatch voit donc un compte humain (les triggers
-de bots sont ignorés). Il suit l'avancement en relisant le ticket et la PR au run suivant ; l'état vit dans
-un « ledger » (commentaire édité) sur chaque élément suivi.
+**Déclenchement de Dispatch, sans intervention.** Maestro n'appelle pas d'API Dispatch (il n'y en a pas
+pour Issue to code) : il crée le ticket et poste le commentaire `@upsun-dispatch implement` via les
+connecteurs MCP (GitHub, Linear, Jira), avec **les credentials de l'utilisateur** (Dispatch ignore les bots).
+Ensuite le workflow Dispatch tourne **exactement comme prévu par Dispatch** : ses validations humaines
+(validation du plan, revue et approbation de la PR, merge) sont faites par les personnes, dans le tracker et
+sur la PR. Maestro n'y touche jamais (ni commentaire, ni correction, ni relance, ni décision, ni merge). À
+chaque run, il relit l'état des tickets qu'il a lancés et compare au **signal de fin** de l'étape (PR mergée,
+PR approuvée, issue fermée ou PR ouverte) ; quand il est atteint, il enchaîne l'étape suivante (par exemple
+un autre Issue to code). Un run Dispatch en échec ou une PR fermée sans merge est signalé, pas réparé. L'état
+vit dans un « ledger » (commentaire édité) sur chaque élément suivi.
 
 ## Sommaire
 

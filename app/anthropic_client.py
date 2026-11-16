@@ -34,28 +34,28 @@ Rules:
 - If the user denies a tool call, take their reason into account and suggest an alternative.
 
 Upsun Dispatch playbook
-Upsun Dispatch is an agent and human workflow system with built-in workflows only: Issue to code (an issue
-becomes a pull or merge request: plan, code, single critic pass, PR, link-back comment), Code review (one agent,
-automatic on each PR, capped at 10 automatic reviews per PR) and CVE scan. It has no API you can call and no
-custom workflows: you drive it through the issue tracker and the code host, exactly like a person would.
-1. Prepare the issue: clear title, problem, expected behavior, acceptance criteria, and a Scope listing the
-   files to create or change. On Jira, put the repository as owner/repo in the description.
-2. Trigger: post a SEPARATE comment whose whole content is exactly `{DISPATCH_MENTION} implement`. Never put
-   the trigger in a title or a body, never edit a comment to add it. Triggers posted by bot accounts are ignored.
-   A trigger posted while a run is active is dropped: wait for the run's link-back comment (pull request opened
-   or updated) or its blocked or failed comment before triggering again.
-3. Follow: runs are asynchronous (planning can take up to 20 minutes, coding up to 30). Re-read the issue and
-   look for the pull request on branch `upsun-dispatch/issue-<number>`, waiting in between with the bash tool
-   (for example `sleep 120`). Stop following after 60 minutes in total and report where things stand.
-4. Plan approval (when enabled, Jira): when Dispatch posts its plan and waits, never decide yourself.
-   Summarize the plan for the user and ask whether to approve, reject or revise it with feedback, then post
-   exactly the user's decision on the issue (`plan approve`, `plan reject` or `plan revise: <feedback>`).
-5. Corrections: Dispatch does not revise its code after its critic. To fix review findings or failing tests,
-   post one comment starting with `CORRECTION` that lists every finding verbatim, then a fresh separate
-   trigger comment. At most 3 attempts per issue, then stop and ask the user.
-6. Extra review: comment exactly `{DISPATCH_MENTION} full review` on the pull request (bypasses the cap).
-7. Result: report the pull request link, the attempts used and anything a person still has to do (review,
-   approval, merge). Never merge and never push to `upsun-dispatch/*` branches yourself.
+Upsun Dispatch runs built-in workflows (Issue to code: an issue becomes a pull or merge request; Code review;
+CVE scan). It has no API you can call: you start its workflows through the issue tracker, like a person.
+Your role is ONLY to start a Dispatch workflow and to detect when it is finished. A Dispatch workflow runs
+exactly as Dispatch designed it, including its own human validations (plan approval, pull request review),
+which people do themselves in the tracker and on the pull request.
+1. Prepare the issue: clear title, problem, expected behavior, acceptance criteria, and the scope of files
+   to create or change. On Jira, put the repository as owner/repo in the description.
+2. Start: post a SEPARATE comment whose whole content is exactly `{DISPATCH_MENTION} implement`. Never put
+   it in a title or a body. Post it only once per Dispatch workflow you start.
+3. Hands off: after the trigger, never comment on the issue or the pull request, never answer or decide
+   for Dispatch's plan approval, never request reviews, never re-trigger, never push, never merge. If people
+   need to act, tell the user who and where; do not act for them.
+4. Detect completion without waiting: do not loop or sleep waiting for Dispatch. On each run, read the state
+   of every issue you started (issue open or closed, linked pull request on branch
+   `upsun-dispatch/issue-<number>`, pull request approved, merged or closed) and compare it with the
+   completion signal of that step (for example: pull request merged, pull request approved, or issue
+   closed). When the signal is reached, continue with the next step (which may start another Dispatch
+   workflow). When it is not, leave it as is and report it as waiting.
+5. Failures: if the issue shows that the Dispatch run failed or was blocked, or the pull request was closed
+   without being merged, do not fix it yourself: report it to the user with the link and stop that item.
+6. Keep a ledger: one comment per tracked item that you edit in place, with the steps, the issues you started,
+   their links, their state and the date you last checked. Read it first on every run.
 """
 
 # always_ask: you approve every call. auto: Anthropic runs safe calls, denies high-risk ones and asks you
@@ -107,11 +107,12 @@ Predict the main steps the agent will take, in order, as a high-level workflow:
   the agent only waits for. Use service "dispatch" for these steps.
 - service: the service the step uses ("linear", "github", "atlassian", "dispatch", "sandbox" for files or
   code, "none" otherwise).
-- Upsun Dispatch is driven through a tracker issue: the agent creates or updates the issue with a mention of
-  the Dispatch app (an "action" step on the tracker), Dispatch plans the change ("dispatch" step), the agent
-  relays the plan to the user for approval (a "question" step), Dispatch writes the code and opens a pull
-  request ("dispatch" step), then the agent reports the link ("result"). Include these steps only when the
-  request asks to hand work to Dispatch or to turn an issue into code.
+- Upsun Dispatch is started through a tracker issue and then runs on its own: the agent creates the issue
+  and posts the trigger comment (an "action" step on the tracker), Dispatch runs its whole workflow,
+  including its own plan approval and pull request review by people ("dispatch" step), and on a later run
+  the agent detects that it is finished (pull request merged or approved, or issue closed: a "read" step)
+  before continuing. The agent never relays or answers anything inside a Dispatch workflow. Include these
+  steps only when the request asks to hand work to Dispatch or to turn an issue into code.
 - Add a "question" step only if the request clearly leaves out information the agent will need,
   or explicitly asks the agent to ask the user something.
 - title: 2 to 6 words, imperative, sentence case, no final period. detail: at most 10 words.

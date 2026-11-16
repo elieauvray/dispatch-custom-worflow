@@ -51,6 +51,14 @@ DISPATCH_LABELS = {
 }
 
 
+DONE_LABELS = {
+    "pr_merged": "PR merged",
+    "pr_approved": "PR approved",
+    "issue_closed": "issue closed",
+    "pr_opened": "PR opened",
+}
+
+
 def _clip(text: str, limit: int) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
@@ -109,6 +117,8 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         tags = []
         if actor == "human":
             tags.append("GATE" + (f" · {s.get('gate_owner')}" if s.get("gate_owner") else ""))
+        if s.get("done_when") in DONE_LABELS:  # the completion signal matters most: show it first
+            tags.append("done when " + DONE_LABELS[s["done_when"]])
         if actor == "dispatch" and s.get("dispatch_workflow") in DISPATCH_LABELS:
             tags.append(DISPATCH_LABELS[s["dispatch_workflow"]])
         if s.get("repeat"):

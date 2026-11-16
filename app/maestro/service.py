@@ -19,6 +19,7 @@ from app.workflows.compose import compose_workflow_message, snapshot_skills
 log = logging.getLogger(__name__)
 GENERATING_TIMEOUT = timedelta(minutes=20)
 ACTORS = ("maestro", "dispatch", "human", "upsun", "external")
+DONE_WHEN = {"pr_merged", "pr_approved", "issue_closed", "pr_opened"}
 
 
 # --- Design -------------------------------------------------------------------
@@ -75,6 +76,7 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
             "gate_owner": str(st.get("gate_owner") or "").strip()[:60] if actor == "human" else "",
             "repeat": str(st.get("repeat") or "").strip()[:60],
             "loop": str(st.get("loop") or "").strip()[:60],
+            "done_when": st.get("done_when") if actor == "dispatch" and st.get("done_when") in DONE_WHEN else "none",
         })
     config = [
         {"key": str(c.get("key", "")).strip()[:64], "description": str(c.get("description", "")).strip()[:200],
@@ -150,9 +152,9 @@ def run_context(wf: Workflow, trigger: str) -> str:
     table = f"| Key | Value |\n|-----|-------|\n{rows}\n" if rows else "No config values.\n"
     return (
         "\n\n# This run\n"
-        f"Trigger: {trigger}. You are Maestro. Read the ledgers first, advance every active item as far as "
-        "possible, stop at human gates, never wait more than 30 minutes in total in this run, then end "
-        "with the status report.\n\n"
+        f"Trigger: {trigger}. You are Maestro. Read the ledgers first. For each Dispatch workflow you started, "
+        "check its completion signal; never interact with it. Start what can be started, stop at human gates, "
+        "do not wait for Dispatch, then end with the status report.\n\n"
         f"## Config values\n{table}"
     )
 
