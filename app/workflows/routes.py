@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -10,7 +10,8 @@ from app.anthropic_client import ManagedAgentsError
 from app.db import get_db
 from app.deps import csrf_protect, require_configured
 from app.maestro import service as maestro_service
-from app.maestro.diagram import DIAGRAM_ONLY_DESCRIPTION
+from app.maestro.diagram import DIAGRAM_ONLY_DESCRIPTION, PDF_MAX_BYTES
+from app.maestro.diagram import validate as validate_diagram
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun
 from app.runs import service
 from app.templating import flash, render
@@ -79,6 +80,7 @@ def workflows_list(
 
 def _edit_ctx(wf: Workflow, name: str, description: str, content: str, error: str | None = None) -> dict:
     return {"workflow": wf, "name": name, "description": description, "content": content, "error": error,
+            "feedback": "",
             "is_maestro": bool(wf.description), "can_edit_prompt": not wf.description or wf.design_status == "ready"}
 
 
@@ -91,41 +93,62 @@ def workflow_edit(
 
 
 @router.post("/workflows/{workflow_id}/edit", dependencies=[Depends(csrf_protect)])
-def workflow_update(
+async def workflow_update(
     request: Request,
     workflow_id: int,
     name: str = Form(...),
     description: str | None = Form(None),
     content: str | None = Form(None),
+    feedback: str = Form(""),
+    remove_diagram: str = Form(""),
+    diagram: UploadFile | None = File(None),
     user: User = Depends(require_configured),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Maestro workflow: a changed description is redesigned; the prompt can be edited by hand once ready."""
+    """Maestro workflow: a new description, diagram or change request is designed again;
+    the orchestration prompt can be edited by hand once the design is ready."""
     wf = get_owned_workflow(db, workflow_id, user)
     is_maestro = bool(wf.description)
-    name = name.strip()
+    name, feedback = name.strip(), feedback.strip()
     if description is None or not is_maestro:
         description = wf.description or ""
     else:
         description = description.strip()
     can_edit_prompt = not is_maestro or wf.design_status == "ready"
     content = wf.content if content is None or not can_edit_prompt else content.strip()
-    if is_maestro and not description and wf.diagram_data:
+
+    error: str | None = None
+    new_diagram: tuple[str, bytes] | None = None
+    if is_maestro and diagram is not None and diagram.filename:
+        data = await diagram.read(PDF_MAX_BYTES + 1)
+        media_type, error = validate_diagram(data)
+        if media_type:
+            new_diagram = (media_type, data)
+    drop_diagram = is_maestro and bool(remove_diagram) and new_diagram is None
+    keeps_diagram = new_diagram is not None or (bool(wf.diagram_data) and not drop_diagram)
+    if is_maestro and drop_diagram and description == DIAGRAM_ONLY_DESCRIPTION:
+        description = ""  # the placeholder only made sense with a diagram
+    if is_maestro and not description and keeps_diagram:
         description = DIAGRAM_ONLY_DESCRIPTION
-    if not name or len(name) > 128:
-        error: str | None = "The name must be between 1 and 128 characters."
-    elif is_maestro and len(description) < 40 and not wf.diagram_data:
+    if error:
+        pass
+    elif not name or len(name) > 128:
+        error = "The name must be between 1 and 128 characters."
+    elif is_maestro and len(description) < 40 and not keeps_diagram:
         error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
-    elif can_edit_prompt and not content and not (is_maestro and description != wf.description):
+    diagram_changed = new_diagram is not None or (drop_diagram and bool(wf.diagram_data))
+    redesign = is_maestro and (description != wf.description or diagram_changed or bool(feedback))
+    if not error and can_edit_prompt and not content and not redesign:
         error = "The orchestration prompt is required."
-    else:
-        error = None
     if not error:
-        redesign = is_maestro and description != wf.description
         prompt_changed = not redesign and content != wf.content
         wf.name = name
         if redesign:
             wf.description = description  # the new design replaces the prompt
+            if new_diagram:
+                wf.diagram_media_type, wf.diagram_data = new_diagram
+            elif drop_diagram:
+                wf.diagram_media_type, wf.diagram_data = None, None
         else:
             wf.content = content
         try:
@@ -134,11 +157,14 @@ def workflow_update(
             db.rollback()
             error = f"You already have a workflow named {name}."
     if error:
-        return render(request, "workflow_form.html", _edit_ctx(wf, name, description, content or "", error),
-                      status_code=400)
+        if new_diagram:
+            error += " Attach the diagram again."
+        ctx = _edit_ctx(wf, name, description, content or "", error)
+        ctx["feedback"] = feedback
+        return render(request, "workflow_form.html", ctx, status_code=400)
     if redesign:
-        maestro_service.request_design(db, wf)
-        flash(request, "Description saved. Maestro is redesigning the workflow.", "info")
+        maestro_service.request_design(db, wf, feedback or None)
+        flash(request, "Saved. Maestro is redesigning the workflow.", "info")
     else:
         flash(request, "Workflow updated.", "success")
         if prompt_changed and wf.deployment_id:  # scheduled Maestro runs must use the edited prompt

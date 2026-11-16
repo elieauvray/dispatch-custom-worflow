@@ -7,7 +7,7 @@
   <h1 style="margin:0">History: {{ workflow.name }}</h1>
   <form method="post" action="/workflows/{{ workflow.id }}/run" style="margin:0">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Run</button>
+    <button type="submit">{{ icon('run') }}Run</button>
   </form>
 </header>
 

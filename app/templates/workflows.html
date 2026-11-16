@@ -3,36 +3,36 @@
 {% block content %}
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">Custom workflows</h1>
-  <a href="/" role="button">Describe a new workflow</a>
+  <a href="/" role="button">{{ icon('create') }}Describe a new workflow</a>
 </header>
 <p class="muted">Each workflow is designed by Maestro from your description. Open one to review its design, set its config, run it now or schedule it. The admin's <a href="/instructions">system instructions</a> apply to every workflow and take precedence over its description.</p>
 {% if workflows %}
 <div class="overflow-auto">
 <table>
-  <thead><tr><th>Name</th><th>Content</th><th>Created</th><th>Runs</th><th>Last run</th><th>Actions</th></tr></thead>
+  <thead><tr><th class="name-cell">Name</th><th>Content</th><th>Created</th><th>Runs</th><th>Last run</th><th>Actions</th></tr></thead>
   <tbody>
   {% for wf in workflows %}
   {% set last = last_runs.get(wf.id) %}
   <tr>
-    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% if wf.design_status == 'needs_answers' %} <span class="badge waiting_input">needs your answers</span>{% endif %}{% if wf.design_status == 'blocked' %} <span class="badge failed">blocked</span>{% endif %}{% if wf.id in outdated %} <span class="badge waiting_input" title="The system instructions changed since this design was generated">instructions changed</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
-    <td class="small">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(110) }}</td>
+    <td class="name-cell">{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% if wf.design_status == 'needs_answers' %} <span class="badge waiting_input">needs your answers</span>{% endif %}{% if wf.design_status == 'blocked' %} <span class="badge failed">blocked</span>{% endif %}{% if wf.id in outdated %} <span class="badge waiting_input" title="The system instructions changed since this design was generated">instructions changed</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
+    <td class="small content-cell">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(90) }}</td>
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>
     <td>
       {% if last %}<a href="/runs/{{ last.id }}"><span class="badge {{ last.display_status }}">{{ last.display_label }}</span></a>{% else %}<span class="muted">Never run</span>{% endif %}
       {% if waiting.get(wf.id) %}<br><span class="highlight small">{{ waiting[wf.id] }} run(s) need your action</span>{% endif %}
     </td>
-    <td>
+    <td class="actions-cell">
       <div class="row-actions">
         <form method="post" action="/workflows/{{ wf.id }}/run">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit">Run</button>
+          <button type="submit">{{ icon('run') }}Run</button>
         </form>
-        <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">History</a>
-        <a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">Edit</a>
+        <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">{{ icon('history') }}History</a>
+        <a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">{{ icon('edit') }}Edit</a>
         <form method="post" action="/workflows/{{ wf.id }}/delete" onsubmit='return confirm({{ ("Delete the workflow " ~ wf.name ~ " and its whole history?") | tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary outline">Delete</button>
+          <button type="submit" class="secondary outline">{{ icon('delete') }}Delete</button>
         </form>
       </div>
     </td>

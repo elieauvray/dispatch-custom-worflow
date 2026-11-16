@@ -135,7 +135,7 @@ def test_runs_list_has_no_diagram(client, fake):
     wf_id = _workflow(uid)
     login(client, "bob")
     page = client.get(f"/workflows/{wf_id}/history").text
-    assert "<svg" not in page.split("<main")[1] and "Planned workflow" not in page
+    assert "maestro-diagram" not in page and "maestro-map" not in page and "Planned workflow" not in page
 
 
 def _run_with(client, fake, uid, wf_id, messages):  # type: ignore[no-untyped-def]

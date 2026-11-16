@@ -1,0 +1,25 @@
+{# Diagram picker shared by the describe and edit pages. With `current` (a workflow that has a diagram),
+   it shows that diagram and lets you replace or remove it. #}
+<div class="diagram-drop" id="diagram-drop">
+  <label for="diagram" style="margin:0">
+    <strong>Workflow diagram</strong> <span class="muted small">(optional)</span><br>
+    <span class="small muted">Paste an image into the description, drop a file here, or choose an image (PNG, JPEG, GIF, WebP, 3.75 MB max) or a PDF (10 MB max). Maestro reads it like a description; the text takes precedence.</span>
+  </label>
+  {% if current and current.diagram_media_type %}
+  <div id="diagram-current" class="diagram-preview">
+    {% if current.diagram_media_type.startswith('image/') %}
+    <a href="/workflows/{{ current.id }}/diagram" target="_blank" rel="noopener"><img src="/workflows/{{ current.id }}/diagram" alt="Current workflow diagram"></a>
+    {% else %}<a href="/workflows/{{ current.id }}/diagram" target="_blank" rel="noopener">Open the current PDF</a>{% endif %}
+    <span class="small muted">Current diagram</span>
+    <button type="button" class="secondary outline" id="diagram-current-remove">{{ icon('delete') }}Remove</button>
+    <input type="hidden" name="remove_diagram" id="remove-diagram" value="">
+  </div>
+  <p id="diagram-removed" class="small muted" hidden>The current diagram will be removed when you save. <a href="#" id="diagram-undo">Undo</a></p>
+  {% endif %}
+  <input type="file" name="diagram" id="diagram" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf">
+  <div id="diagram-preview" class="diagram-preview" hidden>
+    <img id="diagram-img" alt="Workflow diagram preview">
+    <span id="diagram-name" class="small"></span>
+    <button type="button" class="secondary outline" id="diagram-remove">{{ icon('delete') }}Remove</button>
+  </div>
+</div>

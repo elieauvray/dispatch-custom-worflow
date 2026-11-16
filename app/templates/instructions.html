@@ -27,10 +27,10 @@
     <td class="small">{{ s.updated_at | dt }}</td>
     <td>
       <div class="row-actions">
-        <a href="/admin/instructions?edit={{ s.id }}#form" role="button" class="secondary">Edit</a>
+        <a href="/admin/instructions?edit={{ s.id }}#form" role="button" class="secondary">{{ icon('edit') }}Edit</a>
         <form method="post" action="/admin/instructions/{{ s.id }}/delete" onsubmit='return confirm({{ ("Delete the system instruction " ~ s.name ~ "?") | tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary outline">Delete</button>
+          <button type="submit" class="secondary outline">{{ icon('delete') }}Delete</button>
         </form>
       </div>
     </td>
@@ -55,8 +55,8 @@
     <label>Instruction <textarea name="content" class="big" required placeholder="Example: every pull request opened by Dispatch goes through a Dispatch Code review before a person merges it.">{{ editing.content if editing else '' }}</textarea></label>
     <label><input type="checkbox" name="active" {% if not editing or editing.active %}checked{% endif %}> Active</label>
     <div class="row-actions">
-      <button type="submit">{{ 'Update' if editing else 'Create' }}</button>
-      {% if editing %}<a href="/admin/instructions" role="button" class="secondary">Cancel</a>{% endif %}
+      <button type="submit">{{ icon('save') }}{{ 'Update' if editing else 'Create' }}</button>
+      {% if editing %}<a href="/admin/instructions" role="button" class="secondary">{{ icon('close') }}Cancel</a>{% endif %}
     </div>
   </form>
 </article>

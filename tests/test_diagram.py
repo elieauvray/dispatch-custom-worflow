@@ -28,7 +28,9 @@ def test_a_diagram_alone_is_enough_and_reaches_every_design_call(client, fake):
     for stage in ("tools", "clarify", "design"):
         assert stages[stage]["media_type"] == "image/png" and stages[stage]["data"] == PNG, stage
     page = client.get(f"/workflows/{wf_id}/design").text
-    assert "Your diagram" in page and f'src="/workflows/{wf_id}/diagram"' in page
+    assert f'href="/workflows/{wf_id}/edit"' in page and "Revise the design" not in page
+    edit = client.get(f"/workflows/{wf_id}/edit").text
+    assert "Current diagram" in edit and f'src="/workflows/{wf_id}/diagram"' in edit
     img = client.get(f"/workflows/{wf_id}/diagram")
     assert img.status_code == 200 and img.headers["content-type"] == "image/png" and img.content == PNG
 
@@ -70,3 +72,49 @@ def test_text_overrides_the_diagram_in_every_prompt():
     assert "takes precedence over the diagram" in note and note.endswith("Replace jira with linear")
     assert "A replaced tool is neither needed nor unsupported" in TOOLS_SYSTEM
     assert "comment that mentions them in the tracker" in TOOLS_SYSTEM
+
+
+def test_edit_replaces_or_removes_the_diagram_and_redesigns(client, fake):
+    from tests.conftest import csrf
+
+    _setup(client)
+    r = _post(client, {"diagram": ("d.png", PNG, "image/png")})
+    wf_id = int(r.headers["location"].split("/")[2])
+    _design(wf_id)
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    pdf = b"%PDF-1.4\n%fake"
+    r = client.post(f"/workflows/{wf_id}/edit", data={"name": "Diagram flow", "description": DIAGRAM_ONLY_DESCRIPTION,
+                                                      "csrf_token": token},
+                    files={"diagram": ("new.pdf", pdf, "application/pdf")}, follow_redirects=False)
+    assert r.status_code == 303
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.diagram_media_type == "application/pdf" and wf.diagram_data == pdf and wf.design_status == "queued"
+    _design(wf_id)
+    assert fake.diagrams_seen[-1][1]["media_type"] == "application/pdf"
+
+    # Removing the only input is refused; removing it with a real description works.
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    r = client.post(f"/workflows/{wf_id}/edit", data={"name": "Diagram flow", "description": DIAGRAM_ONLY_DESCRIPTION,
+                                                      "remove_diagram": "1", "csrf_token": token})
+    assert r.status_code == 400 and "or add a diagram" in r.text
+    text = "Fix bugs: Maestro files each bug as a GitHub issue and Dispatch implements it, the lead merges."
+    client.post(f"/workflows/{wf_id}/edit", data={"name": "Diagram flow", "description": text,
+                                                  "remove_diagram": "1", "csrf_token": token})
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.diagram_data is None and wf.description == text and wf.design_status == "queued"
+
+
+def test_edit_change_request_is_sent_as_feedback(client, fake):
+    from tests.conftest import csrf
+
+    _setup(client)
+    r = _post(client, {"diagram": ("d.png", PNG, "image/png")})
+    wf_id = int(r.headers["location"].split("/")[2])
+    _design(wf_id)
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    client.post(f"/workflows/{wf_id}/edit", data={"name": "Diagram flow", "description": DIAGRAM_ONLY_DESCRIPTION,
+                                                  "feedback": "Use Linear", "csrf_token": token})
+    _design(wf_id)
+    assert fake.design_calls[-1]["feedback"] == "Use Linear"

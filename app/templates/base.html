@@ -27,17 +27,17 @@
       <ul class="nav-right">
       {% if current_user %}
       {% set path = request.url.path %}
-        <li><a href="/" {% if path == '/' or path.startswith('/maestro') %}aria-current="page"{% endif %}>Create</a></li>
-        <li><a href="/workflows" {% if path.startswith('/workflows') or path.startswith('/runs') %}aria-current="page"{% endif %}>Manage</a></li>
-        <li><a href="/settings" {% if path.startswith('/settings') %}aria-current="page"{% endif %}>Settings</a></li>
-        <li><a href="{{ '/admin/instructions' if current_user.is_admin else '/instructions' }}" {% if path.startswith('/admin/instructions') or path.startswith('/instructions') %}aria-current="page"{% endif %}>System instructions</a></li>
+        <li><a href="/" {% if path == '/' or path.startswith('/maestro') %}aria-current="page"{% endif %}>{{ icon('create') }}Create</a></li>
+        <li><a href="/workflows" {% if path.startswith('/workflows') or path.startswith('/runs') %}aria-current="page"{% endif %}>{{ icon('manage') }}Manage</a></li>
+        <li><a href="/settings" {% if path.startswith('/settings') %}aria-current="page"{% endif %}>{{ icon('settings') }}Settings</a></li>
+        <li><a href="{{ '/admin/instructions' if current_user.is_admin else '/instructions' }}" {% if path.startswith('/admin/instructions') or path.startswith('/instructions') %}aria-current="page"{% endif %}>{{ icon('instructions') }}System instructions</a></li>
         {% if current_user.is_admin %}
-        <li><a href="/admin/users" {% if path.startswith('/admin/users') %}aria-current="page"{% endif %}>Users</a></li>
+        <li><a href="/admin/users" {% if path.startswith('/admin/users') %}aria-current="page"{% endif %}>{{ icon('users') }}Users</a></li>
         {% endif %}
         <li>
           <form method="post" action="/logout">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="linklike" title="Signed in as {{ current_user.login }}">Log out</button>
+            <button type="submit" class="linklike" title="Signed in as {{ current_user.login }}">{{ icon('logout') }}Log out</button>
           </form>
         </li>
       {% endif %}

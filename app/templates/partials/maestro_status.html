@@ -49,7 +49,7 @@
         </label>
       </fieldset>
       {% endfor %}
-      <button type="submit">Continue</button>
+      <button type="submit">{{ icon('continue') }}Continue</button>
     </form>
   </article>
 {% elif wf.design_status == 'blocked' %}
@@ -59,8 +59,8 @@
     <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
     <small class="help">Edit it if needed, then try again.{% if wf.diagram_media_type %} Your diagram is sent again with the description.{% endif %}</small>
     <div class="row-actions">
-      <button type="submit">Try again</button>
-      <a href="/settings#connectors" role="button" class="secondary">Open Settings</a>
+      <button type="submit">{{ icon('refresh') }}Try again</button>
+      <a href="/settings#connectors" role="button" class="secondary">{{ icon('settings') }}Open Settings</a>
     </div>
   </form>
 {% elif wf.design_status == 'failed' %}
@@ -69,7 +69,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
     <small class="help">Edit it if needed, then try again.{% if wf.diagram_media_type %} Your diagram is sent again with the description.{% endif %}</small>
-    <button type="submit" class="secondary">Try again</button>
+    <button type="submit" class="secondary">{{ icon('refresh') }}Try again</button>
   </form>
 {% endif %}
 </div>

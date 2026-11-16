@@ -8,7 +8,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Login <input name="login" value="{{ login or '' }}" required autocomplete="username" autofocus></label>
     <label>Password <input type="password" name="password" required autocomplete="current-password"></label>
-    <button type="submit">Sign in</button>
+    <button type="submit">{{ icon('login') }}Sign in</button>
   </form>
 </article>
 {% endblock %}

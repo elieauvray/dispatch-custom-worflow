@@ -346,3 +346,14 @@ details.fold.inner > summary { font-weight: 400; color: var(--muted); }
 @keyframes gen-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @keyframes gen-blink { 50% { opacity: .2; } }
 @media (prefers-reduced-motion: reduce) { .gen-bar > span { transition: none; } .gen-bar > span::after, .gen-dots::after { animation: none; } }
+
+/* Icons before navigation links and button labels */
+.icon { display: inline-block; flex: none; width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin-right: .38em; }
+nav .nav-right a, nav .nav-right button.linklike { display: inline-flex; align-items: center; }
+button .icon, a[role="button"] .icon { margin-right: .4em; }
+/* Workflow list: the four actions on one line */
+.actions-cell { white-space: nowrap; width: 1%; }
+.actions-cell .row-actions { flex-wrap: nowrap; gap: .3rem; }
+.actions-cell .row-actions button, .actions-cell .row-actions a[role="button"] { padding: .28rem .6rem; }
+.name-cell { min-width: 9rem; max-width: 16rem; }
+.content-cell { max-width: 22rem; }

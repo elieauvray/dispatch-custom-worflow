@@ -10,6 +10,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
+from app.icons import icon
 from markupsafe import Markup
 
 from app.security import get_or_create_csrf_token
@@ -61,6 +62,7 @@ def strip_step(text: str | None) -> str:
 
 
 templates.env.filters["md"] = markdown
+templates.env.globals["icon"] = icon
 templates.env.filters["strip_step"] = strip_step
 templates.env.filters["dt"] = format_dt
 templates.env.filters["duration"] = format_duration

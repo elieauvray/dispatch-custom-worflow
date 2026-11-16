@@ -3,9 +3,9 @@
   {% if target.plan_json.summary %}<p class="small muted" style="margin-bottom:.6rem">{{ target.plan_json.summary }}</p>{% endif %}
   <div class="plan-svg">{{ svg }}</div>
   <div class="row-actions" style="margin-top:.6rem">
-    <a href="{{ base }}.svg" role="button" class="secondary" download>Download SVG</a>
+    <a href="{{ base }}.svg" role="button" class="secondary" download>{{ icon('download') }}Download SVG</a>
     <button type="button" class="secondary outline" hx-post="{{ base }}/regenerate" hx-target="#plan-panel" hx-swap="outerHTML"
-            hx-disabled-elt="this" hx-indicator="#plan-regen">Regenerate</button>
+            hx-disabled-elt="this" hx-indicator="#plan-regen">{{ icon('refresh') }}Regenerate</button>
     <span id="plan-regen" class="htmx-indicator small muted" aria-busy="true">Regenerating</span>
     <span class="small muted">Predicted by Claude from the request alone. The transcript shows what actually happens.</span>
   </div>
@@ -16,7 +16,7 @@
 {% elif target.plan_status == 'failed' %}
   <div class="flash error" role="alert">The planned workflow could not be generated. {{ target.plan_error }}</div>
   <button type="button" class="secondary" hx-post="{{ base }}/regenerate" hx-target="#plan-panel" hx-swap="outerHTML"
-          hx-disabled-elt="this">Try again</button>
+          hx-disabled-elt="this">{{ icon('refresh') }}Try again</button>
 {% else %}
   <div hx-get="{{ base }}" hx-trigger="load" hx-target="#plan-panel" hx-swap="outerHTML">
     <p aria-busy="true" class="muted">Generating the planned workflow</p>

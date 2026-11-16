@@ -16,8 +16,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="event_id" value="{{ tool.id }}">
       <input type="text" name="deny_message" placeholder="Reason for denying (optional)">
-      <button type="submit" name="decision" value="allow">Allow</button>
-      <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+      <button type="submit" name="decision" value="allow">{{ icon('allow') }}Allow</button>
+      <button type="submit" name="decision" value="deny" class="secondary">{{ icon('deny') }}Deny</button>
     </form>
   </article>
   {% else %}
@@ -28,7 +28,7 @@
     <span aria-busy="true">Claude is working. You can close this page, the run keeps going.</span>
     <form hx-post="/runs/{{ run.id }}/cancel" hx-target="#run-actions" hx-swap="innerHTML" hx-confirm="Cancel this run?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary outline">Cancel</button>
+      <button type="submit" class="secondary outline">{{ icon('close') }}Cancel</button>
     </form>
   </article>
 {% elif run.status == 'waiting_input' %}
@@ -40,7 +40,7 @@
         <textarea name="text" rows="3" required></textarea>
       </label>
       <div class="row-actions">
-        <button type="submit">Send</button>
+        <button type="submit">{{ icon('send') }}Send</button>
       </div>
     </form>
   </article>

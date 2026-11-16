@@ -48,7 +48,7 @@
         </label>
       </div>
       <small class="help">Create the key in the <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Claude Console</a>, preferably in a dedicated workspace (vaults are shared across a workspace). It is encrypted at rest and never shown again.</small>
-      <button type="submit">Save</button>
+      <button type="submit">{{ icon('save') }}Save</button>
     </form>
   </article>
 
@@ -64,7 +64,7 @@
     {% if settings.last_sync_error %}<div class="flash error">Last error: {{ settings.last_sync_error }}</div>{% endif %}
     <form method="post" action="/settings/sync">
       {{ csrf() }}
-      <button type="submit" class="secondary" {% if not settings.is_configured %}disabled{% endif %}>Recreate or resync</button>
+      <button type="submit" class="secondary" {% if not settings.is_configured %}disabled{% endif %}>{{ icon('refresh') }}Recreate or resync</button>
     </form>
   </details>
 </section>
@@ -101,14 +101,14 @@
             {% for pv, pl in policies.items() %}<option value="{{ pv }}" {% if c.permission_policy == pv %}selected{% endif %}>{{ pl }}</option>{% endfor %}
           </select>
         </label>
-        <noscript><button type="submit" class="secondary">Apply</button></noscript>
+        <noscript><button type="submit" class="secondary">{{ icon('save') }}Apply</button></noscript>
       </form>
       <small class="help"><strong>Always ask</strong> shows an approval card before each call. <strong>Auto</strong> runs safe calls, denies risky ones and asks when unsure (recommended to follow Dispatch work). <strong>Always allow</strong> never asks.</small>
 
       <div class="row-actions">
-        <form method="post" action="/settings/connectors/{{ key }}/test">{{ csrf() }}<button type="submit" class="secondary">Test</button></form>
+        <form method="post" action="/settings/connectors/{{ key }}/test">{{ csrf() }}<button type="submit" class="secondary">{{ icon('test') }}Test</button></form>
         <form method="post" action="/settings/connectors/{{ key }}/delete" onsubmit='return confirm({{ ("Disconnect " ~ prov.label ~ "? Its credential will be archived in the vault.") | tojson }})'>
-          {{ csrf() }}<button type="submit" class="secondary outline">Disconnect</button>
+          {{ csrf() }}<button type="submit" class="secondary outline">{{ icon('disconnect') }}Disconnect</button>
         </form>
       </div>
       {% endif %}
@@ -117,7 +117,7 @@
       <form method="post" action="/oauth/{{ key }}/start" class="oauth-row">
         {{ csrf() }}
         <input type="hidden" name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}">
-        <button type="submit" class="{{ 'secondary' if c else 'contrast' }}">{{ 'Sign in again with ' if c else 'Sign in with ' }}{{ prov.label.split(' / ')[0] }}</button>
+        <button type="submit" class="{{ 'secondary' if c else 'contrast' }}">{{ icon('login') }}{{ 'Sign in again with ' if c else 'Sign in with ' }}{{ prov.label.split(' / ')[0] }}</button>
         <small class="muted">The token is refreshed automatically.</small>
       </form>
       {% endif %}
@@ -133,7 +133,7 @@
             <input name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}" required>
             <small class="help">{{ prov.url_help_html | safe }}</small>
           </details>
-          <button type="submit">Save and test</button>
+          <button type="submit">{{ icon('test') }}Save and test</button>
         </form>
       </details>
     {% endif %}
@@ -150,14 +150,14 @@
     <small class="help">In GitHub: repository (or organization) → <strong>Settings → Webhooks → Add webhook</strong>. Paste the URL and the secret, content type <code>application/json</code>, events: <strong>Pull requests</strong> only.</small>
     <div class="row-actions">
       <form method="post" action="/settings/github-webhook" onsubmit='return confirm("Generate a new URL and secret? The current GitHub webhook will stop working until you update it.")'>
-        {{ csrf() }}<button type="submit" class="secondary">Regenerate</button>
+        {{ csrf() }}<button type="submit" class="secondary">{{ icon('refresh') }}Regenerate</button>
       </form>
       <form method="post" action="/settings/github-webhook/delete" onsubmit='return confirm("Turn off the GitHub wake-up?")'>
-        {{ csrf() }}<button type="submit" class="secondary outline">Turn off</button>
+        {{ csrf() }}<button type="submit" class="secondary outline">{{ icon('pause') }}Turn off</button>
       </form>
     </div>
     {% else %}
-    <form method="post" action="/settings/github-webhook">{{ csrf() }}<button type="submit" class="secondary">Create the webhook</button></form>
+    <form method="post" action="/settings/github-webhook">{{ csrf() }}<button type="submit" class="secondary">{{ icon('webhook') }}Create the webhook</button></form>
     {% endif %}
   </details>
   {% endif %}
@@ -169,8 +169,8 @@
     <p class="small">Set it up once and everyone gets a <strong>Sign in with {{ prov.label.split(' / ')[0] }}</strong> button instead of pasting a token.</p>
     {% if prov.supports_dcr %}
     <div class="row-actions">
-      <form method="post" action="/settings/oauth-apps/{{ key }}/register">{{ csrf() }}<button type="submit">{{ 'Register again' if app else 'Register automatically' }}</button></form>
-      {% if app %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">Remove</button></form>{% endif %}
+      <form method="post" action="/settings/oauth-apps/{{ key }}/register">{{ csrf() }}<button type="submit">{{ icon('refresh') }}{{ 'Register again' if app else 'Register automatically' }}</button></form>
+      {% if app %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">{{ icon('delete') }}Remove</button></form>{% endif %}
     </div>
     {% endif %}
     <details class="fold inner" {% if not prov.supports_dcr %}open{% endif %}>
@@ -184,10 +184,10 @@
           <label>Client secret <input type="password" name="client_secret" autocomplete="off" placeholder="{{ 'unchanged if empty' if app else 'optional (public client)' }}"></label>
         </div>
         <div class="row-actions">
-          <button type="submit" class="secondary">Save</button>
+          <button type="submit" class="secondary">{{ icon('save') }}Save</button>
         </div>
       </form>
-      {% if app and not prov.supports_dcr %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">Remove</button></form>{% endif %}
+      {% if app and not prov.supports_dcr %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">{{ icon('delete') }}Remove</button></form>{% endif %}
     </details>
   </details>
   {% endif %}
