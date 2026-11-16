@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from app.anthropic_client import ManagedAgentsError
 from app.db import get_db
 from app.deps import csrf_protect, require_configured
-from app.models import RunStatus, User, Workflow, WorkflowRun
+from app.maestro import service as maestro_service
+from app.models import RunStatus, Skill, User, Workflow, WorkflowRun
 from app.runs import service
 from app.templating import flash, render
 
@@ -24,6 +25,17 @@ def get_owned_workflow(db: Session, workflow_id: int, user: User) -> Workflow:
 
 
 # --- Prompt ------------------------------------------------------------------
+
+
+@router.get("/instructions")
+def instructions_readonly(
+    request: Request, user: User = Depends(require_configured), db: Session = Depends(get_db)
+) -> Response:
+    """System instructions, read-only: they apply to every workflow, only admins edit them."""
+    if user.is_admin:
+        return RedirectResponse("/admin/instructions", status_code=303)
+    skills = list(db.scalars(select(Skill).where(Skill.active.is_(True)).order_by(Skill.position, Skill.id)))
+    return render(request, "instructions.html", {"skills": skills, "editing": None, "can_edit": False})
 
 
 @router.get("/workflows")
@@ -44,6 +56,7 @@ def workflows_list(
             .group_by(WorkflowRun.workflow_id)
         ).all()
     )
+    instr_hash = maestro_service.current_instructions_hash(db)
     last_runs: dict[int, WorkflowRun] = {}
     waiting: dict[int, int] = {}
     for run in db.scalars(
@@ -58,7 +71,8 @@ def workflows_list(
     return render(
         request,
         "workflows.html",
-        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting},
+        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting,
+         "outdated": {wf.id for wf in workflows if maestro_service.instructions_changed(wf, instr_hash)}},
     )
 
 

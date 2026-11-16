@@ -37,10 +37,10 @@
 
   {% if run.workflow_id %}
   <details>
-    <summary>Skills sent ({{ run.skills_snapshot | length }})</summary>
+    <summary>System instructions applied ({{ run.skills_snapshot | length }})</summary>
     {% for s in run.skills_snapshot %}
     <article><strong>{{ s.name }}</strong><pre class="skill-content">{{ s.content }}</pre></article>
-    {% else %}<p class="muted">No active skills at launch time.</p>{% endfor %}
+    {% else %}<p class="muted">No system instructions at launch time.</p>{% endfor %}
   </details>
   <details>
     <summary>Workflow content (frozen at launch)</summary>

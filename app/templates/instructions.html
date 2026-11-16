@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}System instructions{% endblock %}
+{% block content %}
+<h1>System instructions</h1>
+<div class="banner">
+  System instructions are rules that apply to <strong>every workflow</strong>, for every user. They take
+  <strong>precedence</strong> over what a workflow description says: when a description contradicts them,
+  Maestro rewrites the workflow to comply and lists each change under <em>Adjusted to system instructions</em>
+  on the design. Maestro also receives them at the start of every run.
+  {% if can_edit %}Only admins can edit them. When you change them, existing workflows are marked
+  <em>instructions changed</em> so their owners can regenerate the design; their runs apply the new
+  instructions right away.{% else %}Only admins can edit them.{% endif %}
+  They never override Maestro's built-in rules for driving Upsun Dispatch.
+</div>
+
+{% if skills %}
+<table>
+  <thead><tr>{% if can_edit %}<th>Order</th>{% endif %}<th>Name</th><th>Instruction</th>{% if can_edit %}<th>Active</th><th>Updated</th><th>Actions</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for s in skills %}
+  <tr>
+    {% if can_edit %}<td>{{ s.position }}</td>{% endif %}
+    <td><strong>{{ s.name }}</strong></td>
+    <td><div class="skill-content">{{ s.content }}</div></td>
+    {% if can_edit %}
+    <td>{% if s.active %}<span class="badge configured">active</span>{% else %}<span class="badge not_configured">inactive</span>{% endif %}</td>
+    <td class="small">{{ s.updated_at | dt }}</td>
+    <td>
+      <div class="row-actions">
+        <a href="/admin/instructions?edit={{ s.id }}#form" role="button" class="secondary">Edit</a>
+        <form method="post" action="/admin/instructions/{{ s.id }}/delete" onsubmit='return confirm({{ ("Delete the system instruction " ~ s.name ~ "?") | tojson }})'>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary outline">Delete</button>
+        </form>
+      </div>
+    </td>
+    {% endif %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No system instructions yet.</p>
+{% endif %}
+
+{% if can_edit %}
+<article id="form">
+  <header><h2 style="margin:0">{{ 'Edit ' ~ editing.name if editing else 'New system instruction' }}</h2></header>
+  <form method="post" action="{{ '/admin/instructions/%d' % editing.id if editing else '/admin/instructions' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <label>Name <input name="name" required maxlength="128" value="{{ editing.name if editing else '' }}"></label>
+      <label>Order <input type="number" name="position" value="{{ editing.position if editing else (skills | length) }}"></label>
+    </div>
+    <label>Instruction <textarea name="content" class="big" required placeholder="Example: every pull request opened by Dispatch goes through a Dispatch Code review before a person merges it.">{{ editing.content if editing else '' }}</textarea></label>
+    <label><input type="checkbox" name="active" {% if not editing or editing.active %}checked{% endif %}> Active</label>
+    <div class="row-actions">
+      <button type="submit">{{ 'Update' if editing else 'Create' }}</button>
+      {% if editing %}<a href="/admin/instructions" role="button" class="secondary">Cancel</a>{% endif %}
+    </div>
+  </form>
+</article>
+{% endif %}
+{% endblock %}

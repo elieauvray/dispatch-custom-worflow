@@ -83,6 +83,7 @@ def design_page(
     ctx = _panel_ctx(request, wf)
     ctx.pop("request"), ctx.pop("csrf_token")
     ctx["missing"] = service.missing_connectors(db, user, wf) if wf.design_status == "ready" else []
+    ctx["instructions_changed"] = service.instructions_changed(wf, service.current_instructions_hash(db))
     return render(request, "maestro_design.html", ctx)
 
 

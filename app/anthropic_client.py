@@ -259,9 +259,11 @@ class ManagedAgentsAPI(Protocol):
     def session_status(self, session_id: str) -> str: ...
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]: ...
     def design_workflow(self, model: str, description: str, services: list[str],
-                        previous: dict[str, Any] | None, feedback: str | None) -> dict[str, Any]: ...
-    def check_tools(self, model: str, description: str) -> dict[str, Any]: ...
-    def clarify_workflow(self, model: str, description: str, services: list[str]) -> dict[str, Any]: ...
+                        previous: dict[str, Any] | None, feedback: str | None,
+                        instructions: str = "") -> dict[str, Any]: ...
+    def check_tools(self, model: str, description: str, instructions: str = "") -> dict[str, Any]: ...
+    def clarify_workflow(self, model: str, description: str, services: list[str],
+                         instructions: str = "") -> dict[str, Any]: ...
     def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
                           message: str, cron: str, timezone: str, budget_cents: int | None) -> str: ...
     def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
@@ -469,13 +471,16 @@ class ManagedAgentsClient:
 
     # -- Maestro designer --------------------------------------------------------
     def design_workflow(self, model: str, description: str, services: list[str],
-                        previous: dict[str, Any] | None, feedback: str | None) -> dict[str, Any]:
+                        previous: dict[str, Any] | None, feedback: str | None,
+                        instructions: str = "") -> dict[str, Any]:
         """Turn a process description into a Maestro design (structured JSON, streamed: long output)."""
         from app.maestro.knowledge import DESIGN_SCHEMA, DESIGNER_SYSTEM, DISPATCH_KNOWLEDGE
 
         listed = ", ".join(services) if services else "none yet (the user can add connectors later)"
-        parts = [f"Connectors the user has configured: {listed}.",
-                 f"<process_description>\n{description}\n</process_description>"]
+        parts = [f"Connectors the user has configured: {listed}."]
+        if instructions:
+            parts.append(instructions)
+        parts.append(f"<process_description>\n{description}\n</process_description>")
         if previous and feedback:
             parts.append("<previous_design>\n" + json.dumps(previous, ensure_ascii=False) + "\n</previous_design>")
             parts.append(f"<revision_request>\n{feedback}\n</revision_request>\nRevise the design accordingly.")
@@ -508,7 +513,7 @@ class ManagedAgentsClient:
             raise ManagedAgentsError("Claude returned an incomplete design.")
         return design
 
-    def check_tools(self, model: str, description: str) -> dict[str, Any]:
+    def check_tools(self, model: str, description: str, instructions: str = "") -> dict[str, Any]:
         """Which connectors Maestro must use for this description, and which tools it cannot use at all."""
         from app.maestro.knowledge import TOOLS_SCHEMA, TOOLS_SYSTEM
 
@@ -516,7 +521,8 @@ class ManagedAgentsClient:
             "model": model,
             "max_tokens": 2000,
             "system": TOOLS_SYSTEM,
-            "messages": [{"role": "user", "content": f"<process_description>\n{description}\n</process_description>"}],
+            "messages": [{"role": "user", "content": (instructions + "\n\n" if instructions else "")
+                          + f"<process_description>\n{description}\n</process_description>"}],
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": TOOLS_SCHEMA}},
         }
         if model in _FALLBACK_MODELS:
@@ -532,7 +538,8 @@ class ManagedAgentsClient:
         except ValueError as exc:
             raise ManagedAgentsError("Could not read the tool check result.") from exc
 
-    def clarify_workflow(self, model: str, description: str, services: list[str]) -> dict[str, Any]:
+    def clarify_workflow(self, model: str, description: str, services: list[str],
+                         instructions: str = "") -> dict[str, Any]:
         """Questions the user must answer before the design (empty when the description is clear)."""
         from app.maestro.knowledge import CLARIFY_SCHEMA, CLARIFY_SYSTEM, DISPATCH_KNOWLEDGE
 
@@ -546,7 +553,8 @@ class ManagedAgentsClient:
             ],
             "messages": [{"role": "user", "content": (
                 f"Connectors the user has configured: {listed}.\n\n"
-                f"<process_description>\n{description}\n</process_description>"
+                + (instructions + "\n\n" if instructions else "")
+                + f"<process_description>\n{description}\n</process_description>"
             )}],
             "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": CLARIFY_SCHEMA}},
         }

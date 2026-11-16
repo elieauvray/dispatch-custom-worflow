@@ -37,7 +37,7 @@ executable **meta-workflow** that orchestrates Upsun Dispatch:
 3. **Launch.** *Run now* starts a run that you follow live. *Schedule Maestro* creates a scheduled
    Claude Managed Agents deployment (cron, time zone, budget per run): each tick creates a session that the worker imports
    and follows like the other runs (transcript, approvals, questions). Pause, resume and automatic
-   update when the prompt, the config or the skills change; deleting the workflow archives the
+   update when the prompt, the config or the system instructions change; deleting the workflow archives the
    deployment.
 
 **Following a run on its diagram.** Each run keeps a frozen copy of its workflow's design. On the run page,
@@ -83,10 +83,10 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 | `app/auth` | First launch (`/setup`), login, logout, rate limiting of login attempts |
 | `app/settings` | API key, model, MCP connectors, OAuth (discovery, DCR, PKCE), resource synchronization |
 | `app/anthropic_client.py` | **All** the Managed Agents logic: agent, environment, vault, credentials, sessions, events |
-| `app/workflows` | Workflow list, edit, delete, run, history; message composition (skills, then content) |
+| `app/workflows` | Workflow list, edit, delete, run, history; message composition (system instructions, then content) |
 | `app/runs` | Run details, SSE stream, replies, tool approvals, cancellation, state machine |
 | `app/worker.py` | Upsun worker: drives the sessions, resumes after a restart (claim + heartbeat) |
-| `app/admin` | Users (creation, deletion, password reset) and Skills |
+| `app/admin` | Users (creation, deletion, password reset) and System instructions |
 | `app/webhooks.py` | `POST /webhooks/anthropic` (verified signature) for `vault_credential.refresh_failed` |
 
 ### Managed Agents resources per user
@@ -112,31 +112,48 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 Each run and each workflow shows a **Planned workflow** diagram: the main steps that Claude
 expects to carry out, inferred from the request alone, before any execution.
 
-- **Generation**: on first display, Maestro sends the request (the active skills followed by the
+- **Generation**: on first display, Maestro sends the request (the active system instructions followed by the
   workflow content) and the list of connectors to Claude (Messages API, model chosen in Settings, structured
   JSON output, `low` effort). One call per plan, billed to the user's key.
 - **Interventions computed by the app**, never guessed by Claude: a call to a connector set to
   "Always ask" shows "Your approval", a question shows "Your reply", and a service that is not connected
   shows "Connector missing".
-- **Cache**: a run's plan is frozen. A workflow's plan is recomputed when its content, the active skills,
+- **Cache**: a run's plan is frozen. A workflow's plan is recomputed when its content, the active system instructions,
   the connectors or the model change. A run started from a workflow reuses its plan.
 - **Export**: "Download SVG" button; the file keeps the Upsun colors outside the application.
 - The plan is a forecast: the transcript shows what actually happened.
 
+### System instructions
+
+System instructions (admin menu **System instructions**, read-only for other users at `/instructions`)
+are rules that apply to every workflow, for every user. They are stored in the `skills` table
+(historical name).
+
+- **They take precedence** over a workflow description. The tool check, the Clarify step and the
+  designer all receive them: Clarify never asks what they already decide, the tool check counts the
+  tools they require, and the designer rewrites the workflow to comply and lists each change under
+  **Adjusted to system instructions** on the design page.
+- **They are sent at the start of every run**, with the same precedence rule, and frozen in
+  `workflow_runs.skills_snapshot` (shown as "System instructions applied" on the run page).
+- **When an admin changes them**, existing designs are not regenerated automatically. Each design
+  stores a fingerprint of the instructions it was generated with (`workflows.instructions_hash`);
+  when it no longer matches, the workflow shows **instructions changed** and its design page offers
+  **Regenerate the design**. Runs apply the new instructions right away.
+- **Hierarchy**: Maestro's built-in Dispatch rules (hands off during Dispatch runs, separate trigger
+  comment, connected tools only), then the system instructions, then the workflow description.
+
 ### Message sent for a workflow
 
 ```xml
-<instructions>
-The instructions below are set by the administrator of this application. Apply them throughout the execution of the workflow that follows, at every step and up to the final result.
-<skill name="SKILL NAME">SKILL TEXT</skill>
-</instructions>
+<system_instructions>
+System instructions set by the administrator of this application. They apply to every workflow, ... and they take precedence over the workflow that follows ...
+<instruction name="INSTRUCTION NAME">INSTRUCTION TEXT</instruction>
+</system_instructions>
 
 <workflow name="WORKFLOW NAME">
 WORKFLOW CONTENT
 </workflow>
 ```
-
-The exact text of the active skills is frozen in `workflow_runs.skills_snapshot` at launch.
 
 ## Local setup
 
@@ -305,7 +322,7 @@ For each connector, you choose between "Always ask" (`always_ask`, the default) 
 - **Login rate limiting**: 5 failures per login, or 20 per IP, over 15 minutes.
 - The Anthropic API key is **encrypted at rest** (Fernet) and never shown again: only the last 4 characters are visible. Admin OAuth secrets are encrypted the same way.
 - No secret is ever logged. The `httpx` and `anthropic` loggers are set to WARNING.
-- Isolation: a user can only access their own workflows and runs (404 otherwise). The Users and Skills pages are restricted to the admin.
+- Isolation: a user can only access their own workflows and runs (404 otherwise). The Users page and editing System instructions are restricted to the admin.
 - `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy` headers.
 
 ## Tests
@@ -321,7 +338,7 @@ The Anthropic API is replaced by a fake client (`tests/conftest.py`). The tests 
 - permissions (admin pages, other users' workflows and runs);
 - API key encryption and synchronization idempotence;
 - MCP server declaration and permission policies;
-- message composition (active skills, in order, before the content; frozen snapshot);
+- message composition (active system instructions, in order, before the content; frozen snapshot); system instructions passed to the tool check, Clarify and the designer; outdated designs flagged;
 - handling of `requires_action` (approval and denial with a reason), `end_turn` (question or completed), cancellation, resumption by the worker and the SSE stream.
 
 To run the same tests on PostgreSQL (dedicated database, emptied for each test, never the Upsun one):

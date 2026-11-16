@@ -22,6 +22,16 @@
   {% if missing %}
   <div class="flash error" role="alert">This workflow needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
   {% endif %}
+  {% if instructions_changed %}
+  <div class="flash warning" role="status">
+    <strong>The system instructions changed since this design was generated.</strong>
+    Runs already apply the new instructions, but the diagram and the orchestration prompt may not match them.
+    <form method="post" action="/workflows/{{ wf.id }}/design/revise" style="display:inline;margin:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="linklike">Regenerate the design</button>
+    </form>
+  </div>
+  {% endif %}
   {% if design.summary %}<p>{{ design.summary }}</p>{% endif %}
   <p class="small muted">
     {{ counts.maestro }} Maestro · {{ counts.dispatch }} Upsun Dispatch · {{ counts.human }} human gate(s){% if counts.upsun %} · {{ counts.upsun }} Upsun Cloud{% endif %}{% if counts.external %} · {{ counts.external }} other{% endif %}
@@ -33,6 +43,17 @@
       <a href="/workflows/{{ wf.id }}/design.svg" role="button" class="secondary" download>Download SVG</a>
     </div>
   </section>
+
+  {% if design.instruction_adjustments %}
+  <section>
+    <h2 class="section-title">Adjusted to system instructions</h2>
+    <p class="small muted">The <a href="/instructions">system instructions</a> take precedence over your description. Maestro changed the workflow to comply:</p>
+    <table>
+      <thead><tr><th>Instruction</th><th>Change to the workflow</th></tr></thead>
+      <tbody>{% for a in design.instruction_adjustments %}<tr><td>{{ a.instruction }}</td><td>{{ a.change }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+  {% endif %}
 
   {% if design.not_possible %}
   <section>

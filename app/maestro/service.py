@@ -17,7 +17,7 @@ from app.deps import get_user_settings
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.plans.service import connector_policies
 from app.settings.service import client_for, resources_ready, sync_user_resources
-from app.workflows.compose import compose_workflow_message, snapshot_skills
+from app.workflows.compose import compose_workflow_message, instructions_block, instructions_hash, snapshot_skills
 
 log = logging.getLogger(__name__)
 GENERATING_TIMEOUT = timedelta(minutes=20)
@@ -33,6 +33,20 @@ def create_maestro_workflow(db: Session, user: User, name: str, description: str
     db.add(wf)
     db.commit()
     return wf
+
+
+def current_instructions(db: Session) -> list[dict[str, Any]]:
+    """Active system instructions, in order (stored in the `skills` table)."""
+    return snapshot_skills(db.scalars(select(Skill)))
+
+
+def current_instructions_hash(db: Session) -> str:
+    return instructions_hash(current_instructions(db))
+
+
+def instructions_changed(wf: Workflow, current_hash: str) -> bool:
+    """True when the system instructions changed since this workflow's design was generated."""
+    return wf.design_status == "ready" and (wf.instructions_hash or "") != current_hash
 
 
 def request_design(db: Session, wf: Workflow, feedback: str | None = None) -> None:
@@ -91,6 +105,10 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
         "steps": steps,
         "config": config,
         "assumptions": [str(a) for a in raw.get("assumptions") or []][:20],
+        "instruction_adjustments": [
+            {"instruction": str(a.get("instruction", "")), "change": str(a.get("change", ""))}
+            for a in raw.get("instruction_adjustments") or [] if isinstance(a, dict)
+        ][:20],
         "not_possible": [
             {"need": str(n.get("need", "")), "alternative": str(n.get("alternative", ""))}
             for n in raw.get("not_possible") or []
@@ -184,9 +202,12 @@ def generate_design(db: Session, wf_id: int) -> None:
     settings = get_user_settings(db, user)
     try:
         client = client_for(settings)
+        # System instructions (admin) apply to every workflow and take precedence over the description.
+        skills = current_instructions(db)
+        instructions, ihash = instructions_block(skills), instructions_hash(skills)
         # 1. Tool check first (cheap): never write a prompt that needs a tool Maestro cannot use.
         text = wf.description + (f"\n\nRequested change: {wf.design_feedback}" if wf.design_feedback else "")
-        check = client.check_tools(settings.model, text)
+        check = client.check_tools(settings.model, text, instructions)
         needed = sorted({c for c in check.get("connectors_needed") or [] if c in CONNECTOR_NAMES})
         blocked = blocking_message(needed, set(connector_policies(db, user)), check.get("unsupported_tools") or [])
         if blocked:
@@ -198,9 +219,9 @@ def generate_design(db: Session, wf_id: int) -> None:
         # 2. Clarify: ask the user the decisions that make the workflow executable (once per request)
         services = sorted(connector_policies(db, user))
         clar = dict(wf.clarifications or {})
-        request_hash = hashlib.sha256(text.encode()).hexdigest()
+        request_hash = hashlib.sha256((text + ihash).encode()).hexdigest()
         if clar.get("for") != request_hash:
-            asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services)
+            asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services, instructions)
             questions = normalize_questions(asked.get("questions") or [])
             clar = {"for": request_hash, "questions": questions, "decisions": clar.get("decisions") or []}
             wf.clarifications = clar
@@ -213,7 +234,7 @@ def generate_design(db: Session, wf_id: int) -> None:
         # 3. Full design, with the user's decisions
         raw = client.design_workflow(
             settings.model, wf.description + decisions_block(clar), services,
-            wf.design_json, wf.design_feedback,
+            wf.design_json, wf.design_feedback, instructions,
         )
         wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}
         wf.content = str(raw["orchestration_prompt"]).strip()
@@ -222,6 +243,7 @@ def generate_design(db: Session, wf_id: int) -> None:
         wf.design_status = "ready"
         wf.design_error = None
         wf.design_feedback = None
+        wf.instructions_hash = ihash
         # The predicted plan diagram follows the new content automatically (hash changes).
     except (ManagedAgentsError, RuntimeError) as exc:
         wf.design_status = "failed"
@@ -273,7 +295,7 @@ def run_context(wf: Workflow, trigger: str) -> str:
 
 
 def maestro_message(db: Session, wf: Workflow, trigger: str) -> tuple[list[dict[str, Any]], str]:
-    skills = snapshot_skills(db.scalars(select(Skill)))
+    skills = current_instructions(db)
     return skills, compose_workflow_message(skills, wf.name, wf.content + run_context(wf, trigger))
 
 

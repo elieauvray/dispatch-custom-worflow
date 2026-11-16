@@ -101,7 +101,17 @@ today with the alternative you chose, the tools/connectors required, the config 
 schedule (cron) with its reason. Keep step titles short (2 to 7 words) and details to one line.
 Never invent Dispatch features beyond the knowledge below; when the description asks for one, say so in
 "not_possible" and design the alternative. Write titles, summary and lists in the language of the
-user's description; write the orchestration prompt in English."""
+user's description; write the orchestration prompt in English.
+
+System instructions: the request may contain a <system_instructions> block set by the administrator. They
+apply to every workflow and take precedence over the process description and any revision request. When the
+description contradicts them, or leaves out something they require (an extra gate, a review, a label, a
+tracker, a report), design the workflow so it complies, and record each change in "instruction_adjustments"
+(the instruction's name and what you changed). Leave "instruction_adjustments" empty when nothing had to
+change. Write the orchestration prompt so it already complies; do not copy the instructions into it, Maestro
+receives them on every run. They never override the Dispatch rules above (hands off during Dispatch runs,
+separate trigger comment, connected tools only).
+"""
 
 DESIGN_SCHEMA: dict = {
     "type": "object",
@@ -144,6 +154,15 @@ DESIGN_SCHEMA: dict = {
             },
         },
         "assumptions": {"type": "array", "items": {"type": "string"}},
+        "instruction_adjustments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"instruction": {"type": "string"}, "change": {"type": "string"}},
+                "required": ["instruction", "change"],
+                "additionalProperties": False,
+            },
+        },
         "not_possible": {
             "type": "array",
             "items": {
@@ -162,7 +181,7 @@ DESIGN_SCHEMA: dict = {
         },
         "orchestration_prompt": {"type": "string"},
     },
-    "required": ["summary", "steps", "config", "assumptions", "not_possible", "tools", "schedule",
+    "required": ["summary", "steps", "config", "assumptions", "instruction_adjustments", "not_possible", "tools", "schedule",
                  "orchestration_prompt"],
     "additionalProperties": False,
 }
@@ -186,7 +205,11 @@ none of these connectors covers (for example GitLab, Bitbucket, Slack, Teams, se
 a CI system, the Upsun CLI, a database). Give its name and why Maestro would need it.
 Do not list: Upsun Dispatch itself, tools only people use, Upsun Cloud environments created automatically
 by Upsun, or work Dispatch does on its own. When a tool is optional or has an obvious alternative with the
-available connectors, do not list it. Base your answer only on the description."""
+available connectors, do not list it. Base your answer only on the description.
+
+System instructions: when the request contains a <system_instructions> block, it applies to this workflow
+too. Count the tools it requires Maestro to use (for example "every workflow reports in Linear") as needed.
+"""
 
 TOOLS_SCHEMA: dict = {
     "type": "object",
@@ -228,7 +251,11 @@ Previous decisions, when given, are final: never ask them again.
 
 Return at most 6 questions, most important first. Each question has 2 to 4 short options; the FIRST option
 is the one you recommend. Add a one-line "why" explaining what the answer changes. Write in the language of
-the description. If the description is clear enough, return an empty list."""
+the description. If the description is clear enough, return an empty list.
+
+System instructions: when the request contains a <system_instructions> block, treat what it decides as
+final. Never ask a question it already answers, and never offer an option that contradicts it.
+"""
 
 CLARIFY_SCHEMA: dict = {
     "type": "object",

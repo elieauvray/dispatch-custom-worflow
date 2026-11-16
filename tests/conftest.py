@@ -46,6 +46,8 @@ class FakeManagedAgents:
     counter: int = 0
     bad_key: bool = False
     plan_calls: list[tuple[str, str, list[str]]] = field(default_factory=list)
+    instructions_seen: list[tuple[str, str]] = field(default_factory=list)
+    design_adjustments: list[dict[str, str]] = field(default_factory=list)
     plan_error: str | None = None
     plan_response: dict[str, Any] | None = None
     design_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -149,17 +151,20 @@ class FakeManagedAgents:
     def session_status(self, session_id: str) -> str:
         return "idle"
 
-    def clarify_workflow(self, model, description, services):  # type: ignore[no-untyped-def]
+    def clarify_workflow(self, model, description, services, instructions=""):  # type: ignore[no-untyped-def]
         self.clarify_calls.append(description)
+        self.instructions_seen.append(("clarify", instructions))
         return self.clarify_response
 
-    def check_tools(self, model, description):  # type: ignore[no-untyped-def]
+    def check_tools(self, model, description, instructions=""):  # type: ignore[no-untyped-def]
         self.tools_calls.append(description)
+        self.instructions_seen.append(("tools", instructions))
         return self.tools_response
 
-    def design_workflow(self, model, description, services, previous, feedback):  # type: ignore[no-untyped-def]
+    def design_workflow(self, model, description, services, previous, feedback, instructions=""):  # type: ignore[no-untyped-def]
         self.design_calls.append({"description": description, "services": services,
                                   "previous": previous, "feedback": feedback})
+        self.instructions_seen.append(("design", instructions))
         if self.design_error:
             raise anthropic_client.ManagedAgentsError(self.design_error)
         return {
@@ -177,6 +182,7 @@ class FakeManagedAgents:
             ],
             "config": [{"key": "REPO", "description": "GitHub owner/repo"}],
             "assumptions": ["GitHub is the code host"],
+            "instruction_adjustments": list(self.design_adjustments),
             "not_possible": [{"need": "Custom Dispatch workflow", "alternative": "Maestro chains Issue to code runs"}],
             "tools": ["GitHub connector"],
             "schedule": {"cron": "0 * * * *", "reason": "Hourly is enough for human gates."},

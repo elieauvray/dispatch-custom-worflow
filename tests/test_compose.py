@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.db import SessionLocal
 from app.models import Skill, Workflow, WorkflowRun
-from app.workflows.compose import SKILLS_INTRO, compose_workflow_message
+from app.workflows.compose import INSTRUCTIONS_INTRO, compose_workflow_message
 from tests.conftest import csrf, login, make_user
 
 
@@ -12,8 +12,9 @@ def test_skills_come_before_workflow_content():
         'Report "weekly"',
         "List the overdue tickets.",
     )
-    assert msg.index("<instructions>") < msg.index("</instructions>") < msg.index("<workflow")
-    assert SKILLS_INTRO in msg
+    assert msg.index("<system_instructions>") < msg.index("</system_instructions>") < msg.index("<workflow")
+    assert INSTRUCTIONS_INTRO in msg and "take precedence" in INSTRUCTIONS_INTRO
+    assert '<instruction name="Tone">' in msg
     assert msg.index("Be concise.") < msg.index("Answer in Markdown.")
     assert '<workflow name="Report &quot;weekly&quot;">' in msg
     assert msg.rstrip().endswith("List the overdue tickets.\n</workflow>")
@@ -21,7 +22,7 @@ def test_skills_come_before_workflow_content():
 
 def test_no_skills_means_only_workflow_block():
     msg = compose_workflow_message([], "W", "Do X")
-    assert "<instructions>" not in msg
+    assert "<system_instructions>" not in msg
     assert msg == '<workflow name="W">\nDo X\n</workflow>'
 
 

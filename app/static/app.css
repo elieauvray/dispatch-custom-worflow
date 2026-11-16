@@ -122,6 +122,8 @@ main.container { max-width: 1200px; padding: 0 1rem 3rem; }
 .flash { padding: .7rem 1rem; border-radius: 6px; margin-bottom: .6rem; border-left: 4px solid var(--accent); background: var(--surface); }
 .flash.error { border-left-color: var(--u-orange-600); }
 .flash.success { border-left-color: var(--u-violet-600); }
+.flash.warning { border-left-color: var(--u-lime-600); }
+button.linklike { background: none; border: none; color: var(--accent); padding: 0; margin: 0; width: auto; cursor: pointer; text-decoration: underline; font: inherit; }
 
 .help { display: block; color: var(--muted); font-size: .85rem; margin-top: -.4rem; margin-bottom: .9rem; }
 .muted { color: var(--muted); }

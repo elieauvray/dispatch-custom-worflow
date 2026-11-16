@@ -112,20 +112,20 @@ def delete_user(
     return RedirectResponse("/admin/users", status_code=303)
 
 
-# --- Skills ------------------------------------------------------------------
+# --- System instructions (stored in the `skills` table) ---------------------
 
 
-@router.get("/skills")
-def skills_page(
+@router.get("/instructions")
+def instructions_page(
     request: Request, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> Response:
     skills = list(db.scalars(select(Skill).order_by(Skill.position, Skill.id)))
     edit_id = request.query_params.get("edit")
     editing = db.get(Skill, int(edit_id)) if edit_id and edit_id.isdigit() else None
-    return render(request, "admin_skills.html", {"skills": skills, "editing": editing})
+    return render(request, "instructions.html", {"skills": skills, "editing": editing, "can_edit": True})
 
 
-def _skill_form(name: str, content: str, position: str) -> tuple[str, str, int] | str:
+def _instruction_form(name: str, content: str, position: str) -> tuple[str, str, int] | str:
     name, content = name.strip(), content.strip()
     if not name or len(name) > 128 or not content:
         return "Name (128 characters max) and content are required."
@@ -136,8 +136,8 @@ def _skill_form(name: str, content: str, position: str) -> tuple[str, str, int] 
     return name, content, pos
 
 
-@router.post("/skills", dependencies=[Depends(csrf_protect)])
-def create_skill(
+@router.post("/instructions", dependencies=[Depends(csrf_protect)])
+def create_instruction(
     request: Request,
     name: str = Form(...),
     content: str = Form(...),
@@ -146,20 +146,20 @@ def create_skill(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
-    parsed = _skill_form(name, content, position)
+    parsed = _instruction_form(name, content, position)
     if isinstance(parsed, str):
         flash(request, parsed, "error")
     else:
         db.add(Skill(name=parsed[0], content=parsed[1], position=parsed[2], active=active is not None))
         db.commit()
-        flash(request, "Skill created.", "success")
-    return RedirectResponse("/admin/skills", status_code=303)
+        flash(request, "System instruction created.", "success")
+    return RedirectResponse("/admin/instructions", status_code=303)
 
 
-@router.post("/skills/{skill_id}", dependencies=[Depends(csrf_protect)])
-def update_skill(
+@router.post("/instructions/{instruction_id}", dependencies=[Depends(csrf_protect)])
+def update_instruction(
     request: Request,
-    skill_id: int,
+    instruction_id: int,
     name: str = Form(...),
     content: str = Form(...),
     position: str = Form("0"),
@@ -167,27 +167,33 @@ def update_skill(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
-    skill = db.get(Skill, skill_id)
+    skill = db.get(Skill, instruction_id)
     if skill is None:
         raise HTTPException(404)
-    parsed = _skill_form(name, content, position)
+    parsed = _instruction_form(name, content, position)
     if isinstance(parsed, str):
         flash(request, parsed, "error")
-        return RedirectResponse(f"/admin/skills?edit={skill_id}", status_code=303)
+        return RedirectResponse(f"/admin/instructions?edit={instruction_id}", status_code=303)
     skill.name, skill.content, skill.position = parsed
     skill.active = active is not None
     db.commit()
-    flash(request, "Skill updated.", "success")
-    return RedirectResponse("/admin/skills", status_code=303)
+    flash(request, "System instruction updated.", "success")
+    return RedirectResponse("/admin/instructions", status_code=303)
 
 
-@router.post("/skills/{skill_id}/delete", dependencies=[Depends(csrf_protect)])
-def delete_skill(
-    request: Request, skill_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)
+@router.post("/instructions/{instruction_id}/delete", dependencies=[Depends(csrf_protect)])
+def delete_instruction(
+    request: Request, instruction_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> Response:
-    skill = db.get(Skill, skill_id)
+    skill = db.get(Skill, instruction_id)
     if skill:
         db.delete(skill)
         db.commit()
-        flash(request, "Skill deleted.", "success")
-    return RedirectResponse("/admin/skills", status_code=303)
+        flash(request, "System instruction deleted.", "success")
+    return RedirectResponse("/admin/instructions", status_code=303)
+
+
+@router.get("/skills")
+def old_skills_page(admin: User = Depends(require_admin)) -> Response:
+    """Former name of the System instructions page."""
+    return RedirectResponse("/admin/instructions", status_code=301)

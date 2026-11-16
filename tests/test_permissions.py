@@ -24,11 +24,11 @@ def test_user_cannot_access_admin_pages(client):
     make_user("bob")
     login(client, "bob")
     assert client.get("/admin/users").status_code == 403
-    assert client.get("/admin/skills").status_code == 403
+    assert client.get("/admin/instructions").status_code == 403
     token = csrf(client, "/")
     r = client.post("/admin/users", data={"login": "x", "password": "y" * 12, "csrf_token": token})
     assert r.status_code == 403
-    r = client.post("/admin/skills", data={"name": "x", "content": "y", "csrf_token": token})
+    r = client.post("/admin/instructions", data={"name": "x", "content": "y", "csrf_token": token})
     assert r.status_code == 403
     page = client.get("/").text
     assert "/admin/users" not in page
