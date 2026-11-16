@@ -1,207 +1,240 @@
 {% extends "base.html" %}
+{% from "partials/brand_logo.html" import brand_logo %}
 {% block title %}Settings{% endblock %}
 {% macro section_flashes(name) -%}
   {%- for f in flashes if f.section == name %}<div class="flash {{ f.category }}" role="alert">{{ f.message }}</div>{% endfor -%}
 {%- endmacro %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
+{% set tab_order = ['github', 'linear', 'atlassian'] %}
+{% set labels = {'not_configured': 'Not connected', 'configured': 'Connected', 'error': 'Error'} %}
 {% block content %}
-<h1>Settings</h1>
+<header class="settings-head">
+  <h1>Settings</h1>
+  <p class="muted">Your Anthropic account, then the tools Maestro works with on your behalf.</p>
+</header>
 
-<section id="anthropic">
-<article>
-  <header><h2 style="margin:0">Anthropic <span class="badge {{ 'configured' if settings.is_configured else 'error' }}">{{ 'Configured' if settings.is_configured else 'Required' }}</span></h2></header>
-  {{ section_flashes('anthropic') }}
-  <form method="post" action="/settings/anthropic">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Anthropic API key
-      <input type="password" name="api_key" autocomplete="off"
-             placeholder="{{ '•••• •••• ' ~ settings.api_key_last4 ~ ' (leave empty to keep it)' if settings.api_key_last4 else 'sk-ant-api03-xxxx' }}"
-             {% if not settings.is_configured %}required{% endif %}>
-    </label>
-    <small class="help">
-      Lets the app call Claude Managed Agents on your behalf. Create it in the Claude Console under Settings → API keys
-      (<a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com/settings/keys</a>).
-      Managed Agents is enabled by default on API accounts. Prefer a <strong>dedicated workspace</strong>:
-      vaults are shared across a workspace. The key is encrypted at rest and never shown again.
-    </small>
-    <label>Model
-      <select name="model">
-        {% for value, label in models %}<option value="{{ value }}" {% if value == settings.model %}selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </label>
-    <small class="help">Model used by your agent. Defaults to <code>claude-opus-5-5</code>. Changing it updates the agent (new version).</small>
-    <button type="submit">Save</button>
-  </form>
-</article>
-</section>
+<nav class="tabs" role="tablist" aria-label="Settings">
+  <button type="button" role="tab" class="tab" data-tab="anthropic">
+    {{ brand_logo('anthropic', 16) }}Anthropic<span class="dot {{ 'ok' if settings.is_configured else 'bad' }}" aria-hidden="true"></span>
+  </button>
+  {% for key in tab_order if key in providers %}
+  {% set c = connectors.get(key) %}
+  <button type="button" role="tab" class="tab" data-tab="{{ key }}">
+    {{ brand_logo(key, 16) }}{{ providers[key].label.split(' / ')[0] }}<span class="dot {{ {'configured': 'ok', 'error': 'bad'}.get(c.status, '') if c else '' }}" aria-hidden="true"></span>
+  </button>
+  {% endfor %}
+</nav>
 
-<section id="resources">
-<article>
-  <header class="connector-head">
-    <h2 style="margin:0">Managed Agents resources</h2>
-    <form method="post" action="/settings/sync" style="margin:0">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+{# --- Anthropic ------------------------------------------------------------- #}
+<section class="tab-panel" role="tabpanel" data-panel="anthropic" id="tab-anthropic">
+  <article id="anthropic" class="card">
+    <header class="card-head">
+      <div class="card-title">{{ brand_logo('anthropic', 28) }}<div><h2>API key and model</h2><p class="muted small">Maestro runs on Claude Managed Agents with your key.</p></div></div>
+      <span class="badge {{ 'configured' if settings.is_configured else 'error' }}">{{ 'Configured' if settings.is_configured else 'Required' }}</span>
+    </header>
+    {{ section_flashes('anthropic') }}
+    <form method="post" action="/settings/anthropic">
+      {{ csrf() }}
+      <div class="grid-2">
+        <label>API key
+          <input type="password" name="api_key" autocomplete="off"
+                 placeholder="{{ '•••• ' ~ settings.api_key_last4 ~ ' (leave empty to keep it)' if settings.api_key_last4 else 'sk-ant-api03-…' }}"
+                 {% if not settings.is_configured %}required{% endif %}>
+        </label>
+        <label>Model
+          <select name="model">
+            {% for value, label in models %}<option value="{{ value }}" {% if value == settings.model %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <small class="help">Create the key in the <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Claude Console</a>, preferably in a dedicated workspace (vaults are shared across a workspace). It is encrypted at rest and never shown again.</small>
+      <button type="submit">Save</button>
+    </form>
+  </article>
+
+  <details class="card fold" id="resources" {% if settings.last_sync_error %}open{% endif %}>
+    <summary>Managed Agents resources <span class="muted small">· managed automatically</span></summary>
+    {{ section_flashes('resources') }}
+    <dl class="kv">
+      <dt>Agent</dt><dd class="mono">{{ settings.agent_id or 'Not created' }}{% if settings.agent_version %} <span class="muted">v{{ settings.agent_version }}</span>{% endif %}</dd>
+      <dt>Environment</dt><dd class="mono">{{ settings.environment_id or 'Not created' }}</dd>
+      <dt>Vault</dt><dd class="mono">{{ settings.vault_id or 'Not created' }}</dd>
+      <dt>Last sync</dt><dd>{{ settings.last_sync_at | dt }}</dd>
+    </dl>
+    {% if settings.last_sync_error %}<div class="flash error">Last error: {{ settings.last_sync_error }}</div>{% endif %}
+    <form method="post" action="/settings/sync">
+      {{ csrf() }}
       <button type="submit" class="secondary" {% if not settings.is_configured %}disabled{% endif %}>Recreate or resync</button>
     </form>
-  </header>
-  {{ section_flashes('resources') }}
-  <p class="help" style="margin-top:0">Managed automatically: created or updated (never duplicated) when your API key or a connector changes. The agent only declares the MCP servers you have a credential for.</p>
-  <table>
-    <tbody>
-      <tr><th>Agent ID</th><td class="mono">{{ settings.agent_id or 'Not created' }}{% if settings.agent_version %} <span class="muted">(version {{ settings.agent_version }})</span>{% endif %}</td></tr>
-      <tr><th>Environment ID</th><td class="mono">{{ settings.environment_id or 'Not created' }}</td></tr>
-      <tr><th>Vault ID</th><td class="mono">{{ settings.vault_id or 'Not created' }}</td></tr>
-      <tr><th>Last sync</th><td>{{ settings.last_sync_at | dt }}</td></tr>
-    </tbody>
-  </table>
-  {% if settings.last_sync_error %}<div class="flash error">Last error: {{ settings.last_sync_error }}</div>{% endif %}
-</article>
+  </details>
 </section>
 
-<section id="connectors">
-<h2>Connectors</h2>
-<p class="muted">Tokens go straight to your Anthropic vault and are not stored by this app. Only the type, URL, credential ID, last 4 characters and date are kept.</p>
-{% for key, prov in providers.items() %}
+{# --- One tab per tool --------------------------------------------------------- #}
+{% for key in tab_order if key in providers %}
+{% set prov = providers[key] %}
 {% set c = connectors.get(key) %}
 {% set status = c.status if c else 'not_configured' %}
-<article id="connector-{{ key }}">
-  <header class="connector-head">
-    <h3>{{ prov.label }}</h3>
-    <span class="badge {{ status }}">{{ {'not_configured': 'Not configured', 'configured': 'Configured', 'error': 'Error'}[status] }}</span>
-  </header>
-  {{ section_flashes('connector-' ~ key) }}
-  {% if c %}
-  <p class="small">
-    Mode: <strong>{{ 'OAuth' if c.auth_type == 'mcp_oauth' else 'Static token' }}</strong> ·
-    URL: <code>{{ c.mcp_server_url }}</code> ·
-    {% if c.last4 %}Token: <code>••••{{ c.last4 }}</code> · {% endif %}
-    Updated {{ c.updated_at | dt }}
-    {% if c.credential_id %}<br><span class="muted">Credential: <code>{{ c.credential_id }}</code></span>{% endif %}
-  </p>
-  {% if c.status_message %}<p class="small {{ 'flash error' if c.status == 'error' else 'muted' }}">{{ c.status_message }}</p>{% endif %}
-  <div class="row-actions" style="margin-bottom:1rem">
-    <form method="post" action="/settings/connectors/{{ key }}/test">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary">Test</button>
-    </form>
-    <form method="post" action="/settings/connectors/{{ key }}/delete" onsubmit='return confirm({{ ("Remove the " ~ prov.label ~ " connector? Its credential will be archived in the vault.") | tojson }})'>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary outline">Remove</button>
-    </form>
-    <form method="post" action="/settings/connectors/{{ key }}/permission" class="inline-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <select name="permission_policy" aria-label="Tool permissions" style="margin:0; width:auto">
-        {% for pv, pl in policies.items() %}<option value="{{ pv }}" {% if c.permission_policy == pv %}selected{% endif %}>{{ pl }}</option>{% endfor %}
-      </select>
-      <button type="submit" class="secondary">Apply</button>
-    </form>
-  </div>
-  <small class="help">Tool permissions: <strong>Always ask</strong> (default) shows an approval card before each call.
-    <strong>Auto</strong> lets Anthropic run calls it judges safe (typically reads), deny high-risk ones and ask you when unsure: recommended when a workflow follows an issue handed to Upsun Dispatch, so each re-read does not wait for you.
-    <strong>Always allow</strong> lets Claude call {{ prov.label }} tools without approval. Applied to the MCP toolset <code>permission_policy</code>.</small>
-  {% endif %}
-
-  {% if settings.is_configured %}
-  <details {% if not c %}open{% endif %}>
-    <summary>{{ 'Replace the token' if c else 'Connect with a token' }}</summary>
-    <form method="post" action="/settings/connectors/{{ key }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>MCP server URL <input name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}" required></label>
-      <small class="help">{{ prov.url_help_html | safe }} The URL must exactly match the one declared in the agent (handled automatically).</small>
-      <label>{{ prov.token_label }} <input type="password" name="token" required autocomplete="off"></label>
-      <small class="help">{{ prov.token_help_html | safe }}</small>
-      <button type="submit">Save and test</button>
-    </form>
-  </details>
-  {% if oauth_apps.get(key) %}
-  <form method="post" action="/oauth/{{ key }}/start" style="margin-top:.5rem">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}">
-    <button type="submit" class="contrast">Sign in with {{ prov.label }}</button>
-    <small class="help" style="margin-top:.3rem">OAuth: Anthropic then refreshes the token automatically.</small>
-  </form>
-  {% endif %}
-  {% else %}
-  <p class="muted small">Save your Anthropic API key first.</p>
-  {% endif %}
-</article>
-{% endfor %}
-</section>
-
-<section id="github-webhook">
-<article>
-  <header class="connector-head">
-    <h2 style="margin:0">GitHub wake-up</h2>
-    <span class="badge {{ 'configured' if github_hook_url else 'not_configured' }}">{{ 'Configured' if github_hook_url else 'Not configured' }}</span>
-  </header>
-  {{ section_flashes('github-webhook') }}
-  <p class="small">When a pull request is merged, GitHub calls Maestro, which immediately starts a run of each of your Maestro workflows that mentions that repository (<code>owner/repo</code>), instead of waiting for the next scheduled run. A workflow is not woken twice within 2 minutes, nor while its schedule is paused.</p>
-  {% if github_hook_url %}
-  <label>Payload URL <input value="{{ github_hook_url }}" readonly onclick="this.select()"></label>
-  {% if new_hook_secret %}
-  <label>Secret (shown once) <input value="{{ new_hook_secret }}" readonly onclick="this.select()"></label>
-  {% endif %}
-  <small class="help">
-    In GitHub, open the repository (or organization) → <strong>Settings → Webhooks → Add webhook</strong>.
-    Paste the payload URL, set <strong>Content type</strong> to <code>application/json</code>, paste the secret,
-    choose <strong>Let me select individual events</strong> and tick only <strong>Pull requests</strong>, then
-    <strong>Add webhook</strong>. GitHub sends a ping, which Maestro answers.
-  </small>
-  <div class="row-actions">
-    <form method="post" action="/settings/github-webhook" onsubmit='return confirm("Generate a new URL and secret? The current GitHub webhook will stop working until you update it.")'>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary">Regenerate</button>
-    </form>
-    <form method="post" action="/settings/github-webhook/delete" onsubmit='return confirm("Remove the GitHub wake-up?")'>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary outline">Remove</button>
-    </form>
-  </div>
-  {% else %}
-  <form method="post" action="/settings/github-webhook">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Create the GitHub webhook</button>
-  </form>
-  {% endif %}
-</article>
-</section>
-
-{% if current_user.is_admin %}
-<section id="oauth-apps">
-<h2>OAuth apps <span class="badge">admin</span></h2>
-{{ section_flashes('oauth-apps') }}
-<p class="muted">When an OAuth client is set up for a service, users see a <strong>Sign in with</strong> button for it. The app then creates an <code>mcp_oauth</code> credential with a <code>refresh</code> block.</p>
-<div class="grid-2">
-{% for key, prov in providers.items() %}
 {% set app = oauth_apps.get(key) %}
-<article>
-  <header class="connector-head"><h3>{{ prov.label }}</h3>
-    <span class="badge {{ 'configured' if app else 'not_configured' }}">{{ ('Registered automatically' if app.dynamic else 'Configured') if app else 'Not configured' }}</span></header>
-  <p class="small">Callback URL to declare: <code>{{ callback_url(key) }}</code></p>
-  <small class="help">{{ prov.oauth_help_html | safe }}</small>
-  {% if app %}<p class="small">Client ID: <code>{{ app.client_id }}</code></p>{% endif %}
-  <form method="post" action="/settings/oauth-apps/{{ key }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Client ID <input name="client_id" value="{{ app.client_id if app else '' }}" required></label>
-    <label>Client secret <input type="password" name="client_secret" autocomplete="off" placeholder="{{ 'unchanged if empty' if app else 'optional (public client)' }}"></label>
-    <button type="submit" class="secondary">Save</button>
-  </form>
-  <div class="row-actions">
+<section class="tab-panel" role="tabpanel" data-panel="{{ key }}" id="tab-{{ key }}">
+  <article id="connector-{{ key }}" class="card">
+    <header class="card-head">
+      <div class="card-title">{{ brand_logo(key, 28) }}<div><h2>{{ prov.label }}</h2><p class="muted small">Maestro acts with your account, so Upsun Dispatch sees you, not a bot.</p></div></div>
+      <span class="badge {{ status }}">{{ labels[status] }}</span>
+    </header>
+    {{ section_flashes('connector-' ~ key) }}
+
+    {% if not settings.is_configured %}
+      <p class="muted">Save your Anthropic API key first.</p>
+    {% else %}
+      {% if c %}
+      <dl class="kv">
+        <dt>Mode</dt><dd>{{ 'OAuth' if c.auth_type == 'mcp_oauth' else 'Token' }}{% if c.last4 %} <span class="mono muted">••••{{ c.last4 }}</span>{% endif %}</dd>
+        <dt>Server</dt><dd class="mono">{{ c.mcp_server_url }}</dd>
+        <dt>Updated</dt><dd>{{ c.updated_at | dt }}</dd>
+      </dl>
+      {% if c.status_message %}<p class="small {{ 'flash error' if c.status == 'error' else 'muted' }}">{{ c.status_message }}</p>{% endif %}
+
+      <form method="post" action="/settings/connectors/{{ key }}/permission" class="perm-row">
+        {{ csrf() }}
+        <label>Tool permissions
+          <select name="permission_policy" onchange="this.form.submit()">
+            {% for pv, pl in policies.items() %}<option value="{{ pv }}" {% if c.permission_policy == pv %}selected{% endif %}>{{ pl }}</option>{% endfor %}
+          </select>
+        </label>
+        <noscript><button type="submit" class="secondary">Apply</button></noscript>
+      </form>
+      <small class="help"><strong>Always ask</strong> shows an approval card before each call. <strong>Auto</strong> runs safe calls, denies risky ones and asks when unsure (recommended to follow Dispatch work). <strong>Always allow</strong> never asks.</small>
+
+      <div class="row-actions">
+        <form method="post" action="/settings/connectors/{{ key }}/test">{{ csrf() }}<button type="submit" class="secondary">Test</button></form>
+        <form method="post" action="/settings/connectors/{{ key }}/delete" onsubmit='return confirm({{ ("Disconnect " ~ prov.label ~ "? Its credential will be archived in the vault.") | tojson }})'>
+          {{ csrf() }}<button type="submit" class="secondary outline">Disconnect</button>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if app %}
+      <form method="post" action="/oauth/{{ key }}/start" class="oauth-row">
+        {{ csrf() }}
+        <input type="hidden" name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}">
+        <button type="submit" class="{{ 'secondary' if c else 'contrast' }}">{{ 'Sign in again with ' if c else 'Sign in with ' }}{{ prov.label.split(' / ')[0] }}</button>
+        <small class="muted">The token is refreshed automatically.</small>
+      </form>
+      {% endif %}
+
+      <details class="fold" {% if not c and not app %}open{% endif %}>
+        <summary>{{ 'Replace with a token' if c else ('Use a token instead' if app else 'Connect with a token') }}</summary>
+        <form method="post" action="/settings/connectors/{{ key }}">
+          {{ csrf() }}
+          <label>{{ prov.token_label }} <input type="password" name="token" required autocomplete="off"></label>
+          <small class="help">{{ prov.token_help_html | safe }}</small>
+          <details class="fold inner">
+            <summary class="small">MCP server URL</summary>
+            <input name="mcp_server_url" value="{{ c.mcp_server_url if c else prov.default_url }}" required>
+            <small class="help">{{ prov.url_help_html | safe }}</small>
+          </details>
+          <button type="submit">Save and test</button>
+        </form>
+      </details>
+    {% endif %}
+  </article>
+
+  {% if key == 'github' %}
+  <details class="card fold" id="github-webhook" {% if new_hook_secret or not github_hook_url %}open{% endif %}>
+    <summary>Wake-up on merged pull requests <span class="badge {{ 'configured' if github_hook_url else 'not_configured' }}">{{ 'On' if github_hook_url else 'Off' }}</span></summary>
+    {{ section_flashes('github-webhook') }}
+    <p class="small">When a PR is merged, GitHub calls Maestro, which starts a run of every workflow that mentions the repository instead of waiting for the next scheduled run.</p>
+    {% if github_hook_url %}
+    <label>Payload URL <input value="{{ github_hook_url }}" readonly onclick="this.select()"></label>
+    {% if new_hook_secret %}<label>Secret (shown once) <input value="{{ new_hook_secret }}" readonly onclick="this.select()"></label>{% endif %}
+    <small class="help">In GitHub: repository (or organization) → <strong>Settings → Webhooks → Add webhook</strong>. Paste the URL and the secret, content type <code>application/json</code>, events: <strong>Pull requests</strong> only.</small>
+    <div class="row-actions">
+      <form method="post" action="/settings/github-webhook" onsubmit='return confirm("Generate a new URL and secret? The current GitHub webhook will stop working until you update it.")'>
+        {{ csrf() }}<button type="submit" class="secondary">Regenerate</button>
+      </form>
+      <form method="post" action="/settings/github-webhook/delete" onsubmit='return confirm("Turn off the GitHub wake-up?")'>
+        {{ csrf() }}<button type="submit" class="secondary outline">Turn off</button>
+      </form>
+    </div>
+    {% else %}
+    <form method="post" action="/settings/github-webhook">{{ csrf() }}<button type="submit" class="secondary">Create the webhook</button></form>
+    {% endif %}
+  </details>
+  {% endif %}
+
+  {% if current_user.is_admin %}
+  <details class="card fold" id="oauth-app-{{ key }}" {% if flashes | selectattr('section', 'equalto', 'oauth-app-' ~ key) | list %}open{% endif %}>
+    <summary>OAuth app <span class="badge">admin</span> <span class="badge {{ 'configured' if app else 'not_configured' }}">{{ ('Registered automatically' if app.dynamic else 'Configured') if app else 'Not set up' }}</span></summary>
+    {{ section_flashes('oauth-app-' ~ key) }}
+    <p class="small">Set it up once and everyone gets a <strong>Sign in with {{ prov.label.split(' / ')[0] }}</strong> button instead of pasting a token.</p>
     {% if prov.supports_dcr %}
-    <form method="post" action="/settings/oauth-apps/{{ key }}/register">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit">Register automatically</button>
-    </form>
+    <div class="row-actions">
+      <form method="post" action="/settings/oauth-apps/{{ key }}/register">{{ csrf() }}<button type="submit">{{ 'Register again' if app else 'Register automatically' }}</button></form>
+      {% if app %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">Remove</button></form>{% endif %}
+    </div>
     {% endif %}
-    {% if app %}
-    <form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary outline">Remove</button>
-    </form>
-    {% endif %}
-  </div>
-</article>
-{% endfor %}
-</div>
+    <details class="fold inner" {% if not prov.supports_dcr %}open{% endif %}>
+      <summary class="small">{{ 'Enter a client by hand' if prov.supports_dcr else 'Client' }}</summary>
+      <p class="small">Callback URL: <code>{{ callback_url(key) }}</code></p>
+      <small class="help">{{ prov.oauth_help_html | safe }}</small>
+      <form method="post" action="/settings/oauth-apps/{{ key }}">
+        {{ csrf() }}
+        <div class="grid-2">
+          <label>Client ID <input name="client_id" value="{{ app.client_id if app else '' }}" required></label>
+          <label>Client secret <input type="password" name="client_secret" autocomplete="off" placeholder="{{ 'unchanged if empty' if app else 'optional (public client)' }}"></label>
+        </div>
+        <div class="row-actions">
+          <button type="submit" class="secondary">Save</button>
+        </div>
+      </form>
+      {% if app and not prov.supports_dcr %}<form method="post" action="/settings/oauth-apps/{{ key }}/delete" onsubmit='return confirm("Remove this OAuth app?")'>{{ csrf() }}<button type="submit" class="secondary outline">Remove</button></form>{% endif %}
+    </details>
+  </details>
+  {% endif %}
 </section>
-{% endif %}
+{% endfor %}
+
+<script>
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".tabs .tab"));
+    var panels = Array.prototype.slice.call(document.querySelectorAll(".tab-panel"));
+    document.documentElement.classList.add("has-tabs");
+    function show(name, push) {
+      if (!panels.some(function (p) { return p.dataset.panel === name; })) name = "anthropic";
+      tabs.forEach(function (t) {
+        var on = t.dataset.tab === name;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+      });
+      panels.forEach(function (p) { p.hidden = p.dataset.panel !== name; });
+      if (push) history.replaceState(null, "", "#tab-" + name);
+      try { localStorage.setItem("settings-tab", name); } catch (e) {}
+    }
+    function fromHash() {
+      var id = location.hash.slice(1);
+      if (!id) return null;
+      if (id === "connectors") {  // links from elsewhere: first tool that is not connected
+        var pending = tabs.filter(function (t) { return t.dataset.tab !== "anthropic" && !t.querySelector(".dot.ok"); });
+        return (pending[0] || tabs[1] || tabs[0]).dataset.tab;
+      }
+      var el = document.getElementById(id);
+      var panel = el && el.closest(".tab-panel");
+      if (el && el.tagName === "DETAILS") el.open = true;
+      return panel ? panel.dataset.panel : null;
+    }
+    var initial = fromHash();
+    if (!initial) { try { initial = localStorage.getItem("settings-tab"); } catch (e) {} }
+    if (!document.querySelector(".tabs .tab[data-tab=anthropic] .dot.ok")) initial = fromHash() || "anthropic";
+    show(initial || "anthropic", false);
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { show(t.dataset.tab, true); });
+      t.addEventListener("keydown", function (e) {
+        var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!d) return;
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus(); show(next.dataset.tab, true);
+      });
+    });
+  })();
+</script>
 {% endblock %}

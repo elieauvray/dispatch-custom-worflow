@@ -303,7 +303,7 @@ def save_oauth_app(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
-    sec = "oauth-apps"
+    sec = f"oauth-app-{provider}"
     if not get_provider(provider) or not client_id.strip():
         flash(request, "Invalid provider or client_id.", "error", section=sec)
         return _back(sec)
@@ -325,7 +325,7 @@ def register_oauth_app(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
-    sec = "oauth-apps"
+    sec = f"oauth-app-{provider}"
     prov = get_provider(provider)
     if not prov or not prov.supports_dcr:
         flash(request, "This provider does not support dynamic client registration.", "error", section=sec)
@@ -350,7 +350,7 @@ def register_oauth_app(
 def delete_oauth_app(
     request: Request, provider: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> Response:
-    sec = "oauth-apps"
+    sec = f"oauth-app-{provider}"
     app = db.get(OAuthApp, provider)
     if app:
         db.delete(app)
