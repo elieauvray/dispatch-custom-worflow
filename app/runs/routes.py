@@ -15,7 +15,7 @@ from app.db import SessionLocal, get_db
 from app.deps import csrf_protect, require_configured
 from app.models import RunEvent, RunStatus, User, WorkflowRun
 from app.runs import service
-from app.maestro.render import render_design_map
+from app.maestro.render import render_design_svg
 from app.runs.events import agent_text, step_marker
 from app.templating import flash, render, templates
 
@@ -73,9 +73,23 @@ def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[d
                 "is_initial": e.id == first_user,
                 "tool": uses.get(str(ref)) if ref else None,
                 "step": step,
+                "main": is_main_event(e.type, p, e.id == first_user),
             }
         )
     return views
+
+
+# Events shown in the condensed run log: Maestro's reports, your messages, errors and approval requests.
+# Everything else (tool calls and results, the initial instructions) is only in the step's detail window.
+MAIN_TYPES = {"agent.message", "user.message", "session.error", "user.interrupt"}
+
+
+def is_main_event(etype: str, payload: dict[str, Any], is_initial: bool) -> bool:
+    if etype == "user.message":
+        return not is_initial
+    if etype == "session.status_idle":
+        return (payload.get("stop_reason") or {}).get("type") == "requires_action"
+    return etype in MAIN_TYPES
 
 
 def design_step_ids(run: WorkflowRun) -> set[str]:
@@ -139,7 +153,7 @@ def run_detail(
             "run": run,
             "events": event_views(db, run, events),
             "last_event_id": events[-1].id if events else 0,
-            "map_svg": render_design_map(design) if has_steps else None,
+            "map_svg": render_design_svg(design) if has_steps else None,
             "map_steps": [
                 {"id": str(st.get("id")), "title": st.get("title", ""), "actor": st.get("actor", "")}
                 for st in design.get("steps") or []

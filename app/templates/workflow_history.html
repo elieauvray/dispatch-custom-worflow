@@ -10,7 +10,6 @@
     <button type="submit">Run</button>
   </form>
 </header>
-{% with plan_base = "/workflows/%d/plan" % workflow.id %}{% include "partials/plan_section.html" %}{% endwith %}
 
 <h2 style="font-size:1.1rem">Runs</h2>
 {% if runs %}

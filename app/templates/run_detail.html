@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ run.workflow_name_snapshot or 'Prompt' }} #{{ run.id }}{% endblock %}
+{% block main_class %}{% if map_svg %} wide{% endif %}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb">
   <ul>
@@ -19,7 +20,7 @@
     <div class="run-map-head">
       <strong>Workflow</strong>
       <span id="run-map-label" class="small muted">{{ 'Not started' if not current_step else '' }}</span>
-      {% if run.workflow_id %}<a class="small" href="/workflows/{{ run.workflow_id }}/design">Full diagram</a>{% endif %}
+      {% if run.workflow_id %}<a class="small" href="/workflows/{{ run.workflow_id }}/design">Open the design</a>{% endif %}
     </div>
     <div id="run-map-svg">{{ map_svg }}</div>
   </aside>
@@ -49,8 +50,8 @@
 
   {% if not map_svg %}{% with plan_base = "/runs/%d/plan" % run.id %}{% include "partials/plan_section.html" %}{% endwith %}{% endif %}
 
-  <h2 class="small muted" style="margin:1.2rem 0 .6rem">Transcript</h2>
-  <div id="transcript" class="transcript" sse-swap="transcript" hx-swap="beforeend">
+  <h2 class="small muted" style="margin:1.2rem 0 .6rem">{% if map_svg %}Run log by step <span class="muted">(click a step for its full log)</span>{% else %}Transcript{% endif %}</h2>
+  <div id="transcript" class="transcript{% if map_svg %} condensed{% endif %}" sse-swap="transcript" hx-swap="beforeend">
     {% for ev in events %}{% include "partials/event.html" %}{% endfor %}
   </div>
 
@@ -69,9 +70,20 @@
   });
 </script>
 {% if map_svg %}
+<dialog id="seg-dialog" class="seg-dialog" aria-labelledby="seg-dialog-title">
+  <article>
+    <header class="seg-dialog-head">
+      <strong id="seg-dialog-title"></strong>
+      <button type="button" class="secondary outline" data-close>Close</button>
+    </header>
+    <div id="seg-dialog-body" class="transcript"></div>
+  </article>
+</dialog>
 <script>
-  // Highlight in the workflow map the step of the run: the live step when you are at the bottom of the
-  // transcript, or the step of the messages you are reading when you scroll back through the history.
+  // The run log is condensed: events are grouped by workflow step and only Maestro's reports, your
+  // messages, errors and approval requests are shown. A step's full log opens in a detail window.
+  // The diagram follows the log: live step at the bottom, the step you read when you scroll back.
+  // Clicking a step in the diagram brings the log to the moment it happened.
   (function () {
     var steps = {{ map_steps | tojson }};
     var order = steps.map(function (s) { return s.id; });
@@ -80,29 +92,96 @@
     var initial = {{ (current_step or '') | tojson }};
     var map = document.getElementById("run-map");
     var label = document.getElementById("run-map-label");
-    var last = null;
+    var transcript = document.getElementById("transcript");
+    var dialog = document.getElementById("seg-dialog");
+    var last = null, pinned = null, cycle = {};
 
+    function esc(v) { return window.CSS ? CSS.escape(v) : v; }
+    function stepName(step) { return step ? step + " · " + (titles[step] || "") : "Start"; }
+
+    // --- Grouping the log by step -----------------------------------------------------------
+    function newSegment(step, time) {
+      var seg = document.createElement("section");
+      seg.className = "seg";
+      seg.dataset.step = step;
+      seg.innerHTML = '<button type="button" class="seg-head" title="Open the full log of this step">' +
+        '<span class="seg-id"></span><span class="seg-title"></span><span class="seg-time"></span>' +
+        '<span class="seg-count"></span></button><div class="seg-body"></div>' +
+        '<p class="seg-empty small muted">No report from Maestro in this step yet.</p>';
+      seg.querySelector(".seg-id").textContent = step || "Start";
+      seg.querySelector(".seg-title").textContent = step ? (titles[step] || "") : "Before the first step";
+      seg.querySelector(".seg-time").textContent = time || "";
+      return seg;
+    }
+    function refreshSegment(seg) {
+      var items = Array.prototype.filter.call(seg.querySelectorAll(".seg-body > .ev-item"),
+        function (el) { return el.firstElementChild; });
+      var shown = items.filter(function (el) { return !el.classList.contains("is-detail"); }).length;
+      seg.querySelector(".seg-count").textContent = items.length + (items.length === 1 ? " log entry" : " log entries");
+      seg.classList.toggle("has-reports", shown > 0);
+    }
+    function group() {
+      var loose = Array.prototype.slice.call(transcript.querySelectorAll(":scope > .ev-item"));
+      if (!loose.length) return;
+      var touched = [];
+      loose.forEach(function (el) {
+        var segs = transcript.querySelectorAll(":scope > .seg");
+        var seg = segs[segs.length - 1];
+        var step = el.dataset.step || "";
+        if (!seg || seg.dataset.step !== step) {
+          seg = newSegment(step, el.dataset.time);
+          transcript.appendChild(seg);
+        }
+        seg.querySelector(".seg-body").appendChild(el);
+        if (touched.indexOf(seg) < 0) touched.push(seg);
+      });
+      touched.forEach(refreshSegment);
+    }
+
+    // --- Detail window ------------------------------------------------------------------------
+    transcript.addEventListener("click", function (e) {
+      var head = e.target.closest(".seg-head");
+      if (!head) return;
+      var seg = head.closest(".seg");
+      var body = document.getElementById("seg-dialog-body");
+      body.innerHTML = "";
+      seg.querySelectorAll(".seg-body > .ev-item").forEach(function (el) {
+        var copy = el.cloneNode(true);
+        copy.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
+        body.appendChild(copy);
+      });
+      document.getElementById("seg-dialog-title").textContent =
+        stepName(seg.dataset.step) + (seg.querySelector(".seg-time").textContent ? " · from " + seg.querySelector(".seg-time").textContent : "");
+      dialog.showModal();
+    });
+    dialog.addEventListener("click", function (e) {
+      if (e.target === dialog || e.target.hasAttribute("data-close")) dialog.close();
+    });
+
+    // --- Diagram highlight --------------------------------------------------------------------
     function runStatus() {
       var badge = document.querySelector("#run-status .badge");
       return badge ? (badge.className.split(" ").filter(function (c) { return c !== "badge"; })[0] || "") : "";
     }
     function latestStep() {
-      var items = document.querySelectorAll("#transcript .ev-item[data-step]:not([data-step=''])");
-      return items.length ? items[items.length - 1].dataset.step : initial;
+      var segs = transcript.querySelectorAll(".seg:not([data-step=''])");
+      return segs.length ? segs[segs.length - 1].dataset.step : initial;
     }
     function viewedStep() {
       var line = window.innerHeight * 0.4, step = null;
-      document.querySelectorAll("#transcript .ev-item").forEach(function (el) {
-        if (el.getBoundingClientRect().top <= line && el.dataset.step) step = el.dataset.step;
+      var segs = transcript.querySelectorAll(".seg");
+      segs.forEach(function (el) {
+        if (el.getBoundingClientRect().top <= line) step = el.dataset.step;
       });
-      return step || initial;
+      if (step === null) step = segs.length ? segs[0].dataset.step : initial;  // above the log: its first step
+      return step;
     }
     function atBottom() {
       var full = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
       return (window.innerHeight + window.scrollY) >= full - 160;
     }
-    function apply(step, live) {
-      var key = (step || "") + (live ? ":live" : ":view");
+    function apply(step, live, note) {
+      var key = (step || "") + (live ? ":live" : ":view") + (note || "");
       if (key === last) return;
       last = key;
       var idx = order.indexOf(step);
@@ -114,8 +193,8 @@
       });
       var active = ["running", "waiting_input", "waiting_approval"].indexOf(runStatus()) >= 0;
       var prefix = live ? (active ? "Now: " : "Last step: ") : "Viewing: ";
-      label.textContent = step ? prefix + step + " · " + (titles[step] || "") : "Not started";
-      var target = map.querySelector('.ms-step[data-step="' + (window.CSS ? CSS.escape(step || "") : step) + '"]');
+      label.textContent = note || (step ? prefix + stepName(step) : (live ? "Not started" : "Viewing: start of the run"));
+      var target = step && map.querySelector('.ms-step[data-step="' + esc(step) + '"]');
       if (target) {
         var box = target.getBoundingClientRect(), frame = map.getBoundingClientRect();
         if (box.top < frame.top + 40 || box.bottom > frame.bottom - 10) {
@@ -124,9 +203,37 @@
       }
     }
     function update() {
+      if (pinned !== null) { apply(pinned, false); return; }
       if (atBottom()) apply(latestStep(), true); else apply(viewedStep(), false);
     }
-    // Update right away while scrolling (at most every 60 ms), plus once when scrolling stops.
+
+    // --- Diagram click: jump to the moment the step happened (cycles through repeats) ---------
+    map.querySelectorAll(".ms-step").forEach(function (g) {
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      function go() {
+        var step = g.dataset.step;
+        var segs = transcript.querySelectorAll('.seg[data-step="' + esc(step) + '"]');
+        if (!segs.length) { last = null; apply(step, false, stepName(step) + ": not reached yet"); return; }
+        var n = (cycle[step] || 0) % segs.length;
+        cycle[step] = n + 1;
+        var seg = segs[n];
+        pinned = step;
+        window.scrollTo({ top: seg.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.2, behavior: "smooth" });
+        seg.classList.remove("flash-seg"); void seg.offsetWidth; seg.classList.add("flash-seg");
+        last = null; update();
+      }
+      g.addEventListener("click", go);
+      g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+    // Your own scrolling takes over again from a diagram click.
+    ["wheel", "touchmove", "keydown"].forEach(function (t) {
+      window.addEventListener(t, function (e) {
+        if (t === "keydown" && e.target.closest && e.target.closest(".ms-step")) return;
+        if (pinned !== null) { pinned = null; update(); }
+      }, { passive: true });
+    });
+
     var lastRun = 0, trailing = null;
     window.addEventListener("scroll", function () {
       var now = Date.now();
@@ -134,7 +241,8 @@
       clearTimeout(trailing);
       trailing = setTimeout(update, 120);
     }, { passive: true });
-    document.body.addEventListener("htmx:sseMessage", function () { setTimeout(update, 50); });
+    document.body.addEventListener("htmx:sseMessage", function () { group(); setTimeout(update, 50); });
+    group();
     update();
   })();
 </script>

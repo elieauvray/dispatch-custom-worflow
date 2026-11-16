@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=12">
+  <link rel="stylesheet" href="/static/app.css?v=13">
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
 </head>
@@ -45,7 +45,7 @@
       </ul>
     </nav>
   </header>
-  <main class="container">
+  <main class="container{% block main_class %}{% endblock %}">
     {% if current_user and not user_configured %}
     <div class="banner warning">
       Your required settings are incomplete. Add your <a href="/settings#anthropic">Anthropic API key</a>

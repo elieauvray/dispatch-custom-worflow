@@ -104,3 +104,35 @@ def test_runs_started_before_snapshots_use_their_workflow_design(client, fake):
     login(client, "bob")
     page = client.get(f"/runs/{run_id}").text
     assert 'id="run-map"' in page and page.count('class="ms-step"') == 3
+
+
+def test_run_page_uses_the_swimlane_and_condenses_the_log(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    token = csrf(client, "/workflows")
+    r = client.post(f"/workflows/{wf_id}/run", data={"csrf_token": token}, follow_redirects=False)
+    run_id = int(r.headers["location"].rsplit("/", 1)[1])
+    fake.stream_script["*"] = [
+        {"type": "agent.message", "content": [{"type": "text", "text": "[step: S1]\nIssue #12 created."}]},
+        {"type": "agent.mcp_tool_use", "name": "create_issue", "mcp_server_name": "github", "input": {},
+         "evaluated_permission": "allow"},
+        {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
+    ]
+    RunDriver(run_id, threading.Event()).run()
+    page = client.get(f"/runs/{run_id}").text
+    assert 'class="maestro-diagram"' in page and "maestro-map" not in page  # same columns as the design
+    assert 'id="seg-dialog"' in page and "transcript condensed" in page
+    items = re.findall(r'class="ev-item( is-detail)?" data-step="([^"]*)"', page)
+    # the tool call goes to the detail window; the report stays in the log
+    assert ("", "S1") in items and (" is-detail", "S1") in items
+
+
+def test_runs_list_has_no_diagram(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    page = client.get(f"/workflows/{wf_id}/history").text
+    assert "<svg" not in page.split("<main")[1] and "Planned workflow" not in page

@@ -1,4 +1,4 @@
-<div class="ev-item" data-step="{{ ev.step or '' }}" data-event="{{ ev.row.id }}">
+<div class="ev-item{{ '' if ev.main else ' is-detail' }}" data-step="{{ ev.step or '' }}" data-event="{{ ev.row.id }}" data-time="{{ ev.row.created_at | dt }}">
 {%- set p = ev.p -%}
 {%- if ev.type == 'user.message' -%}
 <div class="ev user" id="ev-{{ ev.row.id }}">
