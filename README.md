@@ -35,6 +35,13 @@ executable **meta-workflow** that orchestrates Upsun Dispatch:
    update when the prompt, the config or the skills change; deleting the workflow archives the
    deployment.
 
+**Following a run on its diagram.** Each run keeps a frozen copy of its workflow's design. On the run page,
+a compact map of the steps stays visible while you scroll the transcript (left column, or a band at the top on
+small screens). Maestro starts each message that moves to a step with a marker such as `[step: S2]` (hidden
+in the transcript), so every message and tool call is attached to a step. At the bottom of the transcript the
+map highlights the current step (past steps are dimmed); when you scroll back through the history, it
+highlights the step of the messages you are reading.
+
 **Triggering Dispatch, hands off.** Maestro does not call any Dispatch API (there is none
 for Issue to code): it creates the ticket and posts the `@upsun-dispatch implement` comment through the
 MCP connectors (GitHub, Linear, Jira), with **the user's credentials** (Dispatch ignores bots).
