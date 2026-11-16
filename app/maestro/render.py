@@ -109,6 +109,12 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         fill, op, stroke, tcolor = ACTOR_STYLE[actor]
         x = col_x.get(actor, col_x[used[0]]) + 10
         cx = x + box_w / 2
+        # One group per step so the run page can highlight it (current, past, viewed in history).
+        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">')
+        parts.append(
+            f'<rect class="ms-ring" x="{x - 5:.1f}" y="{y - 5}" width="{box_w + 10:.1f}" height="{ROW_H + 10}" '
+            f'rx="11" fill="none" stroke="{ACCENT}" stroke-width="3" visibility="hidden"/>'
+        )
         parts.append(
             f'<rect x="{x:.1f}" y="{y}" width="{box_w:.1f}" height="{ROW_H}" rx="8" fill="{fill}" '
             f'fill-opacity="{op}" stroke="{stroke}" stroke-width="1"/>'
@@ -130,6 +136,7 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         parts.append(_t(cx, y + 34, _clip(s.get("title", ""), chars - 2), size=13, weight=700, fill=tcolor))
         if s.get("detail"):
             parts.append(_t(cx, y + 53, _clip(s["detail"], chars), size=11, fill=sub))
+        parts.append("</g>")
         centers.append((cx, y, y + ROW_H))
         y += ROW_H + GAP
 
@@ -155,3 +162,54 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         f'stroke-linejoin="round"/></marker></defs>' + "".join(parts) + "".join(arrows) + "</svg>"
     )
     return Markup(svg)
+
+
+# --- Compact vertical map (sticky panel on the run page) -------------------------
+
+CW = 440
+C_ROW = 46
+C_GAP = 8
+C_BAND = 24
+
+
+def render_design_map(design: dict[str, Any]) -> Markup:
+    """Narrow, readable version of the design: steps in order, colored by actor, one group per step."""
+    steps: list[dict[str, Any]] = design.get("steps") or []
+    parts: list[str] = []
+    y = 6
+    phase = None
+    for s in steps:
+        if s.get("phase") and s.get("phase") != phase:
+            phase = s.get("phase")
+            parts.append(_t(6, y + C_BAND / 2, _clip(str(phase), 60), size=11, weight=700, fill=MUTED,
+                            anchor="start"))
+            y += C_BAND
+        actor = s.get("actor") if s.get("actor") in ACTOR_STYLE else "maestro"
+        fill, op, stroke, tcolor = ACTOR_STYLE[actor]
+        sub = MUTED if actor != "human" else NEUTRAL_1000
+        meta = ACTOR_LABELS[actor]
+        if actor == "human" and s.get("gate_owner"):
+            meta = f"GATE · {s['gate_owner']}"
+        elif actor == "dispatch":
+            meta = " · ".join(x for x in (DISPATCH_LABELS.get(s.get("dispatch_workflow", ""), "Upsun Dispatch"),
+                                          ("done when " + DONE_LABELS[s["done_when"]])
+                                          if s.get("done_when") in DONE_LABELS else "") if x)
+        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">')
+        parts.append(
+            f'<rect class="ms-ring" x="3" y="{y - 3}" width="{CW - 6}" height="{C_ROW + 6}" rx="10" fill="none" '
+            f'stroke="{ACCENT}" stroke-width="3" visibility="hidden"/>'
+        )
+        parts.append(
+            f'<rect x="8" y="{y}" width="{CW - 16}" height="{C_ROW}" rx="7" fill="{fill}" fill-opacity="{op}" '
+            f'stroke="{stroke}" stroke-width="1"/>'
+        )
+        parts.append(_t(18, y + 16, _clip(f"{s.get('id', '')}  {s.get('title', '')}", 52), size=13, weight=700,
+                        fill=tcolor, anchor="start"))
+        parts.append(_t(18, y + 33, _clip(meta, 66), size=10.5, fill=sub, anchor="start"))
+        parts.append("</g>")
+        y += C_ROW + C_GAP
+    height = y + 4
+    return Markup(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CW} {height}" width="100%" role="img" '
+        f'aria-label="Workflow steps" class="maestro-map">' + "".join(parts) + "</svg>"
+    )

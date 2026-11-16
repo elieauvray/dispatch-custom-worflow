@@ -32,6 +32,7 @@ def create_workflow_run(db: Session, user: User, workflow: Workflow) -> Workflow
         workflow_id=workflow.id,
         status=RunStatus.RUNNING,
         trigger="manual",
+        design_snapshot=workflow.design_json if workflow.description else None,
         content_snapshot=workflow.content,
         workflow_name_snapshot=workflow.name,
         skills_snapshot=skills,

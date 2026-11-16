@@ -15,6 +15,8 @@ from app.db import SessionLocal, get_db
 from app.deps import csrf_protect, require_configured
 from app.models import RunEvent, RunStatus, User, WorkflowRun
 from app.runs import service
+from app.maestro.render import render_design_map
+from app.runs.events import agent_text, step_marker
 from app.templating import flash, render, templates
 
 router = APIRouter()
@@ -53,10 +55,16 @@ def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[d
         if e.type in {"agent.mcp_tool_result", "agent.tool_result", "user.tool_confirmation"}
     ]
     uses = tool_uses(db, run, [r for r in ref_ids if r])
+    valid = design_step_ids(run)
+    step = step_before(db, run, events[0].id, valid) if events else None
     views = []
     for e in events:
         p = e.payload_json
         ref = p.get("mcp_tool_use_id") or p.get("tool_use_id")
+        if e.type == "agent.message":
+            announced = step_marker(agent_text(p))
+            if announced and (not valid or announced in valid):
+                step = announced
         views.append(
             {
                 "row": e,
@@ -64,9 +72,32 @@ def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[d
                 "p": p,
                 "is_initial": e.id == first_user,
                 "tool": uses.get(str(ref)) if ref else None,
+                "step": step,
             }
         )
     return views
+
+
+def design_step_ids(run: WorkflowRun) -> set[str]:
+    return {str(s.get("id")) for s in (run.design_snapshot or {}).get("steps") or []}
+
+
+def step_before(db: Session, run: WorkflowRun, event_id: int, valid: set[str]) -> str | None:
+    """Step announced by the last Maestro message before `event_id` (the step events inherit)."""
+    rows = db.scalars(
+        select(RunEvent)
+        .where(RunEvent.run_id == run.id, RunEvent.type == "agent.message", RunEvent.id < event_id)
+        .order_by(RunEvent.id.desc())
+    )
+    for row in rows:
+        announced = step_marker(agent_text(row.payload_json))
+        if announced and (not valid or announced in valid):
+            return announced
+    return None
+
+
+def current_step(db: Session, run: WorkflowRun) -> str | None:
+    return step_before(db, run, 2**62, design_step_ids(run))
 
 
 def actions_context(db: Session, run: WorkflowRun) -> dict[str, Any]:
@@ -90,6 +121,7 @@ def run_detail(
 ) -> Response:
     run = get_owned_run(db, run_id, user)
     events = list(run.events)
+    has_steps = bool((run.design_snapshot or {}).get("steps"))
     return render(
         request,
         "run_detail.html",
@@ -97,6 +129,12 @@ def run_detail(
             "run": run,
             "events": event_views(db, run, events),
             "last_event_id": events[-1].id if events else 0,
+            "map_svg": render_design_map(run.design_snapshot) if has_steps else None,
+            "map_steps": [
+                {"id": str(st.get("id")), "title": st.get("title", ""), "actor": st.get("actor", "")}
+                for st in (run.design_snapshot or {}).get("steps") or []
+            ],
+            "current_step": current_step(db, run) if has_steps else None,
             **actions_context(db, run),
         },
     )

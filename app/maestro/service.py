@@ -194,11 +194,22 @@ def run_context(wf: Workflow, trigger: str) -> str:
     config = (wf.design_json or {}).get("config") or []
     rows = "\n".join(f"| {c['key']} | {c.get('value') or '<not set: ask the user>'} |" for c in config)
     table = f"| Key | Value |\n|-----|-------|\n{rows}\n" if rows else "No config values.\n"
+    steps = (wf.design_json or {}).get("steps") or []
+    step_rows = "\n".join(f"| {st['id']} | {st['actor']} | {st['title']} |" for st in steps)
+    markers = (
+        "## Step markers\n"
+        "The person following this run sees the workflow diagram and the step you are on. Whenever you start "
+        "working on a step, or report on one, begin that message with its marker on its own line, for example "
+        f"`[step: {steps[0]['id']}]`. Use only these ids:\n\n| Id | Actor | Step |\n|----|-------|------|\n"
+        f"{step_rows}\n\n"
+        if steps else ""
+    )
     return (
         "\n\n# This run\n"
         f"Trigger: {trigger}. You are Maestro. Read the ledgers first. For each Dispatch workflow you started, "
         "check its completion signal; never interact with it. Start what can be started, stop at human gates, "
         "do not wait for Dispatch, then end with the status report.\n\n"
+        f"{markers}"
         f"## Config values\n{table}"
     )
 
@@ -272,6 +283,7 @@ def import_scheduled_runs(db: Session, wf: Workflow) -> int:
             status=RunStatus.RUNNING if sid else RunStatus.FAILED,
             error=None if sid else f"Scheduled run failed: {error.get('type', 'unknown')} {error.get('message', '')}",
             content_snapshot=wf.content, workflow_name_snapshot=wf.name, skills_snapshot=skills,
+            design_snapshot=wf.design_json,
             pending_event_ids=[], finished_at=None if sid else utcnow(),
         ))
         added += 1

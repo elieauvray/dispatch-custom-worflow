@@ -1,3 +1,4 @@
+<div class="ev-item" data-step="{{ ev.step or '' }}" data-event="{{ ev.row.id }}">
 {%- set p = ev.p -%}
 {%- if ev.type == 'user.message' -%}
 <div class="ev user" id="ev-{{ ev.row.id }}">
@@ -12,7 +13,7 @@
 {%- elif ev.type == 'agent.message' -%}
 <div class="ev agent" id="ev-{{ ev.row.id }}">
   <div class="who">Claude</div>
-  <div class="md">{{ p.content | selectattr('type', 'equalto', 'text') | map(attribute='text') | join('\n') | md }}</div>
+  <div class="md">{{ p.content | selectattr('type', 'equalto', 'text') | map(attribute='text') | join('\n') | strip_step | md }}</div>
 </div>
 {%- elif ev.type in ['agent.mcp_tool_use', 'agent.tool_use', 'agent.custom_tool_use'] -%}
 <div class="ev tool" id="ev-{{ ev.row.id }}">
@@ -59,3 +60,4 @@
 {%- elif ev.type == 'agent.thread_context_compacted' -%}
 <div class="ev system" id="ev-{{ ev.row.id }}">Context compacted automatically.</div>
 {%- endif -%}
+</div>

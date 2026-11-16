@@ -54,7 +54,14 @@ def excerpt(text: str | None, length: int = 140) -> str:
     return text if len(text) <= length else text[: length - 1] + "…"
 
 
+def strip_step(text: str | None) -> str:
+    from app.runs.events import strip_step_markers
+
+    return strip_step_markers(text)
+
+
 templates.env.filters["md"] = markdown
+templates.env.filters["strip_step"] = strip_step
 templates.env.filters["dt"] = format_dt
 templates.env.filters["duration"] = format_duration
 templates.env.filters["pretty_json"] = pretty_json

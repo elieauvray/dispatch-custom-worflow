@@ -34,6 +34,20 @@ def agent_text(ev: dict[str, Any]) -> str:
     )
 
 
+# Maestro announces the design step it is on with a marker such as "[step: S2]" (see run_context).
+STEP_MARKER = re.compile(r"\[step:\s*([A-Za-z0-9][A-Za-z0-9._-]{0,15})\]", re.IGNORECASE)
+
+
+def step_marker(text: str | None) -> str | None:
+    """Last step id announced in a message, if any."""
+    found = STEP_MARKER.findall(text or "")
+    return found[-1] if found else None
+
+
+def strip_step_markers(text: str | None) -> str:
+    return STEP_MARKER.sub("", text or "").strip()
+
+
 _TRAILING = re.compile(r"[\s*_`)\]»\"']+$")
 
 

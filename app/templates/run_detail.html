@@ -13,7 +13,18 @@
   </ul>
 </nav>
 
-<div hx-ext="sse" sse-connect="/runs/{{ run.id }}/stream?after={{ last_event_id }}">
+<div hx-ext="sse" sse-connect="/runs/{{ run.id }}/stream?after={{ last_event_id }}"{% if map_svg %} class="run-layout"{% endif %}>
+  {% if map_svg %}
+  <aside class="run-map" id="run-map" aria-label="Workflow progress">
+    <div class="run-map-head">
+      <strong>Workflow</strong>
+      <span id="run-map-label" class="small muted">{{ 'Not started' if not current_step else '' }}</span>
+      {% if run.workflow_id %}<a class="small" href="/workflows/{{ run.workflow_id }}/design">Full diagram</a>{% endif %}
+    </div>
+    <div id="run-map-svg">{{ map_svg }}</div>
+  </aside>
+  <div class="run-main">
+  {% endif %}
   <header class="connector-head" style="margin-bottom:1rem">
     <h1 style="margin:0">{{ run.workflow_name_snapshot or 'Free prompt' }}</h1>
     <div id="run-status" sse-swap="status" hx-swap="innerHTML">{% include "partials/run_status.html" %}</div>
@@ -36,7 +47,7 @@
   </details>
   {% endif %}
 
-  {% with plan_base = "/runs/%d/plan" % run.id %}{% include "partials/plan_section.html" %}{% endwith %}
+  {% if not map_svg %}{% with plan_base = "/runs/%d/plan" % run.id %}{% include "partials/plan_section.html" %}{% endwith %}{% endif %}
 
   <h2 class="small muted" style="margin:1.2rem 0 .6rem">Transcript</h2>
   <div id="transcript" class="transcript" sse-swap="transcript" hx-swap="beforeend">
@@ -46,6 +57,7 @@
   <div id="run-actions" class="actions-panel" sse-swap="actions" hx-swap="innerHTML">
     {% include "partials/run_actions.html" %}
   </div>
+  {% if map_svg %}</div>{% endif %}
 </div>
 <script>
   // Keep the view pinned to the bottom when new events arrive (if the user is already at the bottom).
@@ -56,4 +68,75 @@
     if (window.__stick) window.scrollTo(0, document.body.scrollHeight);
   });
 </script>
+{% if map_svg %}
+<script>
+  // Highlight in the workflow map the step of the run: the live step when you are at the bottom of the
+  // transcript, or the step of the messages you are reading when you scroll back through the history.
+  (function () {
+    var steps = {{ map_steps | tojson }};
+    var order = steps.map(function (s) { return s.id; });
+    var titles = {};
+    steps.forEach(function (s) { titles[s.id] = s.title; });
+    var initial = {{ (current_step or '') | tojson }};
+    var map = document.getElementById("run-map");
+    var label = document.getElementById("run-map-label");
+    var last = null;
+
+    function runStatus() {
+      var badge = document.querySelector("#run-status .badge");
+      return badge ? (badge.className.split(" ").filter(function (c) { return c !== "badge"; })[0] || "") : "";
+    }
+    function latestStep() {
+      var items = document.querySelectorAll("#transcript .ev-item[data-step]:not([data-step=''])");
+      return items.length ? items[items.length - 1].dataset.step : initial;
+    }
+    function viewedStep() {
+      var line = window.innerHeight * 0.4, step = null;
+      document.querySelectorAll("#transcript .ev-item").forEach(function (el) {
+        if (el.getBoundingClientRect().top <= line && el.dataset.step) step = el.dataset.step;
+      });
+      return step || initial;
+    }
+    function atBottom() {
+      var full = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      return (window.innerHeight + window.scrollY) >= full - 160;
+    }
+    function apply(step, live) {
+      var key = (step || "") + (live ? ":live" : ":view");
+      if (key === last) return;
+      last = key;
+      var idx = order.indexOf(step);
+      map.querySelectorAll(".ms-step").forEach(function (g) {
+        var i = order.indexOf(g.dataset.step);
+        g.classList.toggle("is-current", live && g.dataset.step === step);
+        g.classList.toggle("is-viewing", !live && g.dataset.step === step);
+        g.classList.toggle("is-past", idx >= 0 && i >= 0 && i < idx);
+      });
+      var active = ["running", "waiting_input", "waiting_approval"].indexOf(runStatus()) >= 0;
+      var prefix = live ? (active ? "Now: " : "Last step: ") : "Viewing: ";
+      label.textContent = step ? prefix + step + " · " + (titles[step] || "") : "Not started";
+      var target = map.querySelector('.ms-step[data-step="' + (window.CSS ? CSS.escape(step || "") : step) + '"]');
+      if (target) {
+        var box = target.getBoundingClientRect(), frame = map.getBoundingClientRect();
+        if (box.top < frame.top + 40 || box.bottom > frame.bottom - 10) {
+          map.scrollTop += box.top - frame.top - frame.height / 3;
+        }
+      }
+    }
+    function update() {
+      if (atBottom()) apply(latestStep(), true); else apply(viewedStep(), false);
+    }
+    // Update right away while scrolling (at most every 60 ms), plus once when scrolling stops.
+    var lastRun = 0, trailing = null;
+    window.addEventListener("scroll", function () {
+      var now = Date.now();
+      if (now - lastRun > 60) { lastRun = now; update(); }
+      clearTimeout(trailing);
+      trailing = setTimeout(update, 120);
+    }, { passive: true });
+    document.body.addEventListener("htmx:sseMessage", function () { setTimeout(update, 50); });
+    update();
+  })();
+</script>
+{% endif %}
 {% endblock %}

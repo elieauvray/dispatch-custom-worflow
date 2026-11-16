@@ -208,3 +208,21 @@ textarea.huge { min-height: 22rem; font-family: var(--pico-font-family); }
 .section-title { font-size: 1.05rem; margin: 1.4rem 0 .6rem; }
 .maestro-svg { max-width: 960px; overflow-x: auto; }
 .maestro-svg svg { display: block; width: 100%; min-width: 640px; height: auto; }
+
+/* Run page: sticky workflow map that follows the run and the history */
+.run-layout { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.run-main { min-width: 0; }
+.run-map { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; padding: .7rem .6rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; z-index: 5; }
+.run-map-head { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: baseline; margin: 0 .3rem .5rem; }
+.run-map-head a { margin-left: auto; }
+.run-map svg { display: block; width: 100%; height: auto; }
+.ms-step { transition: opacity .2s; }
+.ms-step.is-past { opacity: .45; }
+.ms-step.is-current .ms-ring, .ms-step.is-viewing .ms-ring { visibility: visible; }
+.ms-step.is-viewing .ms-ring { stroke-dasharray: 7 5; }
+.ev-item:empty { display: none; }
+@media (max-width: 960px) {
+  .run-layout { grid-template-columns: 1fr; }
+  .run-map { top: 0; max-height: 34vh; }
+}
