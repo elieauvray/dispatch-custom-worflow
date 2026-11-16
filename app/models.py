@@ -92,6 +92,9 @@ class UserSettings(Base):
     vault_id: Mapped[str | None] = mapped_column(String(128))
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_error: Mapped[str | None] = mapped_column(Text)
+    # GitHub webhook that wakes Maestro when a pull request is merged
+    github_hook_id: Mapped[str | None] = mapped_column(String(48), index=True, unique=True)
+    github_hook_secret_encrypted: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped[User] = relationship(back_populates="settings")
 
@@ -183,6 +186,7 @@ class Workflow(Base):
     budget_cents: Mapped[int | None] = mapped_column(Integer)
     deployment_id: Mapped[str | None] = mapped_column(String(128))
     deployment_status: Mapped[str | None] = mapped_column(String(16))  # active | paused
+    last_woken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Plan prévu (diagramme) généré par Claude à partir de la demande
     plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     plan_hash: Mapped[str | None] = mapped_column(String(64))

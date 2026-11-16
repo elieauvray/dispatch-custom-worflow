@@ -127,6 +127,44 @@
 {% endfor %}
 </section>
 
+<section id="github-webhook">
+<article>
+  <header class="connector-head">
+    <h2 style="margin:0">GitHub wake-up</h2>
+    <span class="badge {{ 'configured' if github_hook_url else 'not_configured' }}">{{ 'Configured' if github_hook_url else 'Not configured' }}</span>
+  </header>
+  {{ section_flashes('github-webhook') }}
+  <p class="small">When a pull request is merged, GitHub calls Maestro, which immediately starts a run of each of your Maestro workflows that mentions that repository (<code>owner/repo</code>), instead of waiting for the next scheduled run. A workflow is not woken twice within 2 minutes, nor while its schedule is paused.</p>
+  {% if github_hook_url %}
+  <label>Payload URL <input value="{{ github_hook_url }}" readonly onclick="this.select()"></label>
+  {% if new_hook_secret %}
+  <label>Secret (shown once) <input value="{{ new_hook_secret }}" readonly onclick="this.select()"></label>
+  {% endif %}
+  <small class="help">
+    In GitHub, open the repository (or organization) → <strong>Settings → Webhooks → Add webhook</strong>.
+    Paste the payload URL, set <strong>Content type</strong> to <code>application/json</code>, paste the secret,
+    choose <strong>Let me select individual events</strong> and tick only <strong>Pull requests</strong>, then
+    <strong>Add webhook</strong>. GitHub sends a ping, which Maestro answers.
+  </small>
+  <div class="row-actions">
+    <form method="post" action="/settings/github-webhook" onsubmit='return confirm("Generate a new URL and secret? The current GitHub webhook will stop working until you update it.")'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary">Regenerate</button>
+    </form>
+    <form method="post" action="/settings/github-webhook/delete" onsubmit='return confirm("Remove the GitHub wake-up?")'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary outline">Remove</button>
+    </form>
+  </div>
+  {% else %}
+  <form method="post" action="/settings/github-webhook">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Create the GitHub webhook</button>
+  </form>
+  {% endif %}
+</article>
+</section>
+
 {% if current_user.is_admin %}
 <section id="oauth-apps">
 <h2>OAuth apps <span class="badge">admin</span></h2>

@@ -67,6 +67,11 @@ def settings_page(
             "oauth_apps": oauth_apps,
             "policies": POLICIES,
             "callback_url": _callback_url,
+            "github_hook_url": (
+                f"{get_settings().public_base_url}/webhooks/github/{settings.github_hook_id}"
+                if settings.github_hook_id else None
+            ),
+            "new_hook_secret": request.session.pop("new_hook_secret", None),
         },
     )
 
@@ -254,6 +259,36 @@ def set_permission(
     flash(request, f"Tool permissions: {POLICIES[permission_policy]}.", "success", section=sec)
     _sync(request, db, user, section=sec)
     return _back(sec)
+
+
+# --- GitHub webhook (wakes Maestro when a pull request is merged) ---------------
+
+
+@router.post("/settings/github-webhook", dependencies=[Depends(csrf_protect)])
+def github_webhook_generate(
+    request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> Response:
+    settings = get_user_settings(db, user)
+    secret = secrets.token_urlsafe(32)
+    settings.github_hook_id = secrets.token_urlsafe(24)
+    settings.github_hook_secret_encrypted = encrypt(secret)
+    db.commit()
+    request.session["new_hook_secret"] = secret  # shown once on the next page, never stored in clear
+    flash(request, "GitHub webhook created. Copy the secret now: it will not be shown again.", "success",
+          section="github-webhook")
+    return _back("github-webhook")
+
+
+@router.post("/settings/github-webhook/delete", dependencies=[Depends(csrf_protect)])
+def github_webhook_delete(
+    request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> Response:
+    settings = get_user_settings(db, user)
+    settings.github_hook_id = None
+    settings.github_hook_secret_encrypted = None
+    db.commit()
+    flash(request, "GitHub webhook removed. Remove it in GitHub too.", "success", section="github-webhook")
+    return _back("github-webhook")
 
 
 # --- OAuth apps (admin) ---------------------------------------------
