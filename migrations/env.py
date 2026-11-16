@@ -5,7 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from app import models  # noqa: F401  (enregistre les tables)
+from app import models  # noqa: F401  (registers the tables)
 from app.config import get_settings
 from app.db import Base
 

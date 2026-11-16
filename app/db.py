@@ -19,7 +19,7 @@ _SessionLocal: sessionmaker[Session] | None = None
 
 
 def configure_engine(url: str | None = None, **kwargs: object) -> Engine:
-    """(Re)configure le moteur. Utilisé par l'app, le worker et les tests."""
+    """(Re)configures the engine. Used by the app, the worker and the tests."""
     global _engine, _SessionLocal
     url = url or get_settings().database_url
     if url.startswith("postgresql"):

@@ -1,7 +1,7 @@
 [project]
 name = "dispatch"
 version = "1.0.0"
-description = "Claude Managed Agents + MCP (Linear, GitHub, Atlassian) avec Custom Workflows"
+description = "Claude Managed Agents + MCP (Linear, GitHub, Atlassian) with Custom Workflows"
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]

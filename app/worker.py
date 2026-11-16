@@ -1,15 +1,15 @@
-"""Worker Upsun : pilote les sessions Managed Agents des exécutions actives.
+"""Upsun worker: drives the Managed Agents sessions of active runs.
 
-Lancement : `python -m app.worker`.
+Start: `python -m app.worker`.
 
-Pour chaque exécution au statut `running`, un thread :
-1. crée la session (agent + environnement + vault de l'utilisateur) si besoin ;
-2. ouvre le flux d'événements, puis relit l'historique (consolidation, dédoublonnage par id) ;
-3. envoie le message initial s'il ne l'a pas encore été ;
-4. enregistre chaque événement dans `run_events` et met à jour le statut ;
-5. rend la main dès que la session est en attente (validation, réponse, fin de tour).
+For each run with the `running` status, a thread:
+1. creates the session (the user's agent + environment + vault) if needed;
+2. opens the event stream, then rereads the history (consolidation, deduplication by id);
+3. sends the initial message if it has not been sent yet;
+4. stores each event in `run_events` and updates the status;
+5. hands back control as soon as the session is waiting (approval, reply, end of turn).
 
-Une exécution réservée par un worker disparu (heartbeat trop ancien) est reprise.
+A run claimed by a worker that has disappeared (heartbeat too old) is resumed.
 """
 
 from __future__ import annotations
@@ -39,8 +39,8 @@ HEARTBEAT_SECONDS = 10.0
 STALE_AFTER = timedelta(seconds=45)
 MAX_CONCURRENT = 50
 MAX_ATTEMPTS = 6
-# Session idle sans nouvel événement : au bout de STALL_LIMIT reconnexions, on réapplique
-# le dernier état idle connu (cas d'un message parti pendant une transition d'état).
+# Idle session with no new event: after STALL_LIMIT reconnections, reapply
+# the last known idle state (case of a message sent during a state transition).
 STALL_LIMIT = 20
 STALL_SLEEP = 1.5
 
@@ -61,11 +61,11 @@ class RunDriver:
         db.commit()
 
     def _ingest(self, db: Session, run: WorkflowRun, events: Any) -> bool:
-        """Enregistre les événements ; retourne True si la session n'a plus besoin du worker."""
+        """Stores the events; returns True if the session no longer needs the worker."""
         for ev in events:
             if self.stop.is_set():
                 return True
-            db.refresh(run)  # le web a pu changer le statut (annulation, réponse)
+            db.refresh(run)  # the web app may have changed the status (cancellation, reply)
             if run.status == RunStatus.CANCELLED:
                 store_event(db, run, ev)
                 db.commit()
@@ -124,7 +124,7 @@ class RunDriver:
                         self._fail(db, run, str(exc))
                     return
                 time.sleep(min(2**attempts, 30))
-            except Exception:  # erreur réseau du flux, etc. : on se reconnecte
+            except Exception:  # stream network error, etc.: reconnect
                 attempts += 1
                 log.exception("Run %s: unexpected error (%s/%s)", self.run_id, attempts, MAX_ATTEMPTS)
                 if attempts >= MAX_ATTEMPTS:
@@ -152,28 +152,28 @@ class RunDriver:
             self._fail(db, run, "The session went idle without producing a result.")
             return
         apply_event(run, last_idle.payload_json, last_agent_text(db, run))
-        if run.status == RunStatus.RUNNING:  # ex. dernier état = message en file
+        if run.status == RunStatus.RUNNING:  # for example, last state = queued message
             self._fail(db, run, "The session stopped responding.")
             return
         db.commit()
         log.info("Run %s: state restored from the last idle event (%s)", run.id, run.status)
 
     def _drive(self, db: Session, client: ManagedAgentsAPI, run: WorkflowRun) -> bool:
-        """Retourne True quand le worker peut relâcher l'exécution."""
+        """Returns True when the worker can release the run."""
         assert run.session_id
         with client.open_stream(run.session_id) as stream:
-            # Consolidation : le flux est ouvert, on rejoue l'historique pour couvrir les trous.
+            # Consolidation: the stream is open, replay the history to fill the gaps.
             history = client.list_events(run.session_id)
             if not run.initial_sent:
                 if any(ev.get("type") == "user.message" for ev in history):
-                    run.initial_sent = True  # déjà envoyé avant un redémarrage
+                    run.initial_sent = True  # already sent before a restart
                 else:
                     client.send_user_message(run.session_id, run.initial_message)
                     run.initial_sent = True
                     run.status = RunStatus.RUNNING
                 db.commit()
                 if self._ingest(db, run, history):
-                    # L'historique se termine sur un état d'attente, mais le message vient d'être envoyé.
+                    # The history ends in a waiting state, but the message was just sent.
                     if run.status != RunStatus.CANCELLED:
                         run.status = RunStatus.RUNNING
                         db.commit()
@@ -181,7 +181,7 @@ class RunDriver:
                 return True
             if self._ingest(db, run, stream):
                 return True
-        # Flux terminé sans état final : vérifier l'état réel avant de se reconnecter.
+        # Stream ended without a final state: check the actual state before reconnecting.
         db.refresh(run)
         if run.status != RunStatus.RUNNING:
             return True
@@ -317,7 +317,7 @@ class Worker:
             except Exception:
                 log.exception("Error in the worker loop")
             self.stop.wait(POLL_SECONDS)
-        # Arrêt propre : libère les réservations pour une reprise immédiate.
+        # Clean shutdown: release the claims so runs resume immediately.
         db = SessionLocal()
         try:
             db.execute(
@@ -340,7 +340,7 @@ def main() -> None:
 
     missing = missing_secrets()
     if missing:
-        # Ne pas planter en boucle : on attend un redéploiement avec les bonnes variables.
+        # Do not crash in a loop: wait for a redeploy with the correct variables.
         log.error("Incomplete configuration (%s): worker waiting.", ", ".join(missing))
         stop = threading.Event()
         signal.signal(signal.SIGTERM, lambda *_: stop.set())

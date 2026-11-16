@@ -1,4 +1,4 @@
-"""Création des exécutions et actions utilisateur relayées vers l'API Anthropic."""
+"""Run creation and user actions relayed to the Anthropic API."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def create_workflow_run(db: Session, user: User, workflow: Workflow) -> Workflow
 
 
 def _release(run: WorkflowRun) -> None:
-    """Remet l'exécution entre les mains du worker."""
+    """Hands the run back to the worker."""
     run.status = RunStatus.RUNNING
     run.finished_at = None
     run.claimed_by = None
@@ -103,7 +103,7 @@ def cancel_run(db: Session, user: User, run: WorkflowRun) -> None:
 
 
 def reference_result(db: Session, run: WorkflowRun) -> str:
-    """Texte des messages de Claude du dernier tour (depuis le dernier message utilisateur)."""
+    """Text of Claude's messages in the last turn (since the last user message)."""
     events = list(db.scalars(select(RunEvent).where(RunEvent.run_id == run.id).order_by(RunEvent.id)))
     texts: list[str] = []
     for ev in events:

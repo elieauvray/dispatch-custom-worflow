@@ -1,4 +1,4 @@
-"""plan prevu
+"""predicted plan
 
 Revision ID: 0002
 Revises: 0001

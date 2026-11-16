@@ -21,7 +21,7 @@ from app.templating import flash, render, templates
 router = APIRouter()
 
 SSE_POLL_SECONDS = 1.0
-SSE_MAX_SECONDS = 600  # le navigateur se reconnecte ensuite automatiquement
+SSE_MAX_SECONDS = 600  # the browser then reconnects automatically
 
 
 def get_owned_run(db: Session, run_id: int, user: User) -> WorkflowRun:
@@ -41,7 +41,7 @@ def tool_uses(db: Session, run: WorkflowRun, ids: list[str]) -> dict[str, dict[s
 
 
 def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[dict[str, Any]]:
-    """Prépare les événements pour l'affichage (résolution des noms d'outils, message initial)."""
+    """Prepares events for display (tool name resolution, initial message)."""
     first_user = db.scalar(
         select(RunEvent.id)
         .where(RunEvent.run_id == run.id, RunEvent.type == "user.message")
@@ -131,7 +131,7 @@ async def run_stream(
 ) -> Response:
     owner_id = user.id
     with SessionLocal() as db:
-        get_owned_run(db, run_id, user)  # 404 si l'exécution n'appartient pas à l'utilisateur
+        get_owned_run(db, run_id, user)  # 404 if the run does not belong to the user
     header = request.headers.get("last-event-id")
     last_id = int(header) if header and header.isdigit() else after
 

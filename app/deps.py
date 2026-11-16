@@ -1,4 +1,4 @@
-"""Dépendances FastAPI : utilisateur courant, droits, CSRF."""
+"""FastAPI dependencies: current user, permissions, CSRF."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from app.security import csrf_matches
 
 
 class RedirectError(Exception):
-    """Levée par une dépendance pour rediriger (géré dans main.py)."""
+    """Raised by a dependency to redirect (handled in main.py)."""
 
     def __init__(self, location: str) -> None:
         self.location = location
@@ -25,7 +25,7 @@ def load_user(request: Request, db: Session) -> User | None:
     if user is None:
         request.session.clear()
         return None
-    # Invalide la session si le mot de passe a été changé (réinitialisation admin).
+    # Invalidates the session if the password was changed (admin reset).
     if request.session.get("pwd") != user.password_hash[-16:]:
         request.session.clear()
         return None

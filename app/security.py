@@ -1,4 +1,4 @@
-"""Hachage des mots de passe (argon2), chiffrement au repos (Fernet) et CSRF."""
+"""Password hashing (argon2), encryption at rest (Fernet) and CSRF."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-# Hash factice pour garder un temps de réponse constant quand le login n'existe pas.
+# Dummy hash to keep a constant response time when the login does not exist.
 DUMMY_HASH = _hasher.hash("dummy-password-for-timing")
 
 
@@ -46,7 +46,7 @@ def encrypt(value: str) -> str:
 def decrypt(value: str) -> str:
     try:
         return _fernet().decrypt(value.encode()).decode()
-    except InvalidToken as exc:  # clé changée ou donnée corrompue
+    except InvalidToken as exc:  # key changed or data corrupted
         raise RuntimeError("Could not decrypt a stored value (was ENCRYPTION_KEY changed?)") from exc
 
 

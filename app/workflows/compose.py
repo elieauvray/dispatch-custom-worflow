@@ -1,4 +1,4 @@
-"""Composition du message envoyé à Claude lors de l'exécution d'un workflow."""
+"""Composition of the message sent to Claude when a workflow runs."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def _attr(value: str) -> str:
 
 
 def snapshot_skills(skills: Iterable[Any]) -> list[dict[str, Any]]:
-    """Fige le texte exact des skills actifs, dans leur ordre d'affichage."""
+    """Freezes the exact text of the active skills, in their display order."""
     ordered = sorted((s for s in skills if s.active), key=lambda s: (s.position, s.id))
     return [{"id": s.id, "name": s.name, "content": s.content} for s in ordered]
 

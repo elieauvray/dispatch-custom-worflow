@@ -1,4 +1,4 @@
-"""Traitement des événements Managed Agents : stockage et machine à états d'une exécution."""
+"""Managed Agents event processing: storage and the state machine of a run."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Connector, ConnectorStatus, RunEvent, RunStatus, WorkflowRun, utcnow
 
-# Événements sans intérêt pour la transcription (on ne les stocke pas).
+# Events that are irrelevant to the transcript (we do not store them).
 IGNORED_TYPES = {"agent.thinking", "event_start", "event_delta", "span.model_request_start"}
 
 TERMINAL = {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
@@ -23,7 +23,7 @@ def event_key(ev: dict[str, Any]) -> str:
     eid = ev.get("id")
     if eid:
         return str(eid)
-    # Certains événements (ex. user.interrupt) peuvent avoir un id vide.
+    # Some events (for example user.interrupt) can have an empty id.
     digest = hashlib.sha256(json.dumps(ev, sort_keys=True, default=str).encode()).hexdigest()
     return f"local_{digest[:40]}"
 
@@ -38,7 +38,7 @@ _TRAILING = re.compile(r"[\s*_`)\]»\"']+$")
 
 
 def is_question(text: str | None) -> bool:
-    """Heuristique : le dernier paragraphe non vide se termine par un point d'interrogation."""
+    """Heuristic: the last non-empty paragraph ends with a question mark."""
     if not text:
         return False
     lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
@@ -67,7 +67,7 @@ def last_agent_text(db: Session, run: WorkflowRun) -> str | None:
 
 
 def apply_event(run: WorkflowRun, ev: dict[str, Any], last_text: str | None) -> None:
-    """Met à jour le statut de l'exécution à partir d'un nouvel événement."""
+    """Updates the run status from a new event."""
     etype = ev.get("type")
     if etype == "session.error":
         run.error = error_message(ev)
@@ -84,7 +84,7 @@ def apply_event(run: WorkflowRun, ev: dict[str, Any], last_text: str | None) -> 
             run.pending_event_ids = pending
             if pending:
                 return
-        # Un message ou une validation relance la session.
+        # A message or an approval restarts the session.
         if run.status != RunStatus.FAILED:
             run.status = RunStatus.RUNNING
             run.finished_at = None
@@ -118,7 +118,7 @@ def apply_event(run: WorkflowRun, ev: dict[str, Any], last_text: str | None) -> 
 
 
 def store_event(db: Session, run: WorkflowRun, ev: dict[str, Any]) -> bool:
-    """Enregistre l'événement s'il est nouveau et met à jour l'exécution. Retourne True si nouveau."""
+    """Stores the event if it is new and updates the run. Returns True if new."""
     etype = str(ev.get("type", ""))
     if etype in IGNORED_TYPES:
         return False

@@ -22,7 +22,7 @@ def test_database_url_from_upsun_relationship(monkeypatch):
     url = make_url(config._database_url())
     assert url.drivername == "postgresql+psycopg"
     assert url.host == "database.internal" and url.port == 5432 and url.database == "main"
-    assert url.password == "p@ss:w/rd#1"  # caractères spéciaux correctement encodés
+    assert url.password == "p@ss:w/rd#1"  # special characters correctly encoded
 
 
 def test_database_url_from_upsun_tunnel(monkeypatch):
@@ -34,7 +34,7 @@ def test_database_url_from_upsun_tunnel(monkeypatch):
 
 def test_missing_secrets_serves_503_instead_of_crashing(monkeypatch):
     monkeypatch.delenv("APP_SECRET_KEY", raising=False)
-    monkeypatch.setenv("ENCRYPTION_KEY", "pas-une-cle-fernet")
+    monkeypatch.setenv("ENCRYPTION_KEY", "not-a-fernet-key")
     assert config.missing_secrets() == ["APP_SECRET_KEY", "ENCRYPTION_KEY"]
     client = TestClient(create_app())
     r = client.get("/settings")

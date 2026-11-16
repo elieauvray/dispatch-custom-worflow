@@ -27,13 +27,13 @@ def test_api_key_is_encrypted_and_resources_created_idempotently(client, fake):
     assert s.anthropic_api_key_encrypted and key not in s.anthropic_api_key_encrypted
     assert s.api_key_last4 == "abcd"
     assert s.agent_id and s.environment_id and s.vault_id
-    assert key not in r.text  # jamais réaffichée
+    assert key not in r.text  # never shown again
     assert [c for c, _ in fake.calls].count("agent.create") == 1
 
-    # Ré-enregistrer sans changement : aucune mise à jour de l'agent
+    # Saving again without changes: no agent update
     client.post("/settings/anthropic", data={"api_key": "", "model": "claude-opus-5-5", "csrf_token": token})
     assert [c for c, _ in fake.calls].count("agent.update") == 0
-    # Changement de modèle : mise à jour (nouvelle version)
+    # Model change: update (new version)
     client.post("/settings/anthropic", data={"api_key": "", "model": "claude-sonnet-5-5", "csrf_token": token})
     assert [c for c, _ in fake.calls].count("agent.update") == 1
     assert fake.agent_configs[-1]["model"] == "claude-sonnet-5-5"
@@ -51,7 +51,7 @@ def test_bad_api_key_is_rejected(client, fake):
 
 
 def test_connector_declared_in_agent_with_permission_policy(client, fake, monkeypatch):
-    monkeypatch.setattr(settings_routes.mcp_oauth, "probe_mcp", lambda url, token: (True, "Handshake MCP réussi."))
+    monkeypatch.setattr(settings_routes.mcp_oauth, "probe_mcp", lambda url, token: (True, "MCP handshake succeeded."))
     make_user("admin", admin=True)
     uid = make_user("bob")
     login(client, "bob")
@@ -70,7 +70,7 @@ def test_connector_declared_in_agent_with_permission_policy(client, fake, monkey
     assert cfg["mcp_servers"] == [{"type": "url", "name": "linear", "url": "https://mcp.linear.app/mcp"}]
     toolset = [t for t in cfg["tools"] if t["type"] == "mcp_toolset"][0]
     assert toolset["default_config"]["permission_policy"] == {"type": "always_ask"}
-    # Aucun secret dans l'agent
+    # No secrets in the agent
     assert secret not in str(cfg)
 
     client.post("/settings/connectors/linear/permission", data={"permission_policy": "always_allow", "csrf_token": token})
@@ -83,7 +83,7 @@ def test_connector_declared_in_agent_with_permission_policy(client, fake, monkey
 
 
 def test_connector_with_rejected_token_is_not_saved(client, fake, monkeypatch):
-    monkeypatch.setattr(settings_routes.mcp_oauth, "probe_mcp", lambda url, token: (False, "Jeton refusé (401)."))
+    monkeypatch.setattr(settings_routes.mcp_oauth, "probe_mcp", lambda url, token: (False, "Token rejected (401)."))
     make_user("admin", admin=True)
     uid = make_user("bob")
     login(client, "bob")

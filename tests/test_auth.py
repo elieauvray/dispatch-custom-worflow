@@ -34,7 +34,7 @@ def test_setup_creates_admin_then_404_forever(client):
         assert admin is not None and admin.is_admin
         assert admin.password_hash.startswith("$argon2")
 
-    # Connecté directement, settings non remplis => bandeau
+    # Logged in directly, settings not filled in => banner
     page = client.get("/settings")
     assert page.status_code == 200 and "required settings are incomplete" in page.text
 
@@ -64,7 +64,7 @@ def test_csrf_required(client):
 def test_login_rate_limit(client):
     make_user("alice")
     for _ in range(5):
-        assert login(client, "alice", "mauvais-mot-de-passe").status_code == 401
+        assert login(client, "alice", "wrong-password").status_code == 401
     r = login(client, "alice", PASSWORD)
     assert r.status_code == 429
 

@@ -1,7 +1,7 @@
-"""Client OAuth 2.1 minimal pour les serveurs MCP distants.
+"""Minimal OAuth 2.1 client for remote MCP servers.
 
-Découverte (RFC 9728 + RFC 8414), enregistrement dynamique (RFC 7591), PKCE S256,
-échange du code. Aucun jeton n'est conservé : il est transmis au vault Anthropic.
+Discovery (RFC 9728 + RFC 8414), dynamic registration (RFC 7591), PKCE S256,
+code exchange. No token is kept: it is passed on to the Anthropic vault.
 """
 
 from __future__ import annotations
@@ -201,7 +201,7 @@ def exchange_code(
 
 
 def probe_mcp(url: str, token: str | None) -> tuple[bool, str]:
-    """Handshake MCP `initialize`. Retourne (ok, message). Le jeton n'est jamais journalisé."""
+    """MCP `initialize` handshake. Returns (ok, message). The token is never logged."""
     headers = {
         "Accept": "application/json, text/event-stream",
         "Content-Type": "application/json",

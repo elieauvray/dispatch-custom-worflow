@@ -7,12 +7,12 @@ from tests.conftest import csrf, login, make_user
 
 def _workflow_for(user_id: int) -> tuple[int, int]:
     with SessionLocal() as db:
-        wf = Workflow(user_id=user_id, name="Secret", content="contenu privé")
+        wf = Workflow(user_id=user_id, name="Secret", content="private content")
         db.add(wf)
         db.flush()
         run = WorkflowRun(
             user_id=user_id, workflow_id=wf.id, status=RunStatus.COMPLETED,
-            content_snapshot="contenu privé", initial_message="x", pending_event_ids=[],
+            content_snapshot="private content", initial_message="x", pending_event_ids=[],
         )
         db.add(run)
         db.commit()
@@ -68,7 +68,7 @@ def test_admin_pages_and_user_management(client, fake):
 
     r = client.post("/admin/users", data={"login": "carol", "password": "court", "csrf_token": token})
     assert "at least 10 characters" in r.text
-    r = client.post("/admin/users", data={"login": "carol", "password": "mot-de-passe-ok", "csrf_token": token})
+    r = client.post("/admin/users", data={"login": "carol", "password": "password-ok-123", "csrf_token": token})
     assert "carol" in r.text
 
     r = client.post(f"/admin/users/{bob_id}/delete", data={"csrf_token": token})

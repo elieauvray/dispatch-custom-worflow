@@ -29,11 +29,11 @@ async def anthropic_webhook(request: Request, db: Session = Depends(get_db)) -> 
     if not secret:
         raise HTTPException(status_code=404)
     body = (await request.body()).decode()
-    # La vérification est locale (HMAC) : aucune clé API n'est nécessaire.
+    # Verification is local (HMAC): no API key is needed.
     verifier = anthropic.Anthropic(api_key="webhook-verification-only")
     try:
         event = verifier.beta.webhooks.unwrap(body, headers=dict(request.headers), key=secret)
-    except Exception:  # signature invalide, horodatage trop ancien, payload illisible
+    except Exception:  # invalid signature, timestamp too old, unreadable payload
         raise HTTPException(status_code=400, detail="Invalid signature.") from None
     data = event.data
     if data.type == "vault_credential.refresh_failed":

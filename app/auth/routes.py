@@ -34,7 +34,7 @@ def validate_new_credentials(login: str, password: str, confirm: str | None = No
 
 
 def start_session(request: Request, user: User) -> None:
-    request.session.clear()  # évite la fixation de session
+    request.session.clear()  # prevents session fixation
     request.session["user_id"] = user.id
     request.session["pwd"] = user.password_hash[-16:]
 
@@ -104,7 +104,7 @@ def login_submit(
             )
         ) or 0
 
-    # Par login : 5 échecs / 15 min. Par IP : 4x plus (plusieurs comptes derrière un NAT).
+    # Per login: 5 failures / 15 min. Per IP: 4x more (several accounts behind a NAT).
     if failures(keys[0]) >= cfg.login_max_attempts or failures(keys[1]) >= cfg.login_max_attempts * 4:
         db.commit()
         return render(

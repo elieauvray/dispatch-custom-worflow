@@ -1,7 +1,7 @@
-"""Toute la logique Claude Managed Agents est isolée ici.
+"""All the Claude Managed Agents logic is isolated here.
 
-Le reste de l'application ne manipule que des `dict` (événements sérialisés) et
-des identifiants. Les tests remplacent `client_factory` par un faux client.
+The rest of the application only handles `dict` objects (serialized events) and
+identifiers. The tests replace `client_factory` with a fake client.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ which people do themselves in the tracker and on the pull request.
 # when unsure. always_allow: no approval.
 PERMISSION_POLICIES = ("always_ask", "auto", "always_allow")
 
-# Nom des serveurs MCP dans l'agent (référencés par mcp_toolset.mcp_server_name).
+# Name of the MCP servers in the agent (referenced by mcp_toolset.mcp_server_name).
 MCP_SERVER_NAMES = {"linear": "linear", "github": "github", "atlassian": "atlassian"}
 
 
@@ -124,7 +124,7 @@ _FALLBACK_MODELS = {"claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2"}
 
 
 class ManagedAgentsError(Exception):
-    """Erreur côté API Anthropic, avec un message affichable (sans secret)."""
+    """Error on the Anthropic API side, with a displayable message (no secret)."""
 
 
 @dataclass
@@ -152,7 +152,7 @@ class SyncResult:
 
 
 def build_agent_config(model: str, connectors: list[ConnectorSpec], login: str) -> dict[str, Any]:
-    """Configuration de l'agent : modèle + system prompt + serveurs MCP + toolsets. Aucun secret."""
+    """Agent configuration: model + system prompt + MCP servers + toolsets. No secrets."""
     mcp_servers: list[dict[str, Any]] = []
     tools: list[dict[str, Any]] = [
         {
@@ -230,7 +230,7 @@ def _api_error_message(exc: Exception) -> str:
 
 
 class ManagedAgentsAPI(Protocol):
-    """Interface utilisée par l'application (implémentée par le vrai client et par les faux)."""
+    """Interface used by the application (implemented by the real client and by the fakes)."""
 
     def check_api_key(self) -> None: ...
     def sync_resources(
@@ -272,7 +272,7 @@ class ManagedAgentsAPI(Protocol):
 
 
 class ManagedAgentsClient:
-    """Implémentation réelle au-dessus du SDK officiel `anthropic` (API beta)."""
+    """Real implementation on top of the official `anthropic` SDK (beta API)."""
 
     def __init__(self, api_key: str, *, stream_read_timeout: float = 120.0) -> None:
         self._client = anthropic.Anthropic(api_key=api_key, max_retries=3)
@@ -293,7 +293,7 @@ class ManagedAgentsClient:
             return False
         return getattr(obj, "archived_at", None) is None
 
-    # -- clé et ressources ---------------------------------------------------
+    # -- key and resources ---------------------------------------------------
     def check_api_key(self) -> None:
         with self._wrap():
             self._client.models.list(limit=1)
@@ -306,7 +306,7 @@ class ManagedAgentsClient:
         login: str,
         force: bool = False,
     ) -> SyncResult:
-        """Crée ou met à jour agent, environnement et vault. Idempotent."""
+        """Creates or updates the agent, environment and vault. Idempotent."""
         beta = self._client.beta
         result = SyncResult(state=ResourceState(**state.__dict__))
         st = result.state
@@ -330,7 +330,7 @@ class ManagedAgentsClient:
                 st.environment_id = env.id
                 result.created.append("environment")
 
-            # Vault (un par utilisateur)
+            # Vault (one per user)
             if not st.vault_id or not self._exists(
                 lambda: beta.vaults.retrieve(st.vault_id)  # type: ignore[arg-type]
             ):
@@ -410,7 +410,7 @@ class ManagedAgentsClient:
                 pass
 
     def check_credential(self, vault_id: str, credential_id: str, auth_type: str) -> str:
-        """Retourne un message lisible ; lève ManagedAgentsError si le credential est invalide."""
+        """Returns a readable message; raises ManagedAgentsError if the credential is invalid."""
         with self._wrap():
             cred = self._client.beta.vaults.credentials.retrieve(credential_id, vault_id=vault_id)
             if getattr(cred, "archived_at", None):
@@ -663,7 +663,7 @@ def _default_factory(api_key: str) -> ManagedAgentsAPI:
     return ManagedAgentsClient(api_key)
 
 
-# Remplaçable dans les tests.
+# Replaceable in tests.
 client_factory: Callable[[str], ManagedAgentsAPI] = _default_factory
 
 

@@ -31,17 +31,17 @@ from app.main import create_app  # noqa: E402
 from app.models import User, UserSettings  # noqa: E402
 from app.security import encrypt, hash_password  # noqa: E402
 
-PASSWORD = "motdepasse-solide"
+PASSWORD = "strong-password"
 
 
 @dataclass
 class FakeManagedAgents:
-    """Faux client Managed Agents : enregistre les appels et rejoue des événements scriptés."""
+    """Fake Managed Agents client: records the calls and replays scripted events."""
 
     calls: list[tuple[str, Any]] = field(default_factory=list)
     agent_configs: list[dict[str, Any]] = field(default_factory=list)
     session_events: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
-    # Événements que le flux délivrera après l'historique
+    # Events the stream will deliver after the history
     stream_script: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     counter: int = 0
     bad_key: bool = False
@@ -64,7 +64,7 @@ class FakeManagedAgents:
     def check_api_key(self) -> None:
         self.calls.append(("check_api_key", None))
         if self.bad_key:
-            raise anthropic_client.ManagedAgentsError("Clé API Anthropic refusée (401).")
+            raise anthropic_client.ManagedAgentsError("Anthropic API key rejected (401).")
 
     def sync_resources(
         self, state: ResourceState, model: str, connectors: list[ConnectorSpec], login: str,
@@ -74,7 +74,7 @@ class FakeManagedAgents:
         st = result.state
         if not st.environment_id:
             st.environment_id = self._id("env")
-            result.created.append("environnement")
+            result.created.append("environment")
         if not st.vault_id:
             st.vault_id = self._id("vlt")
             result.created.append("vault")
@@ -109,7 +109,7 @@ class FakeManagedAgents:
         self.calls.append(("archive_credential", credential_id))
 
     def check_credential(self, vault_id: str, credential_id: str, auth_type: str) -> str:
-        return "Credential présent dans le vault."
+        return "Credential present in the vault."
 
     def create_session(self, agent_id, agent_version, environment_id, vault_ids, title) -> str:  # type: ignore[no-untyped-def]
         sid = self._id("sesn")
@@ -237,7 +237,7 @@ def fake() -> Iterator[FakeManagedAgents]:
 
 @pytest.fixture
 def db_url(tmp_path: Any) -> Iterator[str]:
-    """SQLite par défaut ; PostgreSQL si TEST_DATABASE_URL est défini (base vidée à chaque test)."""
+    """SQLite by default; PostgreSQL if TEST_DATABASE_URL is set (database emptied for each test)."""
     pg = os.environ.get("TEST_DATABASE_URL")
     if pg:
         url = pg.replace("postgresql://", "postgresql+psycopg://", 1)
@@ -269,7 +269,7 @@ def client(app) -> TestClient:  # type: ignore[no-untyped-def]
 def csrf(client: TestClient, path: str = "/login") -> str:
     html = client.get(path).text
     m = re.search(r'name="csrf_token" value="([^"]+)"', html)
-    assert m, f"pas de jeton CSRF sur {path}"
+    assert m, f"no CSRF token on {path}"
     return m.group(1)
 
 

@@ -24,7 +24,7 @@ from app.webhooks import router as webhooks_router
 from app.workflows.routes import router as workflows_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-# Les en-têtes HTTP (dont les clés) ne doivent jamais apparaître dans les logs.
+# HTTP headers (including keys) must never appear in the logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 logging.getLogger("anthropic").setLevel(logging.WARNING)
@@ -52,7 +52,7 @@ upsun redeploy</pre>
 
 
 def create_misconfigured_app(missing: list[str]) -> FastAPI:
-    """App minimale servie quand les secrets manquent : évite un 502 muet."""
+    """Minimal app served when secrets are missing: avoids a silent 502."""
     logging.getLogger("dispatch").error(
         "Incomplete configuration, missing or invalid variables: %s", ", ".join(missing)
     )
@@ -95,7 +95,7 @@ def create_app() -> FastAPI:
         response.headers.setdefault("Referrer-Policy", "same-origin")
         return response
 
-    # Ajouté après le middleware ci-dessus => exécuté avant lui (request.session disponible).
+    # Added after the middleware above => runs before it (request.session available).
     app.add_middleware(
         SessionMiddleware,
         secret_key=cfg.secret_key,

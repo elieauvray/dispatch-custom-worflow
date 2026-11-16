@@ -1,146 +1,146 @@
-# Maestro : orchestrateur de méta-workflows pour Upsun Dispatch
+# Maestro: meta-workflow orchestrator for Upsun Dispatch
 
-Application web (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) qui permet à une équipe d'envoyer des prompts à
-Claude via **Claude Managed Agents**. Claude accède à vos outils (Linear, GitHub, Jira/Confluence) par des
-serveurs **MCP distants**. Les prompts peuvent être enregistrés comme **Custom Workflows** réutilisables.
-L'application est prête à être déployée sur **Upsun**. L'interface est en anglais (américain, conforme à la charte Upsun) ; cette documentation est en français.
+A web application (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) that lets a team send prompts to
+Claude through **Claude Managed Agents**. Claude accesses your tools (Linear, GitHub, Jira/Confluence) through
+**remote MCP servers**. Prompts can be saved as reusable **Custom Workflows**.
+The application is ready to deploy on **Upsun**. The interface is in American English, in line with the Upsun brand guidelines, and so is this documentation.
 
-## Maestro en bref
+## Maestro at a glance
 
-Maestro permet de décrire un processus complet (étapes, validations, boucles, outils), et en tire un
-**méta-workflow** exécutable qui orchestre Upsun Dispatch :
+Maestro lets you describe a complete process (steps, approvals, loops, tools) and turns it into an
+executable **meta-workflow** that orchestrates Upsun Dispatch:
 
-1. **Description → design.** Dans *Custom workflows → New Maestro workflow*, tu colles la description du
-   processus. Maestro (Claude, API Messages, sortie structurée, effort `high`) génère :
-   - le **prompt d'orchestration** suivi à chaque run (mission, config, préflight, garde-fous, ledger, étapes,
-     modèles de tickets et de commentaires, rapport de fin de run) ;
-   - les **étapes et leur acteur** : Maestro, Upsun Dispatch (Issue to code, Code review, full review, CVE
-     scan), personnes (gates) ou Upsun Cloud ;
-   - les **hypothèses**, ce qui **n'est pas possible avec Dispatch** et l'alternative retenue, les outils
-     requis, les paramètres de config et un planning suggéré.
+1. **Description → design.** In *Custom workflows → New Maestro workflow*, you paste the description of the
+   process. Maestro (Claude, Messages API, structured output, `high` effort) generates:
+   - the **orchestration prompt** followed on every run (mission, config, preflight, guardrails, ledger, steps,
+     ticket and comment templates, end-of-run report);
+   - the **steps and their actor**: Maestro, Upsun Dispatch (Issue to code, Code review, full review, CVE
+     scan), people (gates) or Upsun Cloud;
+   - the **assumptions**, what is **not possible with Dispatch** and the chosen alternative, the required
+     tools, the config parameters and a suggested schedule.
 
-   Le designer s'appuie sur une base de connaissances Dispatch (`app/maestro/knowledge.py`), sans modèle de
-   workflow intégré.
-   **Outils requis.** Avant toute génération, Maestro vérifie (appel court) les outils qu'il devra utiliser
-   lui-même. Si la description implique un connecteur non configuré (par exemple Linear) ou un outil sans
-   connecteur dans Maestro (GitLab, Slack, envoi d'e-mails…), **aucun prompt n'est créé** : le workflow
-   passe en « blocked » avec le message « connectez-le dans Settings puis relancez ». Si un connecteur requis
-   est supprimé plus tard, Run now et le planning sont désactivés.
-2. **Visualisation.** Un diagramme en couloirs (une colonne par acteur, phases en bandeaux, badges GATE,
-   type de workflow Dispatch, répétitions et boucles), exportable en SVG.
-3. **Lancement.** *Run now* lance un run suivi en direct. *Schedule Maestro* crée un déploiement planifié
-   Claude Managed Agents (cron, fuseau, budget par run) : chaque tick crée une session que le worker importe
-   et suit comme les autres runs (transcription, validations, questions). Pause, reprise et mise à jour
-   automatique quand le prompt, la config ou les skills changent ; suppression du workflow = archivage du
-   déploiement.
+   The designer relies on a Dispatch knowledge base (`app/maestro/knowledge.py`), with no built-in workflow
+   template.
+   **Required tools.** Before any generation, Maestro checks (with a short call) the tools it will have to use
+   itself. If the description involves a connector that is not configured (for example Linear) or a tool with no
+   connector in Maestro (GitLab, Slack, sending emails, and so on), **no prompt is created**: the workflow
+   switches to "blocked" with the message "connect it in Settings, then try again". If a required connector
+   is removed later, Run now and the schedule are disabled.
+2. **Visualization.** A swimlane diagram (one column per actor, phases as bands, GATE badges,
+   Dispatch workflow type, repetitions and loops), exportable as SVG.
+3. **Launch.** *Run now* starts a run that you follow live. *Schedule Maestro* creates a scheduled
+   Claude Managed Agents deployment (cron, time zone, budget per run): each tick creates a session that the worker imports
+   and follows like the other runs (transcript, approvals, questions). Pause, resume and automatic
+   update when the prompt, the config or the skills change; deleting the workflow archives the
+   deployment.
 
-**Déclenchement de Dispatch, sans intervention.** Maestro n'appelle pas d'API Dispatch (il n'y en a pas
-pour Issue to code) : il crée le ticket et poste le commentaire `@upsun-dispatch implement` via les
-connecteurs MCP (GitHub, Linear, Jira), avec **les credentials de l'utilisateur** (Dispatch ignore les bots).
-Ensuite le workflow Dispatch tourne **exactement comme prévu par Dispatch** : ses validations humaines
-(validation du plan, revue et approbation de la PR, merge) sont faites par les personnes, dans le tracker et
-sur la PR. Maestro n'y touche jamais (ni commentaire, ni correction, ni relance, ni décision, ni merge). À
-chaque run, il relit l'état des tickets qu'il a lancés et compare au **signal de fin** de l'étape (PR mergée,
-PR approuvée, issue fermée ou PR ouverte) ; quand il est atteint, il enchaîne l'étape suivante (par exemple
-un autre Issue to code). Un run Dispatch en échec ou une PR fermée sans merge est signalé, pas réparé. L'état
-vit dans un « ledger » (commentaire édité) sur chaque élément suivi.
+**Triggering Dispatch, hands off.** Maestro does not call any Dispatch API (there is none
+for Issue to code): it creates the ticket and posts the `@upsun-dispatch implement` comment through the
+MCP connectors (GitHub, Linear, Jira), with **the user's credentials** (Dispatch ignores bots).
+The Dispatch workflow then runs **exactly as Dispatch intends**: its human approvals
+(plan approval, PR review and approval, merge) are done by people, in the tracker and
+on the PR. Maestro never touches them (no comment, no fix, no retry, no decision, no merge). On
+each run, it rereads the state of the tickets it started and compares it with the step's **completion signal** (PR merged,
+PR approved, issue closed or PR opened); once it is reached, it moves on to the next step (for example
+another Issue to code). A failed Dispatch run or a PR closed without merge is reported, not repaired. The state
+lives in a "ledger" (an edited comment) on each tracked item.
 
-## Sommaire
+## Contents
 
 1. [Architecture](#architecture)
-2. [Installation locale](#installation-locale)
-3. [Déploiement sur Upsun](#déploiement-sur-upsun)
-4. [Configuration des connecteurs](#configuration-des-connecteurs)
-5. [Sécurité](#sécurité)
+2. [Local setup](#local-setup)
+3. [Deploying on Upsun](#deploying-on-upsun)
+4. [Connector configuration](#connector-configuration)
+5. [Security](#security)
 6. [Tests](#tests)
-7. [Limites connues](#limites-connues)
+7. [Known limitations](#known-limitations)
 
 ## Architecture
 
 ```
-Navigateur ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀── worker (python -m app.worker)
-                               │  réponses, validations,                    │  crée la session, envoie le message,
-                               │  annulation                                │  lit le flux d'événements,
-                               ▼                                            ▼  enregistre run_events
-                         API Anthropic (Managed Agents beta) ◀───────────────┘
+Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀── worker (python -m app.worker)
+                               │  replies, approvals,                       │  creates the session, sends the message,
+                               │  cancellation                              │  reads the event stream,
+                               ▼                                            ▼  stores run_events
+                         Anthropic API (Managed Agents beta) ◀───────────────┘
 ```
 
-| Module | Rôle |
+| Module | Role |
 |---|---|
-| `app/auth` | Premier lancement (`/setup`), connexion, déconnexion, limitation des tentatives |
-| `app/settings` | Clé API, modèle, connecteurs MCP, OAuth (découverte, DCR, PKCE), synchronisation des ressources |
-| `app/anthropic_client.py` | **Toute** la logique Managed Agents : agent, environnement, vault, credentials, sessions, événements |
-| `app/workflows` | Page Prompt, CRUD des workflows, composition du message (skills puis contenu) |
-| `app/runs` | Détail d'une exécution, flux SSE, réponses, validations d'outils, annulation, machine à états |
-| `app/worker.py` | Worker Upsun : pilote les sessions, reprend après redémarrage (réservation + heartbeat) |
-| `app/admin` | Utilisateurs (création, suppression, réinitialisation du mot de passe) et Skills |
-| `app/webhooks.py` | `POST /webhooks/anthropic` (signature vérifiée) pour `vault_credential.refresh_failed` |
+| `app/auth` | First launch (`/setup`), login, logout, rate limiting of login attempts |
+| `app/settings` | API key, model, MCP connectors, OAuth (discovery, DCR, PKCE), resource synchronization |
+| `app/anthropic_client.py` | **All** the Managed Agents logic: agent, environment, vault, credentials, sessions, events |
+| `app/workflows` | Prompt page, workflow CRUD, message composition (skills, then content) |
+| `app/runs` | Run details, SSE stream, replies, tool approvals, cancellation, state machine |
+| `app/worker.py` | Upsun worker: drives the sessions, resumes after a restart (claim + heartbeat) |
+| `app/admin` | Users (creation, deletion, password reset) and Skills |
+| `app/webhooks.py` | `POST /webhooks/anthropic` (verified signature) for `vault_credential.refresh_failed` |
 
-### Ressources Managed Agents par utilisateur
+### Managed Agents resources per user
 
-- **Agent** : modèle, system prompt, `mcp_servers` et un `mcp_toolset` par connecteur configuré. Aucun secret. Le toolset intégré (`agent_toolset_20260401`, en `auto`) reste actif, avec `web_search` et `web_fetch` désactivés.
-- **Environment** : `cloud`, réseau `limited` avec `allow_mcp_servers: true`.
-- **Vault** : un par utilisateur. Il contient les credentials `static_bearer` ou `mcp_oauth`, rattachés à l'URL MCP exacte.
-- La synchronisation est **idempotente**. L'empreinte (SHA-256) de la configuration de l'agent est stockée, et l'agent n'est mis à jour (nouvelle version) que si elle change. Les IDs disparus côté Anthropic sont recréés.
+- **Agent**: model, system prompt, `mcp_servers` and one `mcp_toolset` per configured connector. No secrets. The built-in toolset (`agent_toolset_20260401`, set to `auto`) stays enabled, with `web_search` and `web_fetch` disabled.
+- **Environment**: `cloud`, `limited` network with `allow_mcp_servers: true`.
+- **Vault**: one per user. It holds the `static_bearer` or `mcp_oauth` credentials, bound to the exact MCP URL.
+- Synchronization is **idempotent**. The fingerprint (SHA-256) of the agent configuration is stored, and the agent is only updated (new version) when it changes. IDs that have disappeared on the Anthropic side are recreated.
 
-### Cycle d'une exécution
+### Run lifecycle
 
-1. Le web crée un `workflow_run` au statut `en cours`. Les prompts libres ont `workflow_id = NULL`.
-2. Le worker le réserve, crée la session (`agent`, `environment_id`, `vault_ids`), ouvre le flux, relit l'historique (dédoublonnage par id d'événement), puis envoie le `user.message`.
-3. Chaque événement est enregistré dans `run_events` et met à jour le statut :
-   - `session.status_idle` + `requires_action` donne **waiting for approval**. Les `event_ids` bloquants sont mémorisés.
-   - `session.status_idle` + `end_turn` donne **waiting for your reply** si le dernier message de Claude se termine par une question, sinon **completed**.
-   - `retries_exhausted` donne **failed**. `session.error` est affiché ; une erreur `mcp_authentication_failed_error` passe le connecteur en « Error ».
-4. Le navigateur suit en direct via `/runs/{id}/stream` (SSE). Le flux lit la base par polling court (1 s), après un premier affichage des événements déjà stockés.
-5. Les réponses (`user.message`) et les validations (`user.tool_confirmation` allow/deny + `deny_message`) partent du web directement vers l'API. L'exécution repasse alors au worker.
+1. The web app creates a `workflow_run` with the `running` status. Free-form prompts have `workflow_id = NULL`.
+2. The worker claims it, creates the session (`agent`, `environment_id`, `vault_ids`), opens the stream, rereads the history (deduplication by event id), then sends the `user.message`.
+3. Each event is stored in `run_events` and updates the status:
+   - `session.status_idle` + `requires_action` gives **waiting for approval**. The blocking `event_ids` are stored.
+   - `session.status_idle` + `end_turn` gives **waiting for your reply** if Claude's last message ends with a question, otherwise **completed**.
+   - `retries_exhausted` gives **failed**. `session.error` is displayed; an `mcp_authentication_failed_error` error switches the connector to "Error".
+4. The browser follows live through `/runs/{id}/stream` (SSE). The stream reads the database with short polling (1 s), after first displaying the events already stored.
+5. Replies (`user.message`) and approvals (`user.tool_confirmation` allow/deny + `deny_message`) go from the web app directly to the API. The run is then handed back to the worker.
 
-### Plan prévu (diagramme)
+### Predicted plan (diagram)
 
-Chaque prompt et chaque workflow affiche un diagramme **Planned workflow** : les grandes étapes que Claude
-prévoit d'exécuter, déduites de la demande seule, avant toute exécution.
+Each prompt and each workflow shows a **Planned workflow** diagram: the main steps that Claude
+expects to carry out, inferred from the request alone, before any execution.
 
-- **Génération** : au premier affichage, Dispatch envoie la demande (le prompt, ou les skills actifs suivis du
-  contenu du workflow) et la liste des connecteurs à Claude (API Messages, modèle choisi dans Settings, sortie
-  JSON structurée, effort `low`). Un appel par plan, facturé sur la clé de l'utilisateur.
-- **Interventions calculées par l'app**, jamais devinées par Claude : un appel à un connecteur réglé sur
-  « Always ask » affiche « Your approval », une question affiche « Your reply », et un service non connecté
-  affiche « Connector missing ».
-- **Cache** : le plan d'une exécution est figé. Celui d'un workflow est recalculé quand son contenu, les skills
-  actifs, les connecteurs ou le modèle changent. Une exécution lancée depuis un workflow réutilise son plan.
-- **Export** : bouton « Download SVG » ; le fichier garde les couleurs Upsun hors de l'application.
-- Le plan est une prévision : la transcription montre ce qui s'est réellement passé.
+- **Generation**: on first display, Dispatch sends the request (the prompt, or the active skills followed by the
+  workflow content) and the list of connectors to Claude (Messages API, model chosen in Settings, structured
+  JSON output, `low` effort). One call per plan, billed to the user's key.
+- **Interventions computed by the app**, never guessed by Claude: a call to a connector set to
+  "Always ask" shows "Your approval", a question shows "Your reply", and a service that is not connected
+  shows "Connector missing".
+- **Cache**: a run's plan is frozen. A workflow's plan is recomputed when its content, the active skills,
+  the connectors or the model change. A run started from a workflow reuses its plan.
+- **Export**: "Download SVG" button; the file keeps the Upsun colors outside the application.
+- The plan is a forecast: the transcript shows what actually happened.
 
-### Message envoyé pour un workflow
+### Message sent for a workflow
 
 ```xml
 <instructions>
-Les instructions ci-dessous sont définies par l'administrateur de l'application. Applique-les pendant toute l'exécution du workflow qui suit.
-<skill name="NOM DU SKILL">TEXTE DU SKILL</skill>
+The instructions below are set by the administrator of this application. Apply them throughout the execution of the workflow that follows, at every step and up to the final result.
+<skill name="SKILL NAME">SKILL TEXT</skill>
 </instructions>
 
-<workflow name="NOM DU WORKFLOW">
-CONTENU DU WORKFLOW
+<workflow name="WORKFLOW NAME">
+WORKFLOW CONTENT
 </workflow>
 ```
 
-Le texte exact des skills actifs est figé dans `workflow_runs.skills_snapshot` au lancement.
+The exact text of the active skills is frozen in `workflow_runs.skills_snapshot` at launch.
 
-## Installation locale
+## Local setup
 
-Prérequis : Python 3.12 ou plus (3.14 recommandé, comme sur Upsun) et une base PostgreSQL. Pas de Docker.
-Deux options pour la base :
+Prerequisites: Python 3.12 or later (3.14 recommended, as on Upsun) and a PostgreSQL database. No Docker.
+Two options for the database:
 
-- **Option A, recommandée** : utiliser le service PostgreSQL déclaré dans `.upsun/config.yaml`, via un tunnel
-  SSH ouvert par le CLI Upsun. Le projet doit déjà avoir été déployé une fois. Utilisez de préférence un
-  environnement de développement (une branche Upsun), pas la production.
+- **Option A, recommended**: use the PostgreSQL service declared in `.upsun/config.yaml`, through an SSH
+  tunnel opened by the Upsun CLI. The project must already have been deployed once. Preferably use a
+  development environment (an Upsun branch), not production.
 
   ```bash
   upsun tunnel:single --relationship database
   ```
 
-  La commande affiche une URL `pgsql://<user>:<password>@127.0.0.1:<port>/main`. Copiez-la telle quelle dans `DATABASE_URL`
-  (le préfixe `pgsql://` est accepté) et laissez le terminal ouvert.
-- **Option B** : n'importe quel PostgreSQL 14 à 18 installé localement, par exemple
+  The command prints a `pgsql://<user>:<password>@127.0.0.1:<port>/main` URL. Copy it as is into `DATABASE_URL`
+  (the `pgsql://` prefix is accepted) and leave the terminal open.
+- **Option B**: any PostgreSQL 14 to 18 installed locally, for example
   `postgresql://user:pass@localhost:5432/dispatch`.
 
 ```bash
@@ -155,8 +155,8 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
-Remplissez `APP_SECRET_KEY`, `ENCRYPTION_KEY` et `DATABASE_URL` dans `.env` (les commandes de génération sont
-indiquées dans le fichier), puis chargez les variables et lancez les migrations :
+Fill in `APP_SECRET_KEY`, `ENCRYPTION_KEY` and `DATABASE_URL` in `.env` (the commands to generate them are
+given in the file), then load the variables and run the migrations:
 
 ```bash
 set -a; . ./.env; set +a
@@ -166,7 +166,7 @@ set -a; . ./.env; set +a
 alembic upgrade head
 ```
 
-Lancez le web et le worker dans deux terminaux (après `set -a; . ./.env; set +a` dans chacun) :
+Start the web app and the worker in two terminals (after `set -a; . ./.env; set +a` in each):
 
 ```bash
 uvicorn app.asgi:application --reload --port 8000
@@ -176,32 +176,32 @@ uvicorn app.asgi:application --reload --port 8000
 python -m app.worker
 ```
 
-Ouvrez http://localhost:8000. Au premier lancement, vous êtes redirigé vers `/setup` pour créer l'admin.
+Open http://localhost:8000. On first launch, you are redirected to `/setup` to create the admin.
 
-> En local, `COOKIE_SECURE=false` est nécessaire en HTTP. Sur Upsun (HTTPS), il vaut `true`.
+> Locally, `COOKIE_SECURE=false` is required over HTTP. On Upsun (HTTPS), it is `true`.
 
-## Déploiement sur Upsun
+## Deploying on Upsun
 
-Upsun construit et déploie l'application à partir de **`.upsun/config.yaml`**. Il n'y a ni Dockerfile ni image : l'application, le worker et le service PostgreSQL sont tous déclarés dans ce fichier.
+Upsun builds and deploys the application from **`.upsun/config.yaml`**. There is no Dockerfile and no image: the application, the worker and the PostgreSQL service are all declared in this file.
 
-| Élément | Configuration |
+| Item | Configuration |
 |---|---|
-| Application | `python:3.14`, dépendances installées par `pip install -r requirements.txt` (hook `build`) |
-| Web | `python -m uvicorn app.asgi:application --port $PORT` ; `/static` servi directement |
-| Worker `runs` | `python -m app.worker` (même code, autre commande ; hérite de la relation BDD) |
-| Migrations | `python -m alembic upgrade head` dans le hook `deploy` (exécuté sur le conteneur web uniquement) |
-| PostgreSQL | service `database` de type `postgresql:18`, déclaré sous `services:`, relié à l'app par `relationships: database:` |
-| Connexion BDD | construite par l'app depuis `PLATFORM_RELATIONSHIPS` (relation `database`), mot de passe encodé |
-| Route | `https://{default}/` vers `app`, avec redirection de `www` |
+| Application | `python:3.14`, dependencies installed by `pip install -r requirements.txt` (`build` hook) |
+| Web | `python -m uvicorn app.asgi:application --port $PORT`; `/static` served directly |
+| `runs` worker | `python -m app.worker` (same code, different command; inherits the database relationship) |
+| Migrations | `python -m alembic upgrade head` in the `deploy` hook (runs on the web container only) |
+| PostgreSQL | `database` service of type `postgresql:18`, declared under `services:`, linked to the app by `relationships: database:` |
+| Database connection | built by the app from `PLATFORM_RELATIONSHIPS` (`database` relationship), with an encoded password |
+| Route | `https://{default}/` to `app`, with a redirect from `www` |
 
-### Étapes
+### Steps
 
 ```bash
 upsun project:create
 ```
 
-Définissez ensuite les variables **sensibles** au niveau du projet (une commande par variable), avant le
-premier push :
+Then define the **sensitive** variables at the project level (one command per variable), before the
+first push:
 
 ```bash
 upsun variable:create --level project --name env:APP_SECRET_KEY --value "$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" --sensitive true --visible-build false
@@ -211,28 +211,28 @@ upsun variable:create --level project --name env:APP_SECRET_KEY --value "$(pytho
 upsun variable:create --level project --name env:ENCRYPTION_KEY --value "$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" --sensitive true --visible-build false
 ```
 
-Optionnel, pour le webhook Anthropic :
+Optional, for the Anthropic webhook:
 
 ```bash
 upsun variable:create --level project --name env:ANTHROPIC_WEBHOOK_SECRET --value "whsec_..." --sensitive true --visible-build false
 ```
 
-Puis déployez :
+Then deploy:
 
 ```bash
 git push upsun main
 ```
 
-| Variable | Obligatoire | Rôle |
+| Variable | Required | Role |
 |---|---|---|
-| `APP_SECRET_KEY` | oui | Signature du cookie de session (32 caractères minimum) |
-| `ENCRYPTION_KEY` | oui | Clé Fernet de chiffrement au repos (clé API Anthropic, secrets OAuth). **Ne la changez pas** : les données chiffrées deviendraient illisibles |
-| `ANTHROPIC_WEBHOOK_SECRET` | non | Secret `whsec_xxxx` du webhook. Sans lui, `/webhooks/anthropic` répond 404 |
-| `PUBLIC_BASE_URL` | non | Déduite de la route principale Upsun. Sert à construire les URL de callback OAuth |
+| `APP_SECRET_KEY` | yes | Session cookie signature (32 characters minimum) |
+| `ENCRYPTION_KEY` | yes | Fernet key for encryption at rest (Anthropic API key, OAuth secrets). **Do not change it**: encrypted data would become unreadable |
+| `ANTHROPIC_WEBHOOK_SECRET` | no | Webhook `whsec_xxxx` secret. Without it, `/webhooks/anthropic` returns 404 |
+| `PUBLIC_BASE_URL` | no | Derived from the main Upsun route. Used to build the OAuth callback URLs |
 
-### Dépannage : 502 Bad Gateway
+### Troubleshooting: 502 Bad Gateway
 
-Un 502 signifie que le processus web ne répond pas. Consultez les logs :
+A 502 means the web process is not responding. Check the logs:
 
 ```bash
 upsun logs app --lines 100
@@ -242,58 +242,58 @@ upsun logs app --lines 100
 upsun logs deploy --lines 100
 ```
 
-- **Variables manquantes** : si `APP_SECRET_KEY` ou `ENCRYPTION_KEY` manque ou est invalide, l'app ne plante pas.
-  Elle répond **503** avec une page qui indique les commandes à lancer. Créez les variables, puis lancez
-  `upsun redeploy`. Les variables créées après un push ne sont prises en compte qu'au déploiement suivant.
-- **Migrations** : le hook `deploy` lance `python -m alembic upgrade head`. Une erreur à cette étape apparaît dans
+- **Missing variables**: if `APP_SECRET_KEY` or `ENCRYPTION_KEY` is missing or invalid, the app does not crash.
+  It returns **503** with a page that lists the commands to run. Create the variables, then run
+  `upsun redeploy`. Variables created after a push only take effect on the next deployment.
+- **Migrations**: the `deploy` hook runs `python -m alembic upgrade head`. An error at this step shows up in
   `upsun logs deploy`.
 
-### Webhook Anthropic (optionnel)
+### Anthropic webhook (optional)
 
-Dans la Claude Console, ouvrez **Manage → Webhooks** et ajoutez `https://<votre-domaine>/webhooks/anthropic`,
-abonné à `vault_credential.refresh_failed`. Le connecteur concerné passe alors en « Error » avec le message
-« Reconnect needed ».
+In the Claude Console, open **Manage → Webhooks** and add `https://<your-domain>/webhooks/anthropic`,
+subscribed to `vault_credential.refresh_failed`. The affected connector then switches to "Error" with the message
+"Reconnect needed".
 
-## Configuration des connecteurs
+## Connector configuration
 
-Chaque utilisateur configure ses connecteurs dans **Settings**. Les jetons sont envoyés **directement au
-vault Anthropic**. La base ne garde que le type, l'URL, l'ID du credential, les 4 derniers caractères et la
-date. Avant l'enregistrement, l'application vérifie le jeton par un handshake MCP `initialize`.
-Le bouton « Test » vérifie ensuite que le credential est présent dans le vault (et valide le jeton OAuth via
-`mcp_oauth_validate`), et que le serveur MCP répond.
+Each user configures their connectors in **Settings**. Tokens are sent **directly to the
+Anthropic vault**. The database only keeps the type, the URL, the credential ID, the last 4 characters and the
+date. Before saving, the application checks the token with an MCP `initialize` handshake.
+The "Test" button then checks that the credential is present in the vault (and validates the OAuth token through
+`mcp_oauth_validate`), and that the MCP server responds.
 
-Informations vérifiées le 13/11/2026 :
+Information checked on 11/13/2026:
 
-| Service | URL MCP | Jeton fixe (`static_bearer`) | OAuth |
+| Service | MCP URL | Static token (`static_bearer`) | OAuth |
 |---|---|---|---|
-| **Linear** | `https://mcp.linear.app/mcp` | Clé API personnelle : Settings → Account → Security & Access → Personal API keys. Permissions conseillées : Read + Create issues + Create comments, limitées aux équipes utiles | OAuth 2.1 avec enregistrement dynamique (DCR) |
-| **GitHub** | `https://api.githubcopilot.com/mcp/` | PAT fine-grained : Settings → Developer settings → Personal access tokens → Fine-grained tokens. Permissions : Contents, Issues, Pull requests (lecture, ou écriture si besoin) | Pas de DCR : l'admin crée une OAuth App GitHub et saisit son client_id / client_secret |
-| **Atlassian** (Jira, Confluence) | `https://mcp.atlassian.com/v2/mcp` | Uniquement une **clé API de compte de service** (Bearer). L'admin Atlassian doit activer *Connectors → Atlassian MCP server → Authentication → API token* | **Recommandé.** OAuth 2.1 avec DCR (`offline_access` pour obtenir le refresh token) |
+| **Linear** | `https://mcp.linear.app/mcp` | Personal API key: Settings → Account → Security & Access → Personal API keys. Recommended permissions: Read + Create issues + Create comments, limited to the relevant teams | OAuth 2.1 with dynamic client registration (DCR) |
+| **GitHub** | `https://api.githubcopilot.com/mcp/` | Fine-grained PAT: Settings → Developer settings → Personal access tokens → Fine-grained tokens. Permissions: Contents, Issues, Pull requests (read, or write if needed) | No DCR: the admin creates a GitHub OAuth App and enters its client_id / client_secret |
+| **Atlassian** (Jira, Confluence) | `https://mcp.atlassian.com/v2/mcp` | Only a **service account API key** (Bearer). The Atlassian admin must enable *Connectors → Atlassian MCP server → Authentication → API token* | **Recommended.** OAuth 2.1 with DCR (`offline_access` to get the refresh token) |
 
-### Mode OAuth
+### OAuth mode
 
-1. L'admin ouvre **Settings → OAuth apps** :
-   - pour **Linear** ou **Atlassian**, il clique sur « Register automatically » (enregistrement dynamique RFC 7591) ;
-   - pour **GitHub**, il saisit le client_id / client_secret d'une OAuth App dont l'URL de callback est celle affichée (`https://<domaine>/oauth/github/callback`).
-2. Les utilisateurs voient alors « Sign in with » suivi du nom du service. L'application découvre le serveur d'autorisation (RFC 9728 / RFC 8414), utilise PKCE S256 et le paramètre `resource`, puis échange le code.
-3. Elle crée un credential `mcp_oauth` avec un bloc `refresh` (`token_endpoint`, `client_id`, `token_endpoint_auth`). **Anthropic rafraîchit ensuite le jeton** automatiquement.
+1. The admin opens **Settings → OAuth apps**:
+   - for **Linear** or **Atlassian**, they click "Register automatically" (RFC 7591 dynamic registration);
+   - for **GitHub**, they enter the client_id / client_secret of an OAuth App whose callback URL is the one shown (`https://<domain>/oauth/github/callback`).
+2. Users then see "Sign in with" followed by the service name. The application discovers the authorization server (RFC 9728 / RFC 8414), uses PKCE S256 and the `resource` parameter, then exchanges the code.
+3. It creates an `mcp_oauth` credential with a `refresh` block (`token_endpoint`, `client_id`, `token_endpoint_auth`). **Anthropic then refreshes the token** automatically.
 
-### Permissions des outils
+### Tool permissions
 
-Pour chaque connecteur, vous choisissez entre « Always ask » (`always_ask`, par défaut) et
-« Always allow » (`always_allow`). Ce choix est appliqué au `default_config.permission_policy` du
-`mcp_toolset`. Le modifier crée une nouvelle version de l'agent.
+For each connector, you choose between "Always ask" (`always_ask`, the default) and
+"Always allow" (`always_allow`). This choice is applied to the `default_config.permission_policy` of the
+`mcp_toolset`. Changing it creates a new version of the agent.
 
-## Sécurité
+## Security
 
-- Mots de passe hachés avec **argon2** (10 caractères minimum). Un temps de réponse constant est conservé quand le login est inconnu.
-- Cookie de session signé, `HttpOnly`, `Secure` et `SameSite=Lax`, d'une durée de 12 h. Il est invalidé si le mot de passe est réinitialisé.
-- **CSRF** : jeton par session, vérifié sur tous les POST (champ caché ou en-tête `X-CSRF-Token` pour HTMX).
-- **Limitation des tentatives de connexion** : 5 échecs par login, ou 20 par IP, sur 15 minutes.
-- La clé API Anthropic est **chiffrée au repos** (Fernet) et n'est jamais réaffichée : seuls les 4 derniers caractères sont visibles. Les secrets OAuth admin sont chiffrés de la même façon.
-- Aucun secret n'est journalisé. Les loggers `httpx` et `anthropic` sont en WARNING.
-- Isolation : un utilisateur n'accède qu'à ses workflows et exécutions (404 sinon). Les pages Utilisateurs et Skills sont réservées à l'admin.
-- En-têtes `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` et `Referrer-Policy`.
+- Passwords hashed with **argon2** (10 characters minimum). A constant response time is kept when the login is unknown.
+- Signed session cookie, `HttpOnly`, `Secure` and `SameSite=Lax`, valid for 12 h. It is invalidated if the password is reset.
+- **CSRF**: per-session token, checked on every POST (hidden field or `X-CSRF-Token` header for HTMX).
+- **Login rate limiting**: 5 failures per login, or 20 per IP, over 15 minutes.
+- The Anthropic API key is **encrypted at rest** (Fernet) and never shown again: only the last 4 characters are visible. Admin OAuth secrets are encrypted the same way.
+- No secret is ever logged. The `httpx` and `anthropic` loggers are set to WARNING.
+- Isolation: a user can only access their own workflows and runs (404 otherwise). The Users and Skills pages are restricted to the admin.
+- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy` headers.
 
 ## Tests
 
@@ -301,28 +301,28 @@ Pour chaque connecteur, vous choisissez entre « Always ask » (`always_ask`, pa
 pytest -q
 ```
 
-L'API Anthropic est remplacée par un faux client (`tests/conftest.py`). Les tests couvrent :
+The Anthropic API is replaced by a fake client (`tests/conftest.py`). The tests cover:
 
-- le premier lancement et la création de l'admin ;
-- les cookies, le CSRF, la limitation des tentatives et la déconnexion ;
-- les droits (pages admin, workflows et exécutions d'autres utilisateurs) ;
-- le chiffrement de la clé API et l'idempotence de la synchronisation ;
-- la déclaration des serveurs MCP et les politiques de permission ;
-- la composition du message (skills actifs, dans l'ordre, avant le contenu ; snapshot figé) ;
-- la gestion de `requires_action` (validation et refus avec motif), de `end_turn` (question ou terminé), de l'annulation, de la reprise par le worker et du flux SSE.
+- first launch and admin creation;
+- cookies, CSRF, login rate limiting and logout;
+- permissions (admin pages, other users' workflows and runs);
+- API key encryption and synchronization idempotence;
+- MCP server declaration and permission policies;
+- message composition (active skills, in order, before the content; frozen snapshot);
+- handling of `requires_action` (approval and denial with a reason), `end_turn` (question or completed), cancellation, resumption by the worker and the SSE stream.
 
-Pour lancer les mêmes tests sur PostgreSQL (base dédiée, vidée à chaque test, jamais celle d'Upsun) :
+To run the same tests on PostgreSQL (dedicated database, emptied for each test, never the Upsun one):
 
 ```bash
 TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/dispatch_test pytest -q
 ```
 
-## Limites connues
+## Known limitations
 
-- **Détection des questions** : heuristique, la dernière ligne du message de Claude doit se terminer par « ? ». Dans tous les cas, l'utilisateur peut continuer la conversation.
-- **Atlassian en jeton fixe** : les jetons API personnels (Basic `email:token`) ne sont pas compatibles avec `static_bearer`. Utilisez OAuth ou une clé de compte de service.
-- **Le bouton « Test »** ne peut pas refaire le handshake authentifié pour un jeton fixe, puisque le jeton n'est pas conservé. Il vérifie le credential côté vault et la joignabilité du serveur. Le handshake complet a lieu à l'enregistrement.
-- **SSE par polling** de la base (1 s) plutôt que `LISTEN/NOTIFY` : c'est simple et robuste derrière le proxy Upsun, avec une légère latence.
-- **Workspace Anthropic** : les vaults sont partagés à l'échelle du workspace. Utilisez une clé API par workspace dédié.
-- **Recréation du vault** (clé API d'un autre workspace, vault archivé) : les jetons fixes doivent être ressaisis, et les connecteurs concernés passent en « Error ».
-- Les fichiers produits par l'agent dans le sandbox (`/mnt/session/outputs`) ne sont pas affichés.
+- **Question detection**: heuristic, the last line of Claude's message must end with "?". In any case, the user can continue the conversation.
+- **Atlassian with a static token**: personal API tokens (Basic `email:token`) are not compatible with `static_bearer`. Use OAuth or a service account key.
+- **The "Test" button** cannot redo the authenticated handshake for a static token, since the token is not kept. It checks the credential on the vault side and that the server is reachable. The full handshake happens when saving.
+- **SSE through polling** of the database (1 s) rather than `LISTEN/NOTIFY`: it is simple and robust behind the Upsun proxy, with a slight latency.
+- **Anthropic workspace**: vaults are shared across the workspace. Use one API key per dedicated workspace.
+- **Vault recreation** (API key from another workspace, archived vault): static tokens must be entered again, and the affected connectors switch to "Error".
+- Files produced by the agent in the sandbox (`/mnt/session/outputs`) are not displayed.

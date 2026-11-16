@@ -1,7 +1,7 @@
-"""Configuration de l'application, lue depuis les variables d'environnement.
+"""Application configuration, read from environment variables.
 
-Sur Upsun, la relation PostgreSQL expose `DATABASE_URL` (et les variables
-`DATABASE_*`). En local, `DATABASE_URL` est défini par docker-compose.
+On Upsun, the database URL is built from the `database` relationship (PLATFORM_RELATIONSHIPS).
+Locally, set `DATABASE_URL` in `.env` (a local PostgreSQL, or `upsun tunnel:single`).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ def _bool(value: str | None, default: bool) -> bool:
 
 
 def _pg_url(user: str, password: str, host: str, port: str | int, database: str) -> str:
-    """Construit l'URL SQLAlchemy en encodant correctement les caractères spéciaux."""
+    """Builds the SQLAlchemy URL, correctly encoding special characters."""
     from sqlalchemy.engine import URL
 
     url = URL.create(
@@ -35,7 +35,7 @@ def _pg_url(user: str, password: str, host: str, port: str | int, database: str)
 
 
 def _database_url() -> str:
-    # 1. Upsun : relation « database » (PLATFORM_RELATIONSHIPS, toujours présent sur Upsun).
+    # 1. Upsun: "database" relationship (PLATFORM_RELATIONSHIPS, always present on Upsun).
     raw = os.environ.get("PLATFORM_RELATIONSHIPS")
     if raw:
         try:
@@ -45,7 +45,7 @@ def _database_url() -> str:
             db = {}
         if db.get("host"):
             return _pg_url(db["username"], db["password"], db["host"], db["port"], db["path"])
-    # 2. Variables DATABASE_* (exposées par Upsun pour la relation « database »).
+    # 2. DATABASE_* variables (exposed by Upsun for the "database" relationship).
     if os.environ.get("DATABASE_HOST") and not os.environ.get("DATABASE_URL"):
         return _pg_url(
             os.environ.get("DATABASE_USERNAME", ""),
@@ -54,7 +54,7 @@ def _database_url() -> str:
             os.environ.get("DATABASE_PORT", "5432"),
             os.environ.get("DATABASE_PATH", ""),
         )
-    # 3. DATABASE_URL explicite (local, tunnel Upsun en pgsql://, etc.).
+    # 3. Explicit DATABASE_URL (local, Upsun tunnel as pgsql://, etc.).
     url = os.environ.get("DATABASE_URL", "") or "postgresql://dispatch:dispatch@localhost:5432/dispatch"
     for prefix in ("pgsql://", "postgres://"):
         if url.startswith(prefix):
@@ -65,7 +65,7 @@ def _database_url() -> str:
 
 
 def missing_secrets() -> list[str]:
-    """Variables obligatoires absentes ou invalides (sans jamais exposer leur valeur)."""
+    """Required variables that are missing or invalid (never exposing their value)."""
     missing: list[str] = []
     if len(os.environ.get("APP_SECRET_KEY", "")) < 32:
         missing.append("APP_SECRET_KEY")

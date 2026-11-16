@@ -1,4 +1,4 @@
-"""Synchronisation des ressources Managed Agents d'un utilisateur."""
+"""Synchronization of a user's Managed Agents resources."""
 
 from __future__ import annotations
 
@@ -41,9 +41,9 @@ def _specs(connectors: list[Connector]) -> list[ConnectorSpec]:
 
 
 def sync_user_resources(db: Session, user: User, settings: UserSettings, force: bool = False) -> list[str]:
-    """Crée/met à jour agent, environnement, vault. Retourne un résumé des changements.
+    """Creates/updates the agent, environment and vault. Returns a summary of the changes.
 
-    Lève ManagedAgentsError (message affichable) en cas d'échec.
+    Raises ManagedAgentsError (displayable message) on failure.
     """
     client = client_for(settings)
     state = ResourceState(
@@ -57,7 +57,7 @@ def sync_user_resources(db: Session, user: User, settings: UserSettings, force: 
         connectors = active_connectors(db, user)
         result = client.sync_resources(state, settings.model, _specs(connectors), user.login, force)
         if result.vault_recreated:
-            # Les credentials de l'ancien vault sont perdus : on le signale et on retire les serveurs.
+            # The old vault's credentials are lost: report it and remove the servers.
             for c in connectors:
                 c.credential_id = None
                 c.status = ConnectorStatus.ERROR

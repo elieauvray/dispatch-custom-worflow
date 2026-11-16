@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
 
 
-# --- Utilisateurs ------------------------------------------------------------
+# --- Users -------------------------------------------------------------------
 
 
 @router.get("/users")
@@ -106,7 +106,7 @@ def delete_user(
     db.execute(delete(WorkflowRun).where(WorkflowRun.user_id == user.id))
     db.execute(delete(Workflow).where(Workflow.user_id == user.id))
     db.execute(delete(OAuthState).where(OAuthState.user_id == user.id))
-    db.delete(user)  # cascade ORM : settings, connecteurs
+    db.delete(user)  # ORM cascade: settings, connectors
     db.commit()
     flash(request, f"User {login} deleted and their vault archived.", "success")
     return RedirectResponse("/admin/users", status_code=303)

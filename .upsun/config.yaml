@@ -1,16 +1,16 @@
-# Configuration Upsun : Upsun construit et déploie l'application à partir de ce fichier
-# (pas d'image Docker). Référence : https://developer.upsun.com/docs/languages/python
+# Upsun configuration: Upsun builds and deploys the application from this file
+# (no Docker image). Reference: https://developer.upsun.com/docs/languages/python
 applications:
   app:
-    # Python 3.14 : seule version « supported » sur Upsun (3.12/3.13 sont dépréciées).
+    # Python 3.14: the only "supported" version on Upsun (3.12/3.13 are deprecated).
     type: "python:3.14"
 
     source:
       root: "/"
 
-    # Relation vers le service PostgreSQL « database » déclaré plus bas (forme courte :
-    # même nom que le service, endpoint par défaut). Upsun expose DATABASE_HOST, DATABASE_PORT,
-    # DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH ; l'app construit l'URL elle-même (app/config.py).
+    # Relationship to the "database" PostgreSQL service declared below (short form:
+    # same name as the service, default endpoint). Upsun exposes DATABASE_HOST, DATABASE_PORT,
+    # DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_PATH; the app builds the URL itself (app/config.py).
     relationships:
       database:
 
@@ -20,12 +20,12 @@ applications:
         COOKIE_SECURE: "true"
 
     hooks:
-      # Build : système de fichiers inscriptible, pas d'accès aux services.
+      # Build: writable file system, no access to services.
       build: |
         set -eu
         pip install --upgrade pip
         pip install -r requirements.txt
-      # Deploy : exécuté uniquement sur le conteneur web (pas sur les workers).
+      # Deploy: runs only on the web container (not on the workers).
       deploy: |
         set -eu
         python -m alembic upgrade head
@@ -41,15 +41,15 @@ applications:
           expires: 1h
           allow: true
 
-    # Worker : même code, autre commande. Pilote les sessions Managed Agents en arrière-plan.
-    # Hérite des relations et des variables de l'application.
+    # Worker: same code, different command. Drives the Managed Agents sessions in the background.
+    # Inherits the application's relationships and variables.
     workers:
       runs:
         commands:
           start: "python -m app.worker"
 
 services:
-  # Service PostgreSQL géré par Upsun (versions supportées : 14 à 18).
+  # PostgreSQL service managed by Upsun (supported versions: 14 to 18).
   database:
     type: "postgresql:18"
 

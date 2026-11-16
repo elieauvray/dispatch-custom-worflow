@@ -8,21 +8,21 @@ from tests.conftest import csrf, login, make_user
 
 def test_skills_come_before_workflow_content():
     msg = compose_workflow_message(
-        [{"name": "Ton", "content": "Sois concis."}, {"name": "Format", "content": "Réponds en Markdown."}],
-        'Rapport "hebdo"',
-        "Liste les tickets en retard.",
+        [{"name": "Tone", "content": "Be concise."}, {"name": "Format", "content": "Answer in Markdown."}],
+        'Report "weekly"',
+        "List the overdue tickets.",
     )
     assert msg.index("<instructions>") < msg.index("</instructions>") < msg.index("<workflow")
     assert SKILLS_INTRO in msg
-    assert msg.index("Sois concis.") < msg.index("Réponds en Markdown.")
-    assert '<workflow name="Rapport &quot;hebdo&quot;">' in msg
-    assert msg.rstrip().endswith("Liste les tickets en retard.\n</workflow>")
+    assert msg.index("Be concise.") < msg.index("Answer in Markdown.")
+    assert '<workflow name="Report &quot;weekly&quot;">' in msg
+    assert msg.rstrip().endswith("List the overdue tickets.\n</workflow>")
 
 
 def test_no_skills_means_only_workflow_block():
-    msg = compose_workflow_message([], "W", "Fais X")
+    msg = compose_workflow_message([], "W", "Do X")
     assert "<instructions>" not in msg
-    assert msg == '<workflow name="W">\nFais X\n</workflow>'
+    assert msg == '<workflow name="W">\nDo X\n</workflow>'
 
 
 def test_workflow_run_freezes_active_skills_in_order(client, fake):
@@ -30,11 +30,11 @@ def test_workflow_run_freezes_active_skills_in_order(client, fake):
     uid = make_user("bob")
     with SessionLocal() as db:
         db.add_all([
-            Skill(name="Second", content="Deuxième consigne", position=2, active=True),
-            Skill(name="Inactif", content="NE PAS ENVOYER", position=0, active=False),
-            Skill(name="Premier", content="Première consigne", position=1, active=True),
+            Skill(name="Second", content="Second instruction", position=2, active=True),
+            Skill(name="Inactive", content="DO NOT SEND", position=0, active=False),
+            Skill(name="First", content="First instruction", position=1, active=True),
         ])
-        wf = Workflow(user_id=uid, name="Hebdo", content="Résume la semaine.")
+        wf = Workflow(user_id=uid, name="Weekly", content="Summarize the week.")
         db.add(wf)
         db.commit()
         wf_id = wf.id
@@ -46,16 +46,16 @@ def test_workflow_run_freezes_active_skills_in_order(client, fake):
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
         assert run is not None
-        assert [s["name"] for s in run.skills_snapshot] == ["Premier", "Second"]
+        assert [s["name"] for s in run.skills_snapshot] == ["First", "Second"]
         msg = run.initial_message
-        assert "NE PAS ENVOYER" not in msg
-        assert msg.index("Première consigne") < msg.index("Deuxième consigne") < msg.index("Résume la semaine.")
-        # Modifier le skill après coup ne change pas l'historique
-        skill = db.query(Skill).filter_by(name="Premier").one()
-        skill.content = "Modifiée"
+        assert "DO NOT SEND" not in msg
+        assert msg.index("First instruction") < msg.index("Second instruction") < msg.index("Summarize the week.")
+        # Editing the skill afterward does not change the history
+        skill = db.query(Skill).filter_by(name="First").one()
+        skill.content = "Edited"
         db.commit()
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
-        assert run.skills_snapshot[0]["content"] == "Première consigne"
+        assert run.skills_snapshot[0]["content"] == "First instruction"
     page = client.get(f"/runs/{run_id}").text
-    assert "Première consigne" in page and "Modifiée" not in page
+    assert "First instruction" in page and "Edited" not in page

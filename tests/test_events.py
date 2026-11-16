@@ -17,10 +17,10 @@ def _run(**kw) -> WorkflowRun:
 
 
 def test_is_question():
-    assert is_question("Voici l'analyse.\n\nQuelle équipe dois-je cibler ?")
-    assert is_question("Tu veux que je crée le ticket **?**")
-    assert not is_question("Terminé. Le ticket ENG-12 est créé.")
-    assert not is_question("Est-ce utile ? Voici le résultat final.")
+    assert is_question("Here is the analysis.\n\nWhich team should I target?")
+    assert is_question("Do you want me to create the ticket **?**")
+    assert not is_question("Done. Ticket ENG-12 is created.")
+    assert not is_question("Is this useful? Here is the final result.")
     assert not is_question("")
 
 
@@ -39,15 +39,15 @@ def test_requires_action_sets_waiting_approval():
 def test_end_turn_with_question_waits_for_answer():
     run = _run()
     apply_event(run, {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
-                "Sur quel projet Linear dois-je travailler ?")
+                "Which Linear project should I work on?")
     assert run.status == RunStatus.WAITING_INPUT and run.finished_at is None
 
 
 def test_end_turn_without_question_completes():
     run = _run()
-    apply_event(run, {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}}, "C'est fait.")
+    apply_event(run, {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}}, "Done.")
     assert run.status == RunStatus.COMPLETED and run.finished_at is not None
-    # L'utilisateur relance la conversation
+    # The user restarts the conversation
     apply_event(run, {"type": "user.message", "content": []}, None)
     assert run.status == RunStatus.RUNNING
 
@@ -79,14 +79,14 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     make_user("admin", admin=True)
     make_user("bob")
     login(client, "bob")
-    run_id = _prompt_run(client, "Crée un ticket Linear pour le bug de login")
+    run_id = _prompt_run(client, "Create a Linear ticket for the login bug")
 
     tool_use = {"id": "sevt_tool", "type": "agent.mcp_tool_use", "name": "create_issue",
-                "mcp_server_name": "linear", "input": {"title": "Bug de login"},
+                "mcp_server_name": "linear", "input": {"title": "Login bug"},
                 "evaluated_permission": "ask"}
     fake.stream_script["*"] = [
         {"type": "session.status_running"},
-        {"type": "agent.message", "content": [{"type": "text", "text": "Je crée le ticket."}]},
+        {"type": "agent.message", "content": [{"type": "text", "text": "Creating the ticket."}]},
         tool_use,
         {"type": "session.status_idle",
          "stop_reason": {"type": "requires_action", "event_ids": ["sevt_tool"]}},
@@ -95,29 +95,29 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
         assert run.session_id and run.initial_sent
-        assert ("send_user_message", (run.session_id, "Crée un ticket Linear pour le bug de login")) in fake.calls
+        assert ("send_user_message", (run.session_id, "Create a Linear ticket for the login bug")) in fake.calls
         tool_event = db.query(RunEvent).filter_by(run_id=run_id, type="agent.mcp_tool_use").one()
         sid = run.session_id
         assert run.status == RunStatus.WAITING_APPROVAL
         assert run.pending_event_ids == ["sevt_tool"]
 
     page = client.get(f"/runs/{run_id}").text
-    assert "Claude wants to run" in page and "create_issue" in page and "Bug de login" in page
+    assert "Claude wants to run" in page and "create_issue" in page and "Login bug" in page
 
     token = csrf(client, f"/runs/{run_id}")
     r = client.post(f"/runs/{run_id}/confirm", headers={"HX-Request": "true"}, data={
         "event_id": tool_event.anthropic_event_id, "decision": "deny",
-        "deny_message": "Utilise le projet Web", "csrf_token": token})
+        "deny_message": "Use the Web project", "csrf_token": token})
     assert r.status_code == 200
     decisions = [d for c, d in fake.calls if c == "send_tool_confirmations"][-1]
-    assert decisions == (sid, [(tool_event.anthropic_event_id, False, "Utilise le projet Web")])
+    assert decisions == (sid, [(tool_event.anthropic_event_id, False, "Use the Web project")])
     with SessionLocal() as db:
         assert db.get(WorkflowRun, run_id).status == RunStatus.RUNNING
 
-    # Claude pose une question et termine son tour
+    # Claude asks a question and ends its turn
     fake.stream_script[sid] = [
         {"type": "user.tool_confirmation", "tool_use_id": tool_event.anthropic_event_id, "result": "deny"},
-        {"type": "agent.message", "content": [{"type": "text", "text": "Dans quelle équipe ?"}]},
+        {"type": "agent.message", "content": [{"type": "text", "text": "Which team?"}]},
         {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
     ]
     _drive(run_id)
@@ -126,30 +126,30 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     page = client.get(f"/runs/{run_id}").text
     assert "Claude is waiting for your reply" in page
 
-    r = client.post(f"/runs/{run_id}/message", data={"text": "Équipe Web", "csrf_token": token},
+    r = client.post(f"/runs/{run_id}/message", data={"text": "Web team", "csrf_token": token},
                     follow_redirects=False)
-    assert ("send_user_message", (sid, "Équipe Web")) in fake.calls
+    assert ("send_user_message", (sid, "Web team")) in fake.calls
     fake.stream_script[sid] = [
-        {"type": "agent.message", "content": [{"type": "text", "text": "Ticket WEB-42 créé."}]},
+        {"type": "agent.message", "content": [{"type": "text", "text": "Ticket WEB-42 created."}]},
         {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
     ]
     _drive(run_id)
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
         assert run.status == RunStatus.COMPLETED
-        # Pas de doublon d'événements malgré les relectures d'historique
+        # No duplicate events despite the history rereads
         ids = [e.anthropic_event_id for e in db.query(RunEvent).filter_by(run_id=run_id)]
         assert len(ids) == len(set(ids))
-        # Le deuxième message utilisateur n'a pas été renvoyé par le worker
+        # The second user message was not resent by the worker
         assert sum(1 for c, _ in fake.calls if c == "send_user_message") == 2
 
-    # Enregistrer comme workflow
-    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Ticket bug", "csrf_token": token},
+    # Save as a workflow
+    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Bug ticket", "csrf_token": token},
                     follow_redirects=False)
     assert r.headers["location"] == "/workflows"
     page = client.get("/workflows").text
-    assert "Ticket bug" in page
-    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Ticket bug", "csrf_token": token})
+    assert "Bug ticket" in page
+    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Bug ticket", "csrf_token": token})
     assert "already have a workflow" in r.text
 
 
@@ -159,10 +159,10 @@ def test_cancel_interrupts_session(client, fake):
     make_user("admin", admin=True)
     make_user("bob")
     login(client, "bob")
-    run_id = _prompt_run(client, "Longue tâche")
+    run_id = _prompt_run(client, "Long task")
     fake.stream_script["*"] = [
         {"type": "session.status_running"},
-        {"type": "agent.message", "content": [{"type": "text", "text": "Je continue ?"}]},
+        {"type": "agent.message", "content": [{"type": "text", "text": "Should I continue?"}]},
         {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
     ]
     _drive(run_id)
@@ -172,7 +172,7 @@ def test_cancel_interrupts_session(client, fake):
         run = db.get(WorkflowRun, run_id)
         assert run.status == RunStatus.CANCELLED and run.finished_at is not None
         assert ("interrupt", run.session_id) in fake.calls
-        # Les événements arrivant après l'annulation ne changent plus le statut
+        # Events arriving after the cancellation no longer change the status
         store_event(db, run, {"id": "sevt_late", "type": "session.status_running"})
         db.commit()
         assert db.get(WorkflowRun, run_id).status == RunStatus.CANCELLED
@@ -183,14 +183,14 @@ def test_worker_resumes_stale_claims(client, fake):
     make_user("admin", admin=True)
     make_user("bob")
     login(client, "bob")
-    run_id = _prompt_run(client, "Reprends-moi")
+    run_id = _prompt_run(client, "Resume me")
     from datetime import timedelta
 
     from app.models import utcnow
 
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
-        run.claimed_by = "ancien-worker"
+        run.claimed_by = "old-worker"
         run.heartbeat_at = utcnow() - timedelta(minutes=5)
         db.commit()
     w = Worker()
@@ -205,9 +205,9 @@ def test_sse_stream_replays_stored_events(client, fake, monkeypatch):
     make_user("admin", admin=True)
     make_user("bob")
     login(client, "bob")
-    run_id = _prompt_run(client, "Bonjour")
+    run_id = _prompt_run(client, "Hello")
     fake.stream_script["*"] = [
-        {"type": "agent.message", "content": [{"type": "text", "text": "Salut **Bob**"}]},
+        {"type": "agent.message", "content": [{"type": "text", "text": "Hi **Bob**"}]},
         {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
     ]
     _drive(run_id)
