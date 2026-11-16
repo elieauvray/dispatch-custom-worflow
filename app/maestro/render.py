@@ -72,6 +72,15 @@ def _t(x: float, y: float, value: str, *, size: int = 12, weight: int = 400, fil
     )
 
 
+NO_VALUE = {"", "none", "n/a", "na", "no", "-", "null"}
+
+
+def tag_text(value: Any) -> str:
+    """Repeat/loop text, empty when the designer wrote a placeholder such as "none"."""
+    text = str(value or "").strip()[:60]
+    return "" if text.lower().rstrip(".") in NO_VALUE else text
+
+
 def step_tags(s: dict[str, Any]) -> list[str]:
     tags = []
     if s.get("actor") == "human":
@@ -80,10 +89,10 @@ def step_tags(s: dict[str, Any]) -> list[str]:
         tags.append("done when " + DONE_LABELS[s["done_when"]])
     if s.get("actor") == "dispatch" and s.get("dispatch_workflow") in DISPATCH_LABELS:
         tags.append(DISPATCH_LABELS[s["dispatch_workflow"]])
-    if s.get("repeat"):
-        tags.append("↻ " + s["repeat"])
-    if s.get("loop"):
-        tags.append("⟲ " + s["loop"])
+    for key, icon in (("repeat", "↻"), ("loop", "⟲")):
+        text = tag_text(s.get(key))
+        if text:
+            tags.append(f"{icon} {text}")
     return tags
 
 

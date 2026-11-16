@@ -22,7 +22,6 @@
       <span id="run-map-label" class="small muted">{{ 'Not started' if not current_step else '' }}</span>
       {% if run.workflow_id %}<a class="small" href="/workflows/{{ run.workflow_id }}/design">Open the design</a>{% endif %}
     </div>
-    <div id="run-map-detail" class="step-detail" hidden></div>
     <div id="run-map-svg">{{ map_svg }}</div>
   </aside>
   <div class="run-main">
@@ -99,24 +98,6 @@
 
     function esc(v) { return window.CSS ? CSS.escape(v) : v; }
     function stepName(step) { return step ? step + " · " + (titles[step] || "") : "Start"; }
-    // Full text of the highlighted step: the diagram clips long titles and descriptions.
-    var infos = {};
-    steps.forEach(function (s) { infos[s.id] = s; });
-    function showDetail(step) {
-      var box = document.getElementById("run-map-detail"), s = infos[step];
-      if (!s) { box.hidden = true; return; }
-      box.innerHTML = "";
-      var head = document.createElement("strong");
-      head.textContent = s.id + " · " + s.title;
-      box.appendChild(head);
-      if (s.detail) { var p = document.createElement("p"); p.textContent = s.detail; box.appendChild(p); }
-      var meta = document.createElement("small");
-      meta.className = "muted";
-      meta.textContent = [s.actor_label].concat(s.tags).join(" · ");
-      box.appendChild(meta);
-      box.hidden = false;
-    }
-
     // --- Grouping the log by step -----------------------------------------------------------
     function newSegment(step, time) {
       var seg = document.createElement("section");
@@ -213,7 +194,6 @@
       var st = runStatus();
       var prefix = live ? (active ? "Now: " : st === "ongoing" ? "Waiting at: " : st === "blocked" ? "Stopped at: " : "Last step: ") : "Viewing: ";
       label.textContent = note || (step ? prefix + stepName(step) : (live ? "Not started" : "Viewing: start of the run"));
-      showDetail(step);
       var target = step && map.querySelector('.ms-step[data-step="' + esc(step) + '"]');
       if (target) {
         var box = target.getBoundingClientRect(), frame = map.getBoundingClientRect();

@@ -18,6 +18,7 @@ from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.plans.service import connector_policies
 from app.settings.service import client_for, resources_ready, sync_user_resources
 from app.maestro.diagram import fingerprint
+from app.maestro.render import tag_text
 from app.runs.progress import mark_continued
 from app.workflows.compose import compose_workflow_message, instructions_block, instructions_hash, snapshot_skills
 
@@ -96,8 +97,8 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
             "actor": actor,
             "dispatch_workflow": st.get("dispatch_workflow") if actor == "dispatch" else "none",
             "gate_owner": str(st.get("gate_owner") or "").strip()[:60] if actor == "human" else "",
-            "repeat": str(st.get("repeat") or "").strip()[:60],
-            "loop": str(st.get("loop") or "").strip()[:60],
+            "repeat": tag_text(st.get("repeat")),
+            "loop": tag_text(st.get("loop")),
             "done_when": st.get("done_when") if actor == "dispatch" and st.get("done_when") in DONE_WHEN else "none",
         })
     config = [
@@ -275,6 +276,23 @@ def save_config(db: Session, wf: Workflow, values: dict[str, str]) -> None:
 # --- Runs ---------------------------------------------------------------------
 
 
+REPORT_STEP = re.compile(r"\b(report|reporting|status|summary|escalat\w*)\b", re.IGNORECASE)
+
+
+def report_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The design step that holds the end-of-run report (the last step whose title is about reporting)."""
+    return next((st for st in reversed(steps) if REPORT_STEP.search(str(st.get("title") or ""))), None)
+
+
+def _report_marker_rule(steps: list[dict[str, Any]]) -> str:
+    st = report_step(steps)
+    if st is None:
+        return ("Begin your final status report with the marker of the last step you worked on.")
+    return (f"Your final status report, and any escalation to the user, belong to step {st['id']} "
+            f"({st['title']}): begin that message with `[step: {st['id']}]`, even when the workflow is done "
+            "or nothing else happened in this run.")
+
+
 def run_context(wf: Workflow, trigger: str) -> str:
     """Block appended to the orchestration prompt on every Maestro run."""
     config = (wf.design_json or {}).get("config") or []
@@ -287,7 +305,7 @@ def run_context(wf: Workflow, trigger: str) -> str:
         "The person following this run sees the workflow diagram and the step you are on. Whenever you start "
         "working on a step, or report on one, begin that message with its marker on its own line, for example "
         f"`[step: {steps[0]['id']}]`. Use only these ids:\n\n| Id | Actor | Step |\n|----|-------|------|\n"
-        f"{step_rows}\n\n"
+        f"{step_rows}\n\n{_report_marker_rule(steps)}\n\n"
         if steps else ""
     )
     return (

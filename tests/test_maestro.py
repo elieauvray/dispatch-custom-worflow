@@ -383,3 +383,21 @@ def test_try_again_takes_the_edited_description(client, fake):
     assert fake.design_calls[-1]["description"] == NEW_DESCRIPTION
     with SessionLocal() as db:
         assert db.get(Workflow, wf_id).design_status == "ready"
+
+
+def test_final_report_goes_to_the_reporting_step():
+    wf = Workflow(name="x", content="", design_json={"steps": [
+        {"id": "S1", "actor": "maestro", "title": "Preflight"},
+        {"id": "S12", "actor": "human", "title": "Merge the PR"},
+        {"id": "S13", "actor": "maestro", "title": "Escalate and report"},
+    ]})
+    assert "begin that message with `[step: S13]`" in service.run_context(wf, "manual")
+    wf.design_json = {"steps": [{"id": "S1", "actor": "maestro", "title": "Preflight"}]}
+    assert "marker of the last step you worked on" in service.run_context(wf, "manual")
+
+
+def test_placeholder_repeat_and_loop_are_hidden():
+    from app.maestro.render import step_tags
+
+    assert step_tags({"actor": "maestro", "repeat": "Every run", "loop": "none"}) == ["↻ Every run"]
+    assert step_tags({"actor": "maestro", "repeat": "N/A", "loop": "Until merged"}) == ["⟲ Until merged"]
