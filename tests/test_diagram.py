@@ -59,3 +59,14 @@ def test_diagram_content_blocks():
     blocks = with_diagram("text", {"media_type": "application/pdf", "data": b"%PDF-1.7"})
     assert blocks[0]["type"] == "document" and blocks[1]["type"] == "text" and blocks[1]["text"].endswith("text")
     assert with_diagram("text", None) == "text"
+
+
+def test_text_overrides_the_diagram_in_every_prompt():
+    from app.maestro.diagram import with_diagram
+    from app.maestro.knowledge import TOOLS_SYSTEM
+
+    content = with_diagram("Replace jira with linear", {"media_type": "image/png", "data": b"\x89PNG"})
+    note = content[1]["text"]
+    assert "takes precedence over the diagram" in note and note.endswith("Replace jira with linear")
+    assert "A replaced tool is neither needed nor unsupported" in TOOLS_SYSTEM
+    assert "comment that mentions them in the tracker" in TOOLS_SYSTEM

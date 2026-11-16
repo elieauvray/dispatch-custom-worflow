@@ -205,7 +205,13 @@ none of these connectors covers (for example GitLab, Bitbucket, Slack, Teams, se
 a CI system, the Upsun CLI, a database). Give its name and why Maestro would need it.
 Do not list: Upsun Dispatch itself, tools only people use, Upsun Cloud environments created automatically
 by Upsun, or work Dispatch does on its own. When a tool is optional or has an obvious alternative with the
-available connectors, do not list it. Base your answer only on the description.
+available connectors, do not list it. In particular, notifying a person (an email, a chat message) has an
+obvious alternative: a comment that mentions them in the tracker; list such a tool only when the description
+explicitly says the tracker cannot be used for it.
+
+The description can be a text, a diagram, or both. The text takes precedence: when it replaces or removes a
+tool (for example "replace Jira with Linear", "use GitHub instead of GitLab"), apply the change everywhere the
+diagram shows that tool, then answer for the changed process. A replaced tool is neither needed nor unsupported.
 
 System instructions: when the request contains a <system_instructions> block, it applies to this workflow
 too. Count the tools it requires Maestro to use (for example "every workflow reports in Linear") as needed.

@@ -132,7 +132,7 @@ button.linklike { background: none; border: none; color: var(--accent); padding:
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
 .row-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .row-actions form { margin: 0; }
-.row-actions button, .row-actions a[role="button"] { padding: .3rem .7rem; font-size: .85rem; margin: 0; }
+.row-actions button, .row-actions a[role="button"] { padding: .3rem .7rem; font-size: .85rem; margin: 0; width: auto; }
 article { background: var(--surface); border: 1px solid var(--border); box-shadow: none; }
 table { font-size: .92rem; }
 
@@ -314,7 +314,9 @@ details.fold.inner > summary { font-weight: 400; color: var(--muted); }
 .oauth-row button { margin: 0; width: auto; }
 .card .row-actions { margin-top: .8rem; }
 @media (max-width: 600px) { .kv { grid-template-columns: 1fr; } .kv dt { margin-top: .4rem; } }
-.brand-logo { flex: none; display: block; }
+.service-logo { flex: none; display: block; }
 .tabs .tab .dot { margin-left: .1rem; }
 .card-title { display: flex; align-items: center; gap: .8rem; }
-.card-title .brand-logo { padding: .45rem; box-sizing: content-box; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.card-title .service-logo { padding: .45rem; box-sizing: content-box; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+/* The blocked / failed panel already shows the description in an editable field. */
+#maestro-status:has(textarea[name="description"]) + details { display: none; }

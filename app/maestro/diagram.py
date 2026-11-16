@@ -52,7 +52,9 @@ def with_diagram(text: str, diagram: dict[str, Any] | None) -> str | list[dict[s
         return text
     note = (
         "The attached diagram describes the process. Read it as the process description: stages, order, "
-        "actors, gates, loops and tools. The text below complements it; where they differ, ask or follow the text."
+        "actors, gates, loops and tools. The text below takes precedence over the diagram: when it replaces, "
+        "removes or adds a tool, an actor or a step (for example \"replace Jira with Linear\"), apply that change "
+        "to the whole diagram first, and treat a replaced tool as absent everywhere it appears."
     )
     return [content_block(diagram["media_type"], diagram["data"]), {"type": "text", "text": note + "\n\n" + text}]
 

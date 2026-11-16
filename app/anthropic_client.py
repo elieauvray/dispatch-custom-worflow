@@ -528,7 +528,7 @@ class ManagedAgentsClient:
             "system": TOOLS_SYSTEM,
             "messages": [{"role": "user", "content": (instructions + "\n\n" if instructions else "")
                           + f"<process_description>\n{description}\n</process_description>"}],
-            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": TOOLS_SCHEMA}},
+            "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": TOOLS_SCHEMA}},
         }
         if model in _FALLBACK_MODELS:
             params["betas"] = ["server-side-fallback-2026-07-01"]
