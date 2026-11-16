@@ -5,7 +5,7 @@
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">{{ wf.name }} <span class="badge maestro">Maestro</span></h1>
   <div class="row-actions">
-    {% if wf.design_status == 'ready' %}
+    {% if wf.design_status == 'ready' and not missing %}
     <form method="post" action="/workflows/{{ wf.id }}/run">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit">Run now</button>
@@ -19,6 +19,9 @@
   {% include "partials/maestro_status.html" %}
   <details><summary>Your description</summary><div class="ev user md">{{ wf.description | md }}</div></details>
 {% else %}
+  {% if missing %}
+  <div class="flash error" role="alert">This workflow needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
+  {% endif %}
   {% if design.summary %}<p>{{ design.summary }}</p>{% endif %}
   <p class="small muted">
     {{ counts.maestro }} Maestro · {{ counts.dispatch }} Upsun Dispatch · {{ counts.human }} human gate(s){% if counts.upsun %} · {{ counts.upsun }} Upsun Cloud{% endif %}{% if counts.external %} · {{ counts.external }} other{% endif %}
@@ -86,7 +89,7 @@
         <label>Cron <input name="cron" value="{{ wf.schedule_cron or '0 * * * *' }}" required></label>
         <label>Timezone <input name="timezone" value="{{ wf.schedule_timezone }}"></label>
         <label>Budget per run (USD) <input name="budget" value="{{ '%.2f' % (wf.budget_cents / 100) if wf.budget_cents else '' }}" placeholder="optional"></label>
-        <button type="submit" style="align-self:end">{{ 'Update schedule' if wf.deployment_id else 'Schedule Maestro' }}</button>
+        <button type="submit" style="align-self:end" {% if missing %}disabled{% endif %}>{{ 'Update schedule' if wf.deployment_id else 'Schedule Maestro' }}</button>
       </form>
       {% if wf.deployment_id %}
       <div class="row-actions">

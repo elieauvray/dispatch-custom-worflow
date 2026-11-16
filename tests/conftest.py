@@ -50,6 +50,10 @@ class FakeManagedAgents:
     plan_response: dict[str, Any] | None = None
     design_calls: list[dict[str, Any]] = field(default_factory=list)
     design_error: str | None = None
+    tools_response: dict[str, Any] = field(
+        default_factory=lambda: {"connectors_needed": ["github"], "unsupported_tools": []}
+    )
+    tools_calls: list[str] = field(default_factory=list)
     deployments: dict[str, dict[str, Any]] = field(default_factory=dict)
     deployment_runs: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
@@ -142,6 +146,10 @@ class FakeManagedAgents:
 
     def session_status(self, session_id: str) -> str:
         return "idle"
+
+    def check_tools(self, model, description):  # type: ignore[no-untyped-def]
+        self.tools_calls.append(description)
+        return self.tools_response
 
     def design_workflow(self, model, description, services, previous, feedback):  # type: ignore[no-untyped-def]
         self.design_calls.append({"description": description, "services": services,

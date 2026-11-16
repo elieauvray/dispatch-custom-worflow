@@ -21,6 +21,11 @@ Maestro permet de décrire un processus complet (étapes, validations, boucles, 
 
    Le designer s'appuie sur une base de connaissances Dispatch (`app/maestro/knowledge.py`), sans modèle de
    workflow intégré.
+   **Outils requis.** Avant toute génération, Maestro vérifie (appel court) les outils qu'il devra utiliser
+   lui-même. Si la description implique un connecteur non configuré (par exemple Linear) ou un outil sans
+   connecteur dans Maestro (GitLab, Slack, envoi d'e-mails…), **aucun prompt n'est créé** : le workflow
+   passe en « blocked » avec le message « connectez-le dans Settings puis relancez ». Si un connecteur requis
+   est supprimé plus tard, Run now et le planning sont désactivés.
 2. **Visualisation.** Un diagramme en couloirs (une colonne par acteur, phases en bandeaux, badges GATE,
    type de workflow Dispatch, répétitions et boucles), exportable en SVG.
 3. **Lancement.** *Run now* lance un run suivi en direct. *Schedule Maestro* crée un déploiement planifié

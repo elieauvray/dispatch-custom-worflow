@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.db import SessionLocal
 from app.maestro import service
 from app.maestro.render import render_design_svg
-from app.models import Skill, Workflow, WorkflowRun
+from app.models import Connector, ConnectorStatus, Skill, Workflow, WorkflowRun
 from tests.conftest import csrf, login, make_user
 
 DESCRIPTION = (
@@ -26,9 +26,19 @@ def _design(wf_id: int) -> None:
         service.generate_design(db, wf_id)
 
 
-def _setup(client):  # type: ignore[no-untyped-def]
+def _connect(user_id: int, provider: str) -> None:
+    with SessionLocal() as db:
+        db.add(Connector(user_id=user_id, provider=provider, mcp_server_url=f"https://{provider}.test/mcp",
+                         auth_type="static_bearer", credential_id=f"cred_{provider}", last4="abcd",
+                         permission_policy="auto", status=ConnectorStatus.CONFIGURED))
+        db.commit()
+
+
+def _setup(client, connect: tuple[str, ...] = ("github",)):  # type: ignore[no-untyped-def]
     make_user("admin", admin=True)
     uid = make_user("bob")
+    for provider in connect:
+        _connect(uid, provider)
     login(client, "bob")
     return uid
 
@@ -154,3 +164,56 @@ def test_render_escapes_and_access_control(client, fake):
     login(client, "bob")
     assert client.get(f"/workflows/{wf_id}/design").status_code == 404
     assert client.get(f"/workflows/{wf_id}/design.svg").status_code == 404
+
+
+def test_design_is_refused_when_a_needed_tool_is_not_connected(client, fake):
+    uid = _setup(client)  # only GitHub is connected
+    fake.tools_response = {"connectors_needed": ["github", "linear"], "unsupported_tools": []}
+    wf_id = _create(client)
+    _design(wf_id)
+    assert fake.design_calls == []  # no prompt is generated
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.design_status == "blocked" and wf.content == ""
+        assert "Linear" in wf.design_error and "not connected" in wf.design_error
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "Maestro cannot create this workflow yet" in page and "/settings#connectors" in page
+    assert "Run now" not in page
+
+    _connect(uid, "linear")
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    client.post(f"/workflows/{wf_id}/design/revise", data={"csrf_token": token})
+    _design(wf_id)
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.design_status == "ready" and wf.design_json["connectors_needed"] == ["github", "linear"]
+
+
+def test_design_is_refused_for_tools_maestro_cannot_connect(client, fake):
+    _setup(client)
+    fake.tools_response = {"connectors_needed": ["github"],
+                           "unsupported_tools": [{"name": "GitLab", "reason": "post merge requests"}]}
+    wf_id = _create(client)
+    _design(wf_id)
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.design_status == "blocked" and "GitLab" in wf.design_error
+        assert "cannot connect to today" in wf.design_error
+
+
+def test_runs_are_blocked_when_a_connector_is_removed_later(client, fake):
+    uid = _setup(client)
+    wf_id = _create(client)
+    _design(wf_id)
+    with SessionLocal() as db:
+        db.query(Connector).filter_by(user_id=uid, provider="github").delete()
+        db.commit()
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "no longer connected" in page and "GitHub" in page
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    r = client.post(f"/workflows/{wf_id}/run", data={"csrf_token": token}, follow_redirects=False)
+    assert r.headers["location"] == f"/workflows/{wf_id}/design"
+    with SessionLocal() as db:
+        assert db.query(WorkflowRun).filter_by(workflow_id=wf_id).count() == 0
+    client.post(f"/workflows/{wf_id}/schedule", data={"cron": "0 * * * *", "csrf_token": token})
+    assert fake.deployments == {}

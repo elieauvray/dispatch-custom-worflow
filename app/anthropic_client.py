@@ -260,6 +260,7 @@ class ManagedAgentsAPI(Protocol):
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]: ...
     def design_workflow(self, model: str, description: str, services: list[str],
                         previous: dict[str, Any] | None, feedback: str | None) -> dict[str, Any]: ...
+    def check_tools(self, model: str, description: str) -> dict[str, Any]: ...
     def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
                           message: str, cron: str, timezone: str, budget_cents: int | None) -> str: ...
     def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
@@ -505,6 +506,30 @@ class ManagedAgentsClient:
         if not design.get("steps") or not design.get("orchestration_prompt"):
             raise ManagedAgentsError("Claude returned an incomplete design.")
         return design
+
+    def check_tools(self, model: str, description: str) -> dict[str, Any]:
+        """Which connectors Maestro must use for this description, and which tools it cannot use at all."""
+        from app.maestro.knowledge import TOOLS_SCHEMA, TOOLS_SYSTEM
+
+        params: dict[str, Any] = {
+            "model": model,
+            "max_tokens": 2000,
+            "system": TOOLS_SYSTEM,
+            "messages": [{"role": "user", "content": f"<process_description>\n{description}\n</process_description>"}],
+            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": TOOLS_SCHEMA}},
+        }
+        if model in _FALLBACK_MODELS:
+            params["betas"] = ["server-side-fallback-2026-07-01"]
+            params["fallbacks"] = "default"
+        with self._wrap():
+            response = self._client.beta.messages.create(**params)
+        if response.stop_reason == "refusal":
+            raise ManagedAgentsError("Claude declined to analyze this description.")
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        try:
+            return json.loads(text)
+        except ValueError as exc:
+            raise ManagedAgentsError("Could not read the tool check result.") from exc
 
     # -- scheduled Maestro runs (Managed Agents deployments) -----------------------
     @staticmethod

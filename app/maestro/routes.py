@@ -81,6 +81,7 @@ def design_page(
     wf = _maestro(db, workflow_id, user)
     ctx = _panel_ctx(request, wf)
     ctx.pop("request"), ctx.pop("csrf_token")
+    ctx["missing"] = service.missing_connectors(db, user, wf) if wf.design_status == "ready" else []
     return render(request, "maestro_design.html", ctx)
 
 
@@ -141,6 +142,10 @@ def schedule_save(
     db: Session = Depends(get_db),
 ) -> Response:
     wf = _maestro(db, workflow_id, user)
+    missing = service.missing_connectors(db, user, wf)
+    if missing:
+        flash(request, f"Connect {', '.join(missing)} in Settings before scheduling this workflow.", "error")
+        return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
     cron = " ".join(cron.split())
     if not CRON_RE.match(cron):
         flash(request, "Invalid cron expression (5 fields, e.g. 0 * * * *).", "error")

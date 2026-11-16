@@ -166,3 +166,42 @@ DESIGN_SCHEMA: dict = {
                  "orchestration_prompt"],
     "additionalProperties": False,
 }
+
+
+# --- Tool check (runs before the design, cheap) ---------------------------------
+
+CONNECTOR_KEYS = ["linear", "github", "atlassian"]
+CONNECTOR_NAMES = {"linear": "Linear", "github": "GitHub", "atlassian": "Jira / Confluence (Atlassian)"}
+
+TOOLS_SYSTEM = """You check which external tools an orchestrator called Maestro must itself use to run a
+workflow described by the user. Maestro can only use these connectors: "linear" (Linear issues),
+"github" (GitHub issues, pull requests, comments, reviews), "atlassian" (Jira issues and Confluence pages).
+
+Return in connectors_needed every connector Maestro itself must read or write. Maestro starts Upsun Dispatch
+workflows by writing an issue and a trigger comment in the tracker, and detects their completion by reading
+the issue and the pull request: so the tracker and the code host Dispatch works with are always needed.
+
+Return in unsupported_tools every other tool the description requires MAESTRO ITSELF to operate and that
+none of these connectors covers (for example GitLab, Bitbucket, Slack, Teams, sending emails, Notion,
+a CI system, the Upsun CLI, a database). Give its name and why Maestro would need it.
+Do not list: Upsun Dispatch itself, tools only people use, Upsun Cloud environments created automatically
+by Upsun, or work Dispatch does on its own. When a tool is optional or has an obvious alternative with the
+available connectors, do not list it. Base your answer only on the description."""
+
+TOOLS_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "connectors_needed": {"type": "array", "items": {"type": "string", "enum": CONNECTOR_KEYS}},
+        "unsupported_tools": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "reason": {"type": "string"}},
+                "required": ["name", "reason"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["connectors_needed", "unsupported_tools"],
+    "additionalProperties": False,
+}

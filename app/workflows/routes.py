@@ -204,6 +204,14 @@ def workflow_run(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = get_owned_workflow(db, workflow_id, user)
+    if wf.description:  # Maestro workflow: it can only run with the connectors it was designed for
+        from app.maestro.service import missing_connectors
+
+        missing = missing_connectors(db, user, wf)
+        if wf.design_status != "ready" or missing:
+            flash(request, f"Connect {', '.join(missing)} in Settings first." if missing
+                  else "The design is not ready yet.", "error")
+            return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
     try:
         run = service.create_workflow_run(db, user, wf)
     except ManagedAgentsError as exc:

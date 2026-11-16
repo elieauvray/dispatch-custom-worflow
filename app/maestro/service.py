@@ -10,6 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.anthropic_client import ManagedAgentsError
+from app.maestro.knowledge import CONNECTOR_NAMES
 from app.deps import get_user_settings
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.plans.service import connector_policies
@@ -100,6 +101,36 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
     }
 
 
+def blocking_message(needed: list[str], connected: set[str], unsupported: list[dict[str, Any]]) -> str | None:
+    """Why Maestro cannot run this workflow with the tools connected today (None when it can)."""
+    problems = []
+    missing = [CONNECTOR_NAMES[c] for c in needed if c not in connected]
+    if missing:
+        problems.append(
+            "This workflow needs " + ", ".join(missing) + ", which " + ("is" if len(missing) == 1 else "are")
+            + " not connected to Maestro. Connect " + ("it" if len(missing) == 1 else "them")
+            + " in Settings, then submit your request again."
+        )
+    if unsupported:
+        names = ", ".join(f"{u.get('name')} ({u.get('reason')})" for u in unsupported)
+        problems.append(
+            "It also mentions tools Maestro cannot connect to today: " + names
+            + ". Remove them from the description or replace them with Linear, GitHub or Jira/Confluence."
+            if missing else
+            "This workflow mentions tools Maestro cannot connect to today: " + names
+            + ". Remove them from the description or replace them with Linear, GitHub or Jira/Confluence, "
+            "then submit your request again."
+        )
+    return " ".join(problems) or None
+
+
+def missing_connectors(db: Session, user: User, wf: Workflow) -> list[str]:
+    """Connectors the design relies on that are no longer connected."""
+    needed = (wf.design_json or {}).get("connectors_needed") or []
+    connected = set(connector_policies(db, user))
+    return [CONNECTOR_NAMES[c] for c in needed if c in CONNECTOR_NAMES and c not in connected]
+
+
 def generate_design(db: Session, wf_id: int) -> None:
     """Called by the worker in a background thread."""
     wf = db.get(Workflow, wf_id)
@@ -109,11 +140,24 @@ def generate_design(db: Session, wf_id: int) -> None:
     assert user is not None
     settings = get_user_settings(db, user)
     try:
-        raw = client_for(settings).design_workflow(
+        client = client_for(settings)
+        # 1. Tool check first (cheap): never write a prompt that needs a tool Maestro cannot use.
+        text = wf.description + (f"\n\nRequested change: {wf.design_feedback}" if wf.design_feedback else "")
+        check = client.check_tools(settings.model, text)
+        needed = sorted({c for c in check.get("connectors_needed") or [] if c in CONNECTOR_NAMES})
+        blocked = blocking_message(needed, set(connector_policies(db, user)), check.get("unsupported_tools") or [])
+        if blocked:
+            wf.design_status = "blocked"
+            wf.design_error = blocked
+            wf.design_updated_at = utcnow()
+            db.commit()
+            return
+        # 2. Full design
+        raw = client.design_workflow(
             settings.model, wf.description, sorted(connector_policies(db, user)),
             wf.design_json, wf.design_feedback,
         )
-        wf.design_json = _normalize_design(raw, wf.design_json)
+        wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}
         wf.content = str(raw["orchestration_prompt"]).strip()
         if not wf.schedule_cron:
             wf.schedule_cron = wf.design_json["schedule"]["cron"]
