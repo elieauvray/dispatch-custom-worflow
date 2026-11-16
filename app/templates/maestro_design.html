@@ -18,6 +18,12 @@
 {% if wf.design_status != 'ready' %}
   {% include "partials/maestro_status.html" %}
   <details><summary>Your description</summary><div class="ev user md">{{ wf.description | md }}</div></details>
+  {% if wf.diagram_media_type %}
+  <details{% if wf.design_status != 'ready' %} open{% endif %}><summary>Your diagram</summary>
+    {% if wf.diagram_media_type.startswith('image/') %}<a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener"><img class="diagram-thumb" src="/workflows/{{ wf.id }}/diagram" alt="Workflow diagram you provided"></a>
+    {% else %}<p><a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener">Open the PDF</a></p>{% endif %}
+  </details>
+  {% endif %}
 {% else %}
   {% if missing %}
   <div class="flash error" role="alert">This workflow needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
@@ -142,12 +148,20 @@
     <div class="ev agent md">{{ wf.content | md }}</div>
   </details>
 
+  {% if wf.diagram_media_type %}
+  <details{% if wf.design_status != 'ready' %} open{% endif %}><summary>Your diagram</summary>
+    {% if wf.diagram_media_type.startswith('image/') %}<a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener"><img class="diagram-thumb" src="/workflows/{{ wf.id }}/diagram" alt="Workflow diagram you provided"></a>
+    {% else %}<p><a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener">Open the PDF</a></p>{% endif %}
+  </details>
+  {% endif %}
+
   <details>
     <summary>Revise the design</summary>
     <form method="post" action="/workflows/{{ wf.id }}/design/revise">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>What should change? <textarea name="feedback" rows="3" placeholder="e.g. the tech lead validates the split; use Jira instead of GitHub Issues; run every 30 minutes"></textarea></label>
       <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
+      {% if wf.diagram_media_type %}<small class="help">Your diagram is sent again with the description.</small>{% endif %}
       <button type="submit">Regenerate</button>
     </form>
   </details>

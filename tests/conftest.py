@@ -47,6 +47,7 @@ class FakeManagedAgents:
     bad_key: bool = False
     plan_calls: list[tuple[str, str, list[str]]] = field(default_factory=list)
     instructions_seen: list[tuple[str, str]] = field(default_factory=list)
+    diagrams_seen: list[tuple[str, Any]] = field(default_factory=list)
     design_adjustments: list[dict[str, str]] = field(default_factory=list)
     plan_error: str | None = None
     plan_response: dict[str, Any] | None = None
@@ -151,20 +152,23 @@ class FakeManagedAgents:
     def session_status(self, session_id: str) -> str:
         return "idle"
 
-    def clarify_workflow(self, model, description, services, instructions=""):  # type: ignore[no-untyped-def]
+    def clarify_workflow(self, model, description, services, instructions="", diagram=None):  # type: ignore[no-untyped-def]
         self.clarify_calls.append(description)
         self.instructions_seen.append(("clarify", instructions))
+        self.diagrams_seen.append(("clarify", diagram))
         return self.clarify_response
 
-    def check_tools(self, model, description, instructions=""):  # type: ignore[no-untyped-def]
+    def check_tools(self, model, description, instructions="", diagram=None):  # type: ignore[no-untyped-def]
         self.tools_calls.append(description)
         self.instructions_seen.append(("tools", instructions))
+        self.diagrams_seen.append(("tools", diagram))
         return self.tools_response
 
-    def design_workflow(self, model, description, services, previous, feedback, instructions=""):  # type: ignore[no-untyped-def]
+    def design_workflow(self, model, description, services, previous, feedback, instructions="", diagram=None):  # type: ignore[no-untyped-def]
         self.design_calls.append({"description": description, "services": services,
                                   "previous": previous, "feedback": feedback})
         self.instructions_seen.append(("design", instructions))
+        self.diagrams_seen.append(("design", diagram))
         if self.design_error:
             raise anthropic_client.ManagedAgentsError(self.design_error)
         return {

@@ -17,6 +17,7 @@ from app.deps import get_user_settings
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.plans.service import connector_policies
 from app.settings.service import client_for, resources_ready, sync_user_resources
+from app.maestro.diagram import fingerprint
 from app.runs.progress import mark_continued
 from app.workflows.compose import compose_workflow_message, instructions_block, instructions_hash, snapshot_skills
 
@@ -29,8 +30,11 @@ DONE_WHEN = {"pr_merged", "pr_approved", "issue_closed", "pr_opened"}
 # --- Design -------------------------------------------------------------------
 
 
-def create_maestro_workflow(db: Session, user: User, name: str, description: str) -> Workflow:
+def create_maestro_workflow(db: Session, user: User, name: str, description: str,
+                            diagram: tuple[str, bytes] | None = None) -> Workflow:
     wf = Workflow(user_id=user.id, name=name, description=description, content="", design_status="queued")
+    if diagram:
+        wf.diagram_media_type, wf.diagram_data = diagram
     db.add(wf)
     db.commit()
     return wf
@@ -206,9 +210,10 @@ def generate_design(db: Session, wf_id: int) -> None:
         # System instructions (admin) apply to every workflow and take precedence over the description.
         skills = current_instructions(db)
         instructions, ihash = instructions_block(skills), instructions_hash(skills)
+        diagram = {"media_type": wf.diagram_media_type, "data": wf.diagram_data} if wf.diagram_data else None
         # 1. Tool check first (cheap): never write a prompt that needs a tool Maestro cannot use.
         text = wf.description + (f"\n\nRequested change: {wf.design_feedback}" if wf.design_feedback else "")
-        check = client.check_tools(settings.model, text, instructions)
+        check = client.check_tools(settings.model, text, instructions, diagram)
         needed = sorted({c for c in check.get("connectors_needed") or [] if c in CONNECTOR_NAMES})
         blocked = blocking_message(needed, set(connector_policies(db, user)), check.get("unsupported_tools") or [])
         if blocked:
@@ -220,9 +225,9 @@ def generate_design(db: Session, wf_id: int) -> None:
         # 2. Clarify: ask the user the decisions that make the workflow executable (once per request)
         services = sorted(connector_policies(db, user))
         clar = dict(wf.clarifications or {})
-        request_hash = hashlib.sha256((text + ihash).encode()).hexdigest()
+        request_hash = hashlib.sha256((text + ihash + fingerprint(wf.diagram_data)).encode()).hexdigest()
         if clar.get("for") != request_hash:
-            asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services, instructions)
+            asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services, instructions, diagram)
             questions = normalize_questions(asked.get("questions") or [])
             clar = {"for": request_hash, "questions": questions, "decisions": clar.get("decisions") or []}
             wf.clarifications = clar
@@ -235,7 +240,7 @@ def generate_design(db: Session, wf_id: int) -> None:
         # 3. Full design, with the user's decisions
         raw = client.design_workflow(
             settings.model, wf.description + decisions_block(clar), services,
-            wf.design_json, wf.design_feedback, instructions,
+            wf.design_json, wf.design_feedback, instructions, diagram,
         )
         wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}
         wf.content = str(raw["orchestration_prompt"]).strip()

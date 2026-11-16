@@ -123,6 +123,15 @@ expects to carry out, inferred from the request alone, before any execution.
 - **Export**: "Download SVG" button; the file keeps the Upsun colors outside the application.
 - The plan is a forecast: the transcript shows what actually happened.
 
+### Workflow diagrams
+
+On **Describe your workflow** you can give the process as a diagram instead of, or in addition to,
+text: paste an image into the description field (Ctrl+V or Cmd+V), drop a file, or choose one
+(PNG, JPEG, GIF or WebP up to 3.75 MB, or a PDF up to 10 MB). The file type is checked from its
+content. The diagram is stored with the workflow (`workflows.diagram_data`) and sent to Claude with
+the text for the tool check, the Clarify step and the designer, including when you regenerate the
+design. Only its owner can open it (`/workflows/{id}/diagram`).
+
 ### System instructions
 
 System instructions (admin menu **System instructions**, read-only for other users at `/instructions`)

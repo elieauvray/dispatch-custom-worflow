@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +14,8 @@ from app.anthropic_client import ManagedAgentsError
 from app.db import get_db
 from app.deps import csrf_protect, require_configured
 from app.maestro import service
+from app.maestro.diagram import DIAGRAM_ONLY_DESCRIPTION, PDF_MAX_BYTES
+from app.maestro.diagram import validate as validate_diagram
 from app.maestro.render import render_design_svg, step_info
 from app.models import User, Workflow
 from app.security import get_or_create_csrf_token
@@ -51,28 +53,50 @@ def maestro_new(request: Request, user: User = Depends(require_configured)) -> R
 
 
 @router.post("/maestro/new", dependencies=[Depends(csrf_protect)])
-def maestro_create(
+async def maestro_create(
     request: Request,
     name: str = Form(...),
-    description: str = Form(...),
+    description: str = Form(""),
+    diagram: UploadFile | None = File(None),
     user: User = Depends(require_configured),
     db: Session = Depends(get_db),
 ) -> Response:
     name, description = name.strip(), description.strip()
     error = None
-    if not name or len(name) > 128:
+    attached: tuple[str, bytes] | None = None
+    if diagram is not None and diagram.filename:
+        data = await diagram.read(PDF_MAX_BYTES + 1)
+        media_type, error = validate_diagram(data)
+        if media_type:
+            attached = (media_type, data)
+    if error:
+        pass  # invalid diagram: report it first
+    elif not name or len(name) > 128:
         error = "The name must be between 1 and 128 characters."
-    elif len(description) < 40:
-        error = "Describe the workflow in more detail (stages, who validates, tools)."
+    elif not attached and len(description) < 40:
+        error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
     if not error:
         try:
-            wf = service.create_maestro_workflow(db, user, name, description)
+            wf = service.create_maestro_workflow(db, user, name, description or DIAGRAM_ONLY_DESCRIPTION, attached)
             return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
         except IntegrityError:
             db.rollback()
             error = f"You already have a workflow named {name}."
+    if attached and error:
+        error += " Attach the diagram again."
     return render(request, "maestro_new.html", {"name": name, "description": description, "error": error},
                   status_code=400)
+
+
+@router.get("/workflows/{workflow_id}/diagram")
+def workflow_diagram(
+    workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
+) -> Response:
+    wf = _maestro(db, workflow_id, user)
+    if not wf.diagram_data or not wf.diagram_media_type:
+        raise HTTPException(status_code=404)
+    return Response(wf.diagram_data, media_type=wf.diagram_media_type,
+                    headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/workflows/{workflow_id}/design")

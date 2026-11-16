@@ -18,6 +18,8 @@ from typing import Any, Protocol
 
 import anthropic
 
+from app.maestro.diagram import with_diagram
+
 log = logging.getLogger(__name__)
 
 DISPATCH_MENTION = os.environ.get("DISPATCH_MENTION", "@upsun-dispatch")
@@ -260,10 +262,11 @@ class ManagedAgentsAPI(Protocol):
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]: ...
     def design_workflow(self, model: str, description: str, services: list[str],
                         previous: dict[str, Any] | None, feedback: str | None,
-                        instructions: str = "") -> dict[str, Any]: ...
-    def check_tools(self, model: str, description: str, instructions: str = "") -> dict[str, Any]: ...
+                        instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def check_tools(self, model: str, description: str, instructions: str = "",
+                    diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def clarify_workflow(self, model: str, description: str, services: list[str],
-                         instructions: str = "") -> dict[str, Any]: ...
+                         instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
                           message: str, cron: str, timezone: str, budget_cents: int | None) -> str: ...
     def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
@@ -472,7 +475,7 @@ class ManagedAgentsClient:
     # -- Maestro designer --------------------------------------------------------
     def design_workflow(self, model: str, description: str, services: list[str],
                         previous: dict[str, Any] | None, feedback: str | None,
-                        instructions: str = "") -> dict[str, Any]:
+                        instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]:
         """Turn a process description into a Maestro design (structured JSON, streamed: long output)."""
         from app.maestro.knowledge import DESIGN_SCHEMA, DESIGNER_SYSTEM, DISPATCH_KNOWLEDGE
 
@@ -497,6 +500,7 @@ class ManagedAgentsClient:
         if model in _FALLBACK_MODELS:
             params["betas"] = ["server-side-fallback-2026-07-01"]
             params["fallbacks"] = "default"
+        params["messages"][0]["content"] = with_diagram(params["messages"][0]["content"], diagram)
         with self._wrap():
             with self._client.beta.messages.stream(**params) as stream:
                 response = stream.get_final_message()
@@ -513,7 +517,8 @@ class ManagedAgentsClient:
             raise ManagedAgentsError("Claude returned an incomplete design.")
         return design
 
-    def check_tools(self, model: str, description: str, instructions: str = "") -> dict[str, Any]:
+    def check_tools(self, model: str, description: str, instructions: str = "",
+                    diagram: dict[str, Any] | None = None) -> dict[str, Any]:
         """Which connectors Maestro must use for this description, and which tools it cannot use at all."""
         from app.maestro.knowledge import TOOLS_SCHEMA, TOOLS_SYSTEM
 
@@ -528,6 +533,7 @@ class ManagedAgentsClient:
         if model in _FALLBACK_MODELS:
             params["betas"] = ["server-side-fallback-2026-07-01"]
             params["fallbacks"] = "default"
+        params["messages"][0]["content"] = with_diagram(params["messages"][0]["content"], diagram)
         with self._wrap():
             response = self._client.beta.messages.create(**params)
         if response.stop_reason == "refusal":
@@ -539,7 +545,7 @@ class ManagedAgentsClient:
             raise ManagedAgentsError("Could not read the tool check result.") from exc
 
     def clarify_workflow(self, model: str, description: str, services: list[str],
-                         instructions: str = "") -> dict[str, Any]:
+                         instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]:
         """Questions the user must answer before the design (empty when the description is clear)."""
         from app.maestro.knowledge import CLARIFY_SCHEMA, CLARIFY_SYSTEM, DISPATCH_KNOWLEDGE
 
@@ -561,6 +567,7 @@ class ManagedAgentsClient:
         if model in _FALLBACK_MODELS:
             params["betas"] = ["server-side-fallback-2026-07-01"]
             params["fallbacks"] = "default"
+        params["messages"][0]["content"] = with_diagram(params["messages"][0]["content"], diagram)
         with self._wrap():
             response = self._client.beta.messages.create(**params)
         if response.stop_reason == "refusal":
