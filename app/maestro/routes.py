@@ -114,6 +114,26 @@ def design_revise(
     return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
 
 
+@router.post("/workflows/{workflow_id}/design/answers", dependencies=[Depends(csrf_protect)])
+async def design_answers(
+    request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
+) -> Response:
+    wf = _maestro(db, workflow_id, user)
+    if wf.design_status != "needs_answers":
+        return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+    form = await request.form()
+    answers: dict[str, str] = {}
+    for q in (wf.clarifications or {}).get("questions") or []:
+        choice = str(form.get(f"q:{q['id']}") or "")
+        answers[q["id"]] = str(form.get(f"other:{q['id']}") or "").strip() if choice == "__other__" else choice
+    missing = service.answer_questions(db, wf, answers)
+    if missing:
+        flash(request, "Answer every question (pick an option, or choose Other and write your answer).", "error")
+    else:
+        flash(request, "Thanks. Maestro is designing the workflow with your decisions.", "info")
+    return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+
+
 @router.post("/workflows/{workflow_id}/design/config", dependencies=[Depends(csrf_protect)])
 async def design_config(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)

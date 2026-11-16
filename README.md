@@ -27,6 +27,11 @@ executable **meta-workflow** that orchestrates Upsun Dispatch:
    connector in Maestro (GitLab, Slack, sending emails, and so on), **no prompt is created**: the workflow
    switches to "blocked" with the message "connect it in Settings, then try again". If a required connector
    is removed later, Run now and the schedule are disabled.
+   **Clarify.** After the tool check and before the design, Maestro asks at most 6 multiple-choice questions
+   (recommended option first, plus "Other") when a decision materially changes the workflow or is needed to
+   fit what Dispatch can do (tracker, who validates what, one PR per issue, completion signal, first run
+   scope). The workflow shows "needs your answers"; the answers are passed to the designer as final
+   decisions, shown with the design, and never asked again. A clear description goes straight to the design.
 2. **Visualization.** A swimlane diagram (one column per actor, phases as bands, GATE badges,
    Dispatch workflow type, repetitions and loops), exportable as SVG.
 3. **Launch.** *Run now* starts a run that you follow live. *Schedule Maestro* creates a scheduled

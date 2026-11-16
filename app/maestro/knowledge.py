@@ -205,3 +205,49 @@ TOOLS_SCHEMA: dict = {
     "required": ["connectors_needed", "unsupported_tools"],
     "additionalProperties": False,
 }
+
+
+# --- Clarification (runs after the tool check, before the design) -----------------
+
+CLARIFY_SYSTEM = """You prepare the design of a Maestro meta-workflow (see the knowledge below). Before the design
+is written, decide whether the user must make decisions so that the workflow is executable with Maestro and
+Upsun Dispatch as they are today.
+
+Ask a question ONLY when the answer materially changes the workflow and cannot be inferred from the
+description, for example:
+- which tracker or code host holds the issues and pull requests, when several are possible;
+- who validates a step (role), and where (pull request approval, issue comment, Dispatch plan approval);
+- how to fit a need Dispatch cannot do as described (one pull request per issue, single critic pass, no
+  custom workflow, no API): offer the realistic alternatives;
+- the completion signal of a Dispatch step (pull request merged, approved, issue closed) when it matters;
+- the scope of the first run (one pilot item, then a series) or the cadence, when the description is silent
+  and the choice changes the design.
+Do not ask about what the description already states, about details Maestro can decide sensibly, or about
+config values (repository names, people's handles): those become config keys later.
+Previous decisions, when given, are final: never ask them again.
+
+Return at most 6 questions, most important first. Each question has 2 to 4 short options; the FIRST option
+is the one you recommend. Add a one-line "why" explaining what the answer changes. Write in the language of
+the description. If the description is clear enough, return an empty list."""
+
+CLARIFY_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "question": {"type": "string"},
+                    "why": {"type": "string"},
+                    "options": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["id", "question", "why", "options"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}

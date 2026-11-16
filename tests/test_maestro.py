@@ -233,3 +233,79 @@ def test_home_is_describe_your_workflow_and_only_maestro_workflows_exist(client,
         db.commit()
     page = client.get("/workflows").text
     assert "Legacy saved prompt" not in page and "Describe a new workflow" in page
+
+
+QUESTIONS = {"questions": [
+    {"id": "tracker", "question": "Which tracker holds the page issues?", "why": "Maestro writes the issues there.",
+     "options": ["GitHub Issues", "Jira"]},
+    {"id": "pr", "question": "How do you want the pull requests?", "why": "Dispatch opens one PR per issue.",
+     "options": ["One PR per ticket", "One PR per page"]},
+]}
+
+
+def test_clarify_questions_are_asked_before_the_design(client, fake):
+    _setup(client)
+    fake.clarify_response = QUESTIONS
+    wf_id = _create(client)
+    _design(wf_id)
+    assert fake.design_calls == []  # nothing is designed before the answers
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "needs_answers"
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "Maestro needs a few decisions" in page and "Which tracker holds the page issues?" in page
+    assert 'value="GitHub Issues" checked' in page and "recommended" in page
+
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    # An unanswered "Other" is refused
+    client.post(f"/workflows/{wf_id}/design/answers",
+                data={"q:tracker": "__other__", "other:tracker": "", "q:pr": "One PR per ticket", "csrf_token": token})
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "needs_answers"
+
+    client.post(f"/workflows/{wf_id}/design/answers",
+                data={"q:tracker": "__other__", "other:tracker": "Linear", "q:pr": "One PR per ticket",
+                      "csrf_token": token})
+    _design(wf_id)
+    assert len(fake.clarify_calls) == 1  # not asked again for the same request
+    sent = fake.design_calls[-1]["description"]
+    assert "Decisions made by the user" in sent and "Which tracker holds the page issues? -> Linear" in sent
+    assert "-> One PR per ticket" in sent
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "Your decisions" in page and "Linear" in page
+
+
+def test_clear_descriptions_go_straight_to_the_design(client, fake):
+    _setup(client)
+    wf_id = _create(client)
+    _design(wf_id)
+    assert len(fake.clarify_calls) == 1 and len(fake.design_calls) == 1
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "ready"
+
+
+def test_revision_keeps_previous_decisions_and_may_ask_again(client, fake):
+    _setup(client)
+    fake.clarify_response = QUESTIONS
+    wf_id = _create(client)
+    _design(wf_id)
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    client.post(f"/workflows/{wf_id}/design/answers",
+                data={"q:tracker": "GitHub Issues", "q:pr": "One PR per ticket", "csrf_token": token})
+    _design(wf_id)
+    fake.clarify_response = {"questions": []}
+    client.post(f"/workflows/{wf_id}/design/revise", data={"feedback": "Run every 30 minutes", "csrf_token": token})
+    _design(wf_id)
+    # The previous decisions are given to the clarifier (never re-asked) and to the designer
+    assert "Which tracker holds the page issues? -> GitHub Issues" in fake.clarify_calls[-1]
+    assert "-> GitHub Issues" in fake.design_calls[-1]["description"]
+
+
+def test_tool_check_runs_before_clarification(client, fake):
+    _setup(client)
+    fake.tools_response = {"connectors_needed": ["github", "linear"], "unsupported_tools": []}
+    fake.clarify_response = QUESTIONS
+    wf_id = _create(client)
+    _design(wf_id)
+    assert fake.clarify_calls == []
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "blocked"

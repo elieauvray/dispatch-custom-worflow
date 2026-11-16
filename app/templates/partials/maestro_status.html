@@ -3,6 +3,28 @@
   <div hx-get="/workflows/{{ wf.id }}/design/panel" hx-trigger="every 3s" hx-target="#maestro-status" hx-swap="outerHTML">
     <article><p aria-busy="true">Maestro is designing the workflow. This can take a few minutes for a detailed description.</p></article>
   </div>
+{% elif wf.design_status == 'needs_answers' %}
+  <article class="clarify">
+    <header><strong>Maestro needs a few decisions before designing this workflow.</strong>
+      <p class="small muted" style="margin:.3rem 0 0">They make the workflow executable with Maestro and Upsun Dispatch as they are today. The recommended option is selected.</p>
+    </header>
+    <form method="post" action="/workflows/{{ wf.id }}/design/answers">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% for q in wf.clarifications.questions %}
+      <fieldset class="clarify-q">
+        <legend><strong>{{ loop.index }}. {{ q.question }}</strong></legend>
+        {% if q.why %}<small class="help">{{ q.why }}</small>{% endif %}
+        {% for opt in q.options %}
+        <label><input type="radio" name="q:{{ q.id }}" value="{{ opt }}" {% if loop.first %}checked{% endif %}> {{ opt }}{% if loop.first %} <span class="badge configured">recommended</span>{% endif %}</label>
+        {% endfor %}
+        <label class="clarify-other"><input type="radio" name="q:{{ q.id }}" value="__other__"> Other
+          <input type="text" name="other:{{ q.id }}" placeholder="Your answer" onfocus="this.closest('label').querySelector('input[type=radio]').checked = true">
+        </label>
+      </fieldset>
+      {% endfor %}
+      <button type="submit">Continue</button>
+    </form>
+  </article>
 {% elif wf.design_status == 'blocked' %}
   <div class="flash error" role="alert"><strong>Maestro cannot create this workflow yet.</strong> {{ wf.design_error }}</div>
   <div class="row-actions">

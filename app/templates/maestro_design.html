@@ -44,6 +44,16 @@
   </section>
   {% endif %}
 
+  {% if wf.clarifications and wf.clarifications.decisions %}
+  <section>
+    <h2 class="section-title">Your decisions</h2>
+    <table>
+      <thead><tr><th>Question</th><th>Decision</th></tr></thead>
+      <tbody>{% for d in wf.clarifications.decisions %}<tr><td>{{ d.question }}</td><td>{{ d.answer }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+  {% endif %}
+
   <div class="grid-2">
     {% if design.assumptions %}
     <section>

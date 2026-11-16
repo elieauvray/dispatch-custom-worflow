@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
 from datetime import timedelta
 from typing import Any
 
@@ -131,6 +133,47 @@ def missing_connectors(db: Session, user: User, wf: Workflow) -> list[str]:
     return [CONNECTOR_NAMES[c] for c in needed if c in CONNECTOR_NAMES and c not in connected]
 
 
+def decisions_block(clar: dict[str, Any] | None) -> str:
+    decisions = (clar or {}).get("decisions") or []
+    if not decisions:
+        return ""
+    lines = "\n".join(f"- {d['question']} -> {d['answer']}" for d in decisions)
+    return f"\n\nDecisions made by the user (final, apply them):\n{lines}"
+
+
+def normalize_questions(raw: list[Any]) -> list[dict[str, Any]]:
+    questions, seen = [], set()
+    for i, q in enumerate(raw[:6]):
+        if not isinstance(q, dict):
+            continue
+        options = [str(o).strip()[:160] for o in q.get("options") or [] if str(o).strip()][:4]
+        text = str(q.get("question") or "").strip()[:300]
+        if not text or len(options) < 2:
+            continue
+        qid = re.sub(r"[^A-Za-z0-9_-]", "", str(q.get("id") or ""))[:16] or f"Q{i + 1}"
+        if qid in seen:
+            qid = f"Q{i + 1}"
+        seen.add(qid)
+        questions.append({"id": qid, "question": text, "why": str(q.get("why") or "").strip()[:240],
+                          "options": options})
+    return questions
+
+
+def answer_questions(db: Session, wf: Workflow, answers: dict[str, str]) -> list[str]:
+    """Record the answers as decisions and queue the design. Returns the ids still unanswered."""
+    clar = dict(wf.clarifications or {})
+    questions = clar.get("questions") or []
+    missing = [q["id"] for q in questions if not (answers.get(q["id"]) or "").strip()]
+    if missing:
+        return missing
+    decisions = list(clar.get("decisions") or [])
+    decisions += [{"question": q["question"], "answer": answers[q["id"]].strip()[:500]} for q in questions]
+    wf.clarifications = {**clar, "questions": [], "decisions": decisions}
+    wf.design_status = "queued"
+    db.commit()
+    return []
+
+
 def generate_design(db: Session, wf_id: int) -> None:
     """Called by the worker in a background thread."""
     wf = db.get(Workflow, wf_id)
@@ -152,9 +195,24 @@ def generate_design(db: Session, wf_id: int) -> None:
             wf.design_updated_at = utcnow()
             db.commit()
             return
-        # 2. Full design
+        # 2. Clarify: ask the user the decisions that make the workflow executable (once per request)
+        services = sorted(connector_policies(db, user))
+        clar = dict(wf.clarifications or {})
+        request_hash = hashlib.sha256(text.encode()).hexdigest()
+        if clar.get("for") != request_hash:
+            asked = client.clarify_workflow(settings.model, text + decisions_block(clar), services)
+            questions = normalize_questions(asked.get("questions") or [])
+            clar = {"for": request_hash, "questions": questions, "decisions": clar.get("decisions") or []}
+            wf.clarifications = clar
+        if clar.get("questions"):
+            wf.design_status = "needs_answers"
+            wf.design_error = None
+            wf.design_updated_at = utcnow()
+            db.commit()
+            return
+        # 3. Full design, with the user's decisions
         raw = client.design_workflow(
-            settings.model, wf.description, sorted(connector_policies(db, user)),
+            settings.model, wf.description + decisions_block(clar), services,
             wf.design_json, wf.design_feedback,
         )
         wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}

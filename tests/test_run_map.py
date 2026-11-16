@@ -88,3 +88,19 @@ def test_runs_without_design_keep_the_predicted_plan(client, fake):
     run_id = start_run(client, "Do something")
     page = client.get(f"/runs/{run_id}").text
     assert 'id="run-map"' not in page and "Planned workflow" in page
+
+
+
+def test_runs_started_before_snapshots_use_their_workflow_design(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    with SessionLocal() as db:
+        run = WorkflowRun(user_id=uid, workflow_id=wf_id, status="completed", content_snapshot="x",
+                          initial_message="x", pending_event_ids=[], design_snapshot=None)
+        db.add(run)
+        db.commit()
+        run_id = run.id
+    login(client, "bob")
+    page = client.get(f"/runs/{run_id}").text
+    assert 'id="run-map"' in page and page.count('class="ms-step"') == 3

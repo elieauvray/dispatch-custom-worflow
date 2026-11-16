@@ -79,7 +79,16 @@ def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[d
 
 
 def design_step_ids(run: WorkflowRun) -> set[str]:
-    return {str(s.get("id")) for s in (run.design_snapshot or {}).get("steps") or []}
+    return {str(s.get("id")) for s in run_design(run).get("steps") or []}
+
+
+def run_design(run: WorkflowRun) -> dict[str, Any]:
+    """The design a run follows: its frozen copy, or its workflow's design for runs started before copies existed."""
+    if run.design_snapshot:
+        return run.design_snapshot
+    if run.workflow is not None and run.workflow.design_json:
+        return run.workflow.design_json
+    return {}
 
 
 def step_before(db: Session, run: WorkflowRun, event_id: int, valid: set[str]) -> str | None:
@@ -121,7 +130,8 @@ def run_detail(
 ) -> Response:
     run = get_owned_run(db, run_id, user)
     events = list(run.events)
-    has_steps = bool((run.design_snapshot or {}).get("steps"))
+    design = run_design(run)
+    has_steps = bool(design.get("steps"))
     return render(
         request,
         "run_detail.html",
@@ -129,10 +139,10 @@ def run_detail(
             "run": run,
             "events": event_views(db, run, events),
             "last_event_id": events[-1].id if events else 0,
-            "map_svg": render_design_map(run.design_snapshot) if has_steps else None,
+            "map_svg": render_design_map(design) if has_steps else None,
             "map_steps": [
                 {"id": str(st.get("id")), "title": st.get("title", ""), "actor": st.get("actor", "")}
-                for st in (run.design_snapshot or {}).get("steps") or []
+                for st in design.get("steps") or []
             ],
             "current_step": current_step(db, run) if has_steps else None,
             **actions_context(db, run),

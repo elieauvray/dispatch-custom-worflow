@@ -177,9 +177,11 @@ class Workflow(Base):
     # Maestro: the user's description, the generated design (steps per actor) and the schedule
     description: Mapped[str | None] = mapped_column(Text)
     design_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    design_status: Mapped[str | None] = mapped_column(String(16))  # generating | ready | failed
+    design_status: Mapped[str | None] = mapped_column(String(16))  # queued|generating|needs_answers|blocked|ready|failed
     design_error: Mapped[str | None] = mapped_column(Text)
     design_feedback: Mapped[str | None] = mapped_column(Text)
+    # Clarification questions asked before the design and the user's answers
+    clarifications: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     design_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     schedule_cron: Mapped[str | None] = mapped_column(String(64))
     schedule_timezone: Mapped[str] = mapped_column(String(64), default="Europe/Paris")

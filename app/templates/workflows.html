@@ -14,7 +14,7 @@
   {% for wf in workflows %}
   {% set last = last_runs.get(wf.id) %}
   <tr>
-    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
+    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% if wf.design_status == 'needs_answers' %} <span class="badge waiting_input">needs your answers</span>{% endif %}{% if wf.design_status == 'blocked' %} <span class="badge failed">blocked</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
     <td class="small">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(110) }}</td>
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>

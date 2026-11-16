@@ -226,3 +226,10 @@ textarea.huge { min-height: 22rem; font-family: var(--pico-font-family); }
   .run-layout { grid-template-columns: 1fr; }
   .run-map { top: 0; max-height: 34vh; }
 }
+
+/* Clarification questions */
+.clarify-q { border: 1px solid var(--border); border-radius: 8px; padding: .8rem 1rem; margin-bottom: 1rem; }
+.clarify-q legend { padding: 0 .3rem; }
+.clarify-q label { display: block; margin: .35rem 0; }
+.clarify-other { display: flex !important; align-items: center; gap: .5rem; }
+.clarify-other input[type="text"] { margin: 0; flex: 1; }
