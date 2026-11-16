@@ -72,6 +72,41 @@ def _t(x: float, y: float, value: str, *, size: int = 12, weight: int = 400, fil
     )
 
 
+def step_tags(s: dict[str, Any]) -> list[str]:
+    tags = []
+    if s.get("actor") == "human":
+        tags.append("GATE" + (f" · {s.get('gate_owner')}" if s.get("gate_owner") else ""))
+    if s.get("done_when") in DONE_LABELS:  # the completion signal matters most: show it first
+        tags.append("done when " + DONE_LABELS[s["done_when"]])
+    if s.get("actor") == "dispatch" and s.get("dispatch_workflow") in DISPATCH_LABELS:
+        tags.append(DISPATCH_LABELS[s["dispatch_workflow"]])
+    if s.get("repeat"):
+        tags.append("↻ " + s["repeat"])
+    if s.get("loop"):
+        tags.append("⟲ " + s["loop"])
+    return tags
+
+
+def step_info(s: dict[str, Any]) -> dict[str, Any]:
+    """Full, untruncated text of a step (the diagram clips long texts)."""
+    actor = s.get("actor") if s.get("actor") in ACTOR_LABELS else "maestro"
+    return {
+        "id": str(s.get("id", "")),
+        "title": str(s.get("title", "")),
+        "detail": str(s.get("detail", "")),
+        "phase": str(s.get("phase", "")),
+        "actor": actor,
+        "actor_label": ACTOR_LABELS[actor],
+        "tags": step_tags(s),
+    }
+
+
+def _tooltip(s: dict[str, Any]) -> str:
+    info = step_info(s)
+    lines = [f"{info['id']} · {info['title']}", info["detail"], " · ".join([info["actor_label"], *info["tags"]])]
+    return "<title>" + escape("\n".join(line for line in lines if line)) + "</title>"
+
+
 def render_design_svg(design: dict[str, Any]) -> Markup:
     steps: list[dict[str, Any]] = design.get("steps") or []
     used = [a for a in ACTOR_ORDER if any(s.get("actor") == a for s in steps)] or ["maestro"]
@@ -110,7 +145,7 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         x = col_x.get(actor, col_x[used[0]]) + 10
         cx = x + box_w / 2
         # One group per step so the run page can highlight it (current, past, viewed in history).
-        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">')
+        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">' + _tooltip(s))
         parts.append(
             f'<rect class="ms-ring" x="{x - 5:.1f}" y="{y - 5}" width="{box_w + 10:.1f}" height="{ROW_H + 10}" '
             f'rx="11" fill="none" stroke="{ACCENT}" stroke-width="3" visibility="hidden"/>'
@@ -120,17 +155,7 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
             f'fill-opacity="{op}" stroke="{stroke}" stroke-width="1"/>'
         )
         sub = MUTED if actor != "human" else NEUTRAL_1000
-        tags = []
-        if actor == "human":
-            tags.append("GATE" + (f" · {s.get('gate_owner')}" if s.get("gate_owner") else ""))
-        if s.get("done_when") in DONE_LABELS:  # the completion signal matters most: show it first
-            tags.append("done when " + DONE_LABELS[s["done_when"]])
-        if actor == "dispatch" and s.get("dispatch_workflow") in DISPATCH_LABELS:
-            tags.append(DISPATCH_LABELS[s["dispatch_workflow"]])
-        if s.get("repeat"):
-            tags.append("↻ " + s["repeat"])
-        if s.get("loop"):
-            tags.append("⟲ " + s["loop"])
+        tags = step_tags({**s, "actor": actor})
         parts.append(_t(x + 10, y + 14, _clip(f"{s.get('id', '')} " + " · ".join(tags), chars + 4), size=10,
                         fill=sub, anchor="start"))
         parts.append(_t(cx, y + 34, _clip(s.get("title", ""), chars - 2), size=13, weight=700, fill=tcolor))
@@ -194,7 +219,7 @@ def render_design_map(design: dict[str, Any]) -> Markup:
             meta = " · ".join(x for x in (DISPATCH_LABELS.get(s.get("dispatch_workflow", ""), "Upsun Dispatch"),
                                           ("done when " + DONE_LABELS[s["done_when"]])
                                           if s.get("done_when") in DONE_LABELS else "") if x)
-        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">')
+        parts.append(f'<g class="ms-step" data-step="{escape(str(s.get("id", "")))}">' + _tooltip(s))
         parts.append(
             f'<rect class="ms-ring" x="3" y="{y - 3}" width="{CW - 6}" height="{C_ROW + 6}" rx="10" fill="none" '
             f'stroke="{ACCENT}" stroke-width="3" visibility="hidden"/>'

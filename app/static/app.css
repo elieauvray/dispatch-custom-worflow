@@ -140,7 +140,7 @@ table { font-size: .92rem; }
 .badge { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
 .badge.running { background: color-mix(in srgb, var(--u-blue-600) 22%, transparent); }
 .badge.waiting_input, .badge.waiting_approval { background: var(--u-lime-600); color: var(--u-neutral-1000); border-color: var(--u-lime-600); }
-.badge.completed, .badge.configured { background: color-mix(in srgb, var(--u-violet-600) 18%, transparent); }
+.badge.completed, .badge.done, .badge.configured { background: color-mix(in srgb, var(--u-violet-600) 18%, transparent); }
 .badge.failed, .badge.error { background: color-mix(in srgb, var(--u-orange-600) 22%, transparent); }
 .badge.cancelled, .badge.not_configured { color: var(--muted); }
 
@@ -261,3 +261,15 @@ main.container.wide { max-width: 1600px; }
 .clarify-q label { display: block; margin: .35rem 0; }
 .clarify-other { display: flex !important; align-items: center; gap: .5rem; }
 .clarify-other input[type="text"] { margin: 0; flex: 1; }
+
+/* Workflow progress once Maestro's session ended */
+.badge.ongoing { background: color-mix(in srgb, var(--u-blue-600) 22%, transparent); border-style: dashed; }
+.badge.blocked { background: var(--u-orange-600); color: var(--u-neutral-1000); border-color: var(--u-orange-600); }
+.badge.continued { background: transparent; color: var(--muted); }
+
+/* Full text of a step (the diagram clips long texts) */
+.maestro-svg .ms-step { cursor: pointer; }
+.maestro-svg .ms-step:hover > rect:not(.ms-ring), .maestro-svg .ms-step:focus-visible > rect:not(.ms-ring) { stroke: var(--accent); stroke-width: 2; }
+.maestro-svg .ms-step:focus { outline: none; }
+.step-detail { margin: 0 .3rem .6rem; padding: .5rem .7rem; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 6px; font-size: .85rem; }
+.step-detail p { margin: .25rem 0; }

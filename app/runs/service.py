@@ -9,6 +9,7 @@ from app.anthropic_client import ManagedAgentsError
 from app.deps import get_user_settings
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.settings.service import client_for, resources_ready, sync_user_resources
+from app.runs.progress import mark_continued
 from app.workflows.compose import compose_workflow_message, snapshot_skills
 
 
@@ -40,6 +41,8 @@ def create_workflow_run(db: Session, user: User, workflow: Workflow) -> Workflow
         pending_event_ids=[],
     )
     db.add(run)
+    db.flush()
+    mark_continued(db, run)
     db.commit()
     return run
 

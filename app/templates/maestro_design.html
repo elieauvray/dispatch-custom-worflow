@@ -38,7 +38,8 @@
   </p>
 
   <section>
-    <div class="maestro-svg">{{ svg }}</div>
+    <p class="small muted" style="margin:.2rem 0 .4rem">Click a step to read it in full.</p>
+    <div class="maestro-svg" id="design-svg">{{ svg }}</div>
     <div class="row-actions" style="margin-top:.6rem">
       <a href="/workflows/{{ wf.id }}/design.svg" role="button" class="secondary" download>Download SVG</a>
     </div>
@@ -150,5 +151,40 @@
       <button type="submit">Regenerate</button>
     </form>
   </details>
+{% endif %}
+{% if steps_info %}
+<dialog id="step-dialog" class="seg-dialog" aria-labelledby="step-dialog-title">
+  <article>
+    <header class="seg-dialog-head"><strong id="step-dialog-title"></strong>
+      <button type="button" class="secondary outline" data-close>Close</button></header>
+    <p id="step-dialog-detail"></p>
+    <p class="small muted" id="step-dialog-meta" style="margin:0"></p>
+  </article>
+</dialog>
+<script>
+  (function () {
+    var infos = {};
+    ({{ steps_info | tojson }}).forEach(function (s) { infos[s.id] = s; });
+    var dialog = document.getElementById("step-dialog");
+    document.querySelectorAll("#design-svg .ms-step").forEach(function (g) {
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      function open() {
+        var s = infos[g.dataset.step];
+        if (!s) return;
+        document.getElementById("step-dialog-title").textContent = s.id + " · " + s.title;
+        document.getElementById("step-dialog-detail").textContent = s.detail || "No further detail.";
+        document.getElementById("step-dialog-meta").textContent =
+          [s.phase, s.actor_label].concat(s.tags).filter(Boolean).join(" · ");
+        dialog.showModal();
+      }
+      g.addEventListener("click", open);
+      g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    });
+    dialog.addEventListener("click", function (e) {
+      if (e.target === dialog || e.target.hasAttribute("data-close")) dialog.close();
+    });
+  })();
+</script>
 {% endif %}
 {% endblock %}

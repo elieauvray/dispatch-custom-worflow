@@ -15,7 +15,7 @@ from app.db import SessionLocal, get_db
 from app.deps import csrf_protect, require_configured
 from app.models import RunEvent, RunStatus, User, WorkflowRun
 from app.runs import service
-from app.maestro.render import render_design_svg
+from app.maestro.render import render_design_svg, step_info
 from app.runs.events import agent_text, step_marker
 from app.templating import flash, render, templates
 
@@ -154,10 +154,7 @@ def run_detail(
             "events": event_views(db, run, events),
             "last_event_id": events[-1].id if events else 0,
             "map_svg": render_design_svg(design) if has_steps else None,
-            "map_steps": [
-                {"id": str(st.get("id")), "title": st.get("title", ""), "actor": st.get("actor", "")}
-                for st in design.get("steps") or []
-            ],
+            "map_steps": [step_info(st) for st in design.get("steps") or []],
             "current_step": current_step(db, run) if has_steps else None,
             **actions_context(db, run),
         },

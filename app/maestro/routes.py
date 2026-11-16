@@ -14,7 +14,7 @@ from app.anthropic_client import ManagedAgentsError
 from app.db import get_db
 from app.deps import csrf_protect, require_configured
 from app.maestro import service
-from app.maestro.render import render_design_svg
+from app.maestro.render import render_design_svg, step_info
 from app.models import User, Workflow
 from app.security import get_or_create_csrf_token
 from app.templating import flash, render, templates
@@ -83,6 +83,7 @@ def design_page(
     ctx = _panel_ctx(request, wf)
     ctx.pop("request"), ctx.pop("csrf_token")
     ctx["missing"] = service.missing_connectors(db, user, wf) if wf.design_status == "ready" else []
+    ctx["steps_info"] = [step_info(st) for st in (wf.design_json or {}).get("steps") or []] if ctx["svg"] else []
     ctx["instructions_changed"] = service.instructions_changed(wf, service.current_instructions_hash(db))
     return render(request, "maestro_design.html", ctx)
 

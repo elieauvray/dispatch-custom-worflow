@@ -1,2 +1,5 @@
-<span class="badge {{ run.status }}">{{ run.status_label }}</span>
-{% if run.status in ['completed', 'failed', 'cancelled'] %}<span class="small muted">· took {{ run.duration_seconds | duration }}</span>{% endif %}
+<span class="badge {{ run.display_status }}">{{ run.display_label }}</span>
+{% if run.status == 'completed' and run.progress == 'ongoing' %}<span class="small muted">· Maestro did its part in {{ run.duration_seconds | duration }}; the workflow continues on the next run (schedule, GitHub wake-up or Run now)</span>
+{% elif run.status == 'completed' and run.progress == 'blocked' %}<span class="small muted">· Maestro needs you: read its last report</span>
+{% elif run.status == 'completed' and run.progress == 'continued' and run.continued_by_run_id %}<span class="small muted">· <a href="/runs/{{ run.continued_by_run_id }}">see run #{{ run.continued_by_run_id }}</a></span>
+{% elif run.status in ['completed', 'failed', 'cancelled'] %}<span class="small muted">· took {{ run.duration_seconds | duration }}</span>{% endif %}

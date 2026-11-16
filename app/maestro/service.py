@@ -17,6 +17,7 @@ from app.deps import get_user_settings
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun, utcnow
 from app.plans.service import connector_policies
 from app.settings.service import client_for, resources_ready, sync_user_resources
+from app.runs.progress import mark_continued
 from app.workflows.compose import compose_workflow_message, instructions_block, instructions_hash, snapshot_skills
 
 log = logging.getLogger(__name__)
@@ -290,6 +291,14 @@ def run_context(wf: Workflow, trigger: str) -> str:
         "check its completion signal; never interact with it. Start what can be started, stop at human gates, "
         "do not wait for Dispatch, then end with the status report.\n\n"
         f"{markers}"
+        "## Workflow status\n"
+        "The run page shows whether the workflow is finished. End your final status report with exactly one "
+        "of these markers on its own line:\n"
+        "- `[workflow: ongoing]`: something still has to happen (a Dispatch run to finish, a person to act, "
+        "a step to start on a later run);\n"
+        "- `[workflow: done]`: every step of the workflow is complete;\n"
+        "- `[workflow: blocked]`: it cannot go on without the user (a PR closed without merge, a failed "
+        "Dispatch run, a missing value).\n\n"
         f"## Config values\n{table}"
     )
 
@@ -356,7 +365,7 @@ def import_scheduled_runs(db: Session, wf: Workflow) -> int:
         error = r.get("error") or {}
         skills, message = maestro_message(db, wf, "schedule")
         context_type = (r.get("trigger_context") or {}).get("type")
-        db.add(WorkflowRun(
+        new_run = WorkflowRun(
             user_id=user.id, workflow_id=wf.id, deployment_run_id=rid,
             trigger="wake" if context_type == "manual" else "schedule",
             session_id=sid, initial_sent=True, initial_message=message,
@@ -365,7 +374,10 @@ def import_scheduled_runs(db: Session, wf: Workflow) -> int:
             content_snapshot=wf.content, workflow_name_snapshot=wf.name, skills_snapshot=skills,
             design_snapshot=wf.design_json,
             pending_event_ids=[], finished_at=None if sid else utcnow(),
-        ))
+        )
+        db.add(new_run)
+        db.flush()
+        mark_continued(db, new_run)
         added += 1
     if added:
         db.commit()

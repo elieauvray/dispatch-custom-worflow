@@ -136,3 +136,81 @@ def test_runs_list_has_no_diagram(client, fake):
     login(client, "bob")
     page = client.get(f"/workflows/{wf_id}/history").text
     assert "<svg" not in page.split("<main")[1] and "Planned workflow" not in page
+
+
+def _run_with(client, fake, uid, wf_id, messages):  # type: ignore[no-untyped-def]
+    token = csrf(client, "/workflows")
+    r = client.post(f"/workflows/{wf_id}/run", data={"csrf_token": token}, follow_redirects=False)
+    run_id = int(r.headers["location"].rsplit("/", 1)[1])
+    fake.stream_script["*"] = [
+        *({"type": "agent.message", "content": [{"type": "text", "text": m}]} for m in messages),
+        {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
+    ]
+    RunDriver(run_id, threading.Event()).run()
+    return run_id
+
+
+def test_workflow_stays_ongoing_until_maestro_reports_it_done(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    first = _run_with(client, fake, uid, wf_id, ["[step: S2]\nDispatch is implementing issue #12.\n[workflow: ongoing]"])
+    with SessionLocal() as db:
+        run = db.get(WorkflowRun, first)
+        assert run.status == "completed" and run.progress == "ongoing" and run.display_label == "ongoing"
+    page = client.get(f"/runs/{first}").text
+    assert 'badge ongoing' in page and "the workflow continues on the next run" in page
+    assert "[workflow:" not in page.split('id="transcript"')[1].split('id="run-actions"')[0]
+    assert "badge ongoing" in client.get("/workflows").text
+
+    second = _run_with(client, fake, uid, wf_id, ["[step: S3]\nPR #13 merged. All steps are complete.\n[workflow: done]"])
+    with SessionLocal() as db:
+        assert db.get(WorkflowRun, second).progress == "done"
+        older = db.get(WorkflowRun, first)
+        assert older.progress == "continued" and older.display_label == f"continued in #{second}"
+    history = client.get(f"/workflows/{wf_id}/history").text
+    assert f"continued in #{second}" in history and "badge done" in history
+
+
+def test_progress_without_marker_and_blocked_reports(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    # no marker, last design step reached: done; earlier step: ongoing
+    run_id = _run_with(client, fake, uid, wf_id, ["[step: S2]\nWaiting for Dispatch."])
+    with SessionLocal() as db:
+        assert db.get(WorkflowRun, run_id).progress == "ongoing"
+    run_id = _run_with(client, fake, uid, wf_id, ["[step: S3]\nMerged, finished."])
+    with SessionLocal() as db:
+        assert db.get(WorkflowRun, run_id).progress == "done"
+    run_id = _run_with(client, fake, uid, wf_id, ["[step: S2]\nPR #13 was closed without merge.\n[workflow: blocked]"])
+    with SessionLocal() as db:
+        run = db.get(WorkflowRun, run_id)
+        assert run.progress == "blocked" and run.display_label == "needs attention"
+    # Maestro is told how to report the workflow status
+    with SessionLocal() as db:
+        assert "[workflow: ongoing]" in db.get(WorkflowRun, run_id).initial_message
+
+
+def test_long_step_texts_can_be_read_in_full(client, fake):
+    from app.maestro.render import render_design_svg
+
+    long_detail = "Write the issue with the context, the acceptance criteria and the files to change. " * 2
+    steps = [dict(STEPS[0], detail=long_detail.strip(), title="A very long step title " * 4)]
+    svg = str(render_design_svg({"steps": steps}))
+    assert "…" in svg  # clipped on the diagram
+    assert "<title>" in svg and long_detail.strip() in svg  # full text in the tooltip
+
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        wf.design_json = {**wf.design_json, "steps": [dict(STEPS[0], detail=long_detail.strip()), *STEPS[1:]]}
+        db.commit()
+    login(client, "bob")
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert 'id="step-dialog"' in page and "Click a step to read it in full." in page
+    assert long_detail.strip() in page.split('id="step-dialog"')[1]  # step data handed to the dialog

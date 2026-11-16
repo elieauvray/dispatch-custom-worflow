@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Connector, ConnectorStatus, RunEvent, RunStatus, WorkflowRun, utcnow
+from app.runs.progress import settle_progress, strip_workflow_markers
 
 # Events that are irrelevant to the transcript (we do not store them).
 IGNORED_TYPES = {"agent.thinking", "event_start", "event_delta", "span.model_request_start"}
@@ -45,7 +46,8 @@ def step_marker(text: str | None) -> str | None:
 
 
 def strip_step_markers(text: str | None) -> str:
-    return STEP_MARKER.sub("", text or "").strip()
+    """Text without the step and workflow-status markers Maestro adds for the run page."""
+    return strip_workflow_markers(STEP_MARKER.sub("", text or "")).strip()
 
 
 _TRAILING = re.compile(r"[\s*_`)\]»\"']+$")
@@ -53,6 +55,7 @@ _TRAILING = re.compile(r"[\s*_`)\]»\"']+$")
 
 def is_question(text: str | None) -> bool:
     """Heuristic: the last non-empty paragraph ends with a question mark."""
+    text = strip_step_markers(text)
     if not text:
         return False
     lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
@@ -148,7 +151,11 @@ def store_event(db: Session, run: WorkflowRun, ev: dict[str, Any]) -> bool:
             db.add(RunEvent(run_id=run.id, anthropic_event_id=key, type=etype, payload_json=ev))
     except IntegrityError:
         return False
+    before = run.status
     apply_event(run, ev, last_text)
+    if run.status != before or (run.status == RunStatus.COMPLETED and etype == "agent.message"):
+        db.flush()
+        settle_progress(db, run)
     if etype == "session.error":
         _flag_connector(db, run, ev)
     return True
