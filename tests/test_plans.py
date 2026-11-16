@@ -152,7 +152,8 @@ def test_agent_knows_the_dispatch_playbook_and_auto_policy():
     from app.anthropic_client import ConnectorSpec, build_agent_config
 
     cfg = build_agent_config("claude-opus-5-5", [ConnectorSpec("linear", "https://mcp.linear.app/mcp", "auto")], "bob")
-    assert "@upsun-dispatch" in cfg["system"] and "never decide yourself" in cfg["system"]
+    assert "`@upsun-dispatch implement`" in cfg["system"] and "never decide yourself" in cfg["system"]
+    assert "SEPARATE comment" in cfg["system"] and "CORRECTION" in cfg["system"]
     assert not cfg["system"].startswith("You are Dispatch")
     toolset = [t for t in cfg["tools"] if t["type"] == "mcp_toolset"][0]
     assert toolset["default_config"]["permission_policy"] == {"type": "auto"}

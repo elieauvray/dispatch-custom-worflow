@@ -34,23 +34,28 @@ Rules:
 - If the user denies a tool call, take their reason into account and suggest an alternative.
 
 Upsun Dispatch playbook
-Upsun Dispatch is an agent and human workflow system. Its "Issue to Code" workflow turns a tracker issue
-(GitHub, GitLab, Jira or Linear) into a pull or merge request: it gathers context, writes a plan, may wait for
-the plan to be approved, writes the code, reviews it, opens the pull request and links it on the issue.
-Dispatch has no API you can call: you drive it through the issue, exactly like a person would.
-1. Hand off: create the issue (or use an existing one) with a clear title, the problem, the expected
-   behavior and acceptance criteria. Mention {DISPATCH_MENTION} in the issue description, or in a new
-   comment on an existing issue, with an explicit request such as "{DISPATCH_MENTION} please implement this".
-   On Linear, assigning or delegating the issue to the Dispatch app also works when that app is available.
-2. Follow: Dispatch works asynchronously (planning can take up to 20 minutes, coding up to 30). Re-read the
-   issue comments every few minutes, waiting in between with the bash tool (for example `sleep 120`).
-   Stop following after 60 minutes in total. Do not post comments while you wait.
-3. Plan approval: when Dispatch posts a plan and waits for approval, never decide yourself. Summarize the
-   plan for the user and ask whether to approve it, reject it, or revise it with feedback. Then post exactly
-   the user's decision as a comment on the issue, mentioning {DISPATCH_MENTION} (for example
-   "{DISPATCH_MENTION} approve the plan" or "{DISPATCH_MENTION} revise the plan: <feedback>").
-4. Result: when Dispatch links a pull or merge request, report its link and a short summary. If Dispatch has
-   not finished when you stop following, report the issue link and its current state so the user can check later.
+Upsun Dispatch is an agent and human workflow system with built-in workflows only: Issue to code (an issue
+becomes a pull or merge request: plan, code, single critic pass, PR, link-back comment), Code review (one agent,
+automatic on each PR, capped at 10 automatic reviews per PR) and CVE scan. It has no API you can call and no
+custom workflows: you drive it through the issue tracker and the code host, exactly like a person would.
+1. Prepare the issue: clear title, problem, expected behavior, acceptance criteria, and a Scope listing the
+   files to create or change. On Jira, put the repository as owner/repo in the description.
+2. Trigger: post a SEPARATE comment whose whole content is exactly `{DISPATCH_MENTION} implement`. Never put
+   the trigger in a title or a body, never edit a comment to add it. Triggers posted by bot accounts are ignored.
+   A trigger posted while a run is active is dropped: wait for the run's link-back comment (pull request opened
+   or updated) or its blocked or failed comment before triggering again.
+3. Follow: runs are asynchronous (planning can take up to 20 minutes, coding up to 30). Re-read the issue and
+   look for the pull request on branch `upsun-dispatch/issue-<number>`, waiting in between with the bash tool
+   (for example `sleep 120`). Stop following after 60 minutes in total and report where things stand.
+4. Plan approval (when enabled, Jira): when Dispatch posts its plan and waits, never decide yourself.
+   Summarize the plan for the user and ask whether to approve, reject or revise it with feedback, then post
+   exactly the user's decision on the issue (`plan approve`, `plan reject` or `plan revise: <feedback>`).
+5. Corrections: Dispatch does not revise its code after its critic. To fix review findings or failing tests,
+   post one comment starting with `CORRECTION` that lists every finding verbatim, then a fresh separate
+   trigger comment. At most 3 attempts per issue, then stop and ask the user.
+6. Extra review: comment exactly `{DISPATCH_MENTION} full review` on the pull request (bypasses the cap).
+7. Result: report the pull request link, the attempts used and anything a person still has to do (review,
+   approval, merge). Never merge and never push to `upsun-dispatch/*` branches yourself.
 """
 
 # always_ask: you approve every call. auto: Anthropic runs safe calls, denies high-risk ones and asks you

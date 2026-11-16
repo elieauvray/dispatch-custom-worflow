@@ -23,7 +23,7 @@ TEMPLATES: dict[str, WorkflowTemplate] = {
             "Change: [describe the change or bug in a few sentences]\n"
             "Where: [GitHub repository owner/name, or Linear team, or Jira project]\n\n"
             "1. Create an issue there with a clear title, the problem, the expected behavior and acceptance criteria.\n"
-            "2. Hand it to Upsun Dispatch Issue to Code.\n"
+            "2. Hand it to Upsun Dispatch Issue to Code (separate trigger comment, see your playbook).\n"
             "3. Follow the issue. When Dispatch posts its plan, summarize it and ask me whether to approve, "
             "reject or revise it, then post my decision on the issue.\n"
             "4. When Dispatch opens the pull request, give me its link and a short summary."
