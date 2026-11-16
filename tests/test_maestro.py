@@ -463,3 +463,27 @@ def test_branches_render_side_by_side_and_loops_go_back():
     from app.maestro.render import step_tags
 
     assert "⟲ back to S4 when PR refused" in step_tags(design["steps"][4])
+
+
+def test_answered_questions_show_as_done_while_designing(client, fake, monkeypatch):
+    _setup(client)
+    fake.clarify_response = QUESTIONS
+    wf_id = _create(client)
+    _design(wf_id)
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    client.post(f"/workflows/{wf_id}/design/answers",
+                data={"q:tracker": "GitHub Issues", "q:pr": "One PR per ticket", "csrf_token": token})
+
+    seen = {}
+    original = service._start_stage
+
+    def spy(db, wf, stage):  # type: ignore[no-untyped-def]
+        original(db, wf, stage)
+        if stage == "design":
+            seen["view"] = service.progress_view(wf, service.DEFAULT_TIMINGS)
+
+    monkeypatch.setattr(service, "_start_stage", spy)
+    _design(wf_id)
+    rows = {r["key"]: r for r in seen["view"]["rows"]}
+    assert rows["tools"]["state"] == "done" and rows["design"]["state"] == "active"
+    assert rows["clarify"]["state"] == "done" and rows["clarify"]["note"] == "Already answered"

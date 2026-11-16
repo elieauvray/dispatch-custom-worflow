@@ -260,6 +260,15 @@ def _start_stage(db: Session, wf: Workflow, stage: str) -> None:
                   phase="thinking" if stage == "design" else None, chars=0, writing=None)
 
 
+def _skip_stage(wf: Workflow, stage: str, note: str) -> None:
+    """A stage that did not need to run this time counts as done (with why), not as pending."""
+    progress = dict(wf.design_progress or {})
+    done = list(progress.get("done") or [])
+    if stage not in done:
+        done.append(stage)
+    wf.design_progress = {**progress, "done": done, "notes": {**(progress.get("notes") or {}), stage: note}}
+
+
 def _begin_generation(db: Session, wf: Workflow) -> None:
     last = (wf.design_progress or {}).get("timings")
     wf.design_progress = {"started": _iso(utcnow()), "timings": last}
@@ -309,7 +318,7 @@ def progress_view(wf: Workflow, estimates: dict[str, float]) -> dict[str, Any] |
         expected = max(estimates[key], 1.0)
         total += expected
         if key in done:
-            state, pct, note = "done", 100, ""
+            state, pct, note = "done", 100, (progress.get("notes") or {}).get(key, "")
             spent += expected
         elif key == stage:
             state = "active"
@@ -401,6 +410,8 @@ def generate_design(db: Session, wf_id: int) -> None:
             questions = normalize_questions(asked.get("questions") or [])
             clar = {"for": request_hash, "questions": questions, "decisions": clar.get("decisions") or []}
             wf.clarifications = clar
+        else:  # already asked for this request (answered or nothing to ask): not asked again
+            _skip_stage(wf, "clarify", "Already answered" if clar.get("decisions") else "Nothing to ask")
         if clar.get("questions"):
             wf.design_status = "needs_answers"
             wf.design_error = None
