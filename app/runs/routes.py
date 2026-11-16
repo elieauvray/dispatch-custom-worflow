@@ -91,13 +91,13 @@ def run_design(run: WorkflowRun) -> dict[str, Any]:
     return {}
 
 
-def step_before(db: Session, run: WorkflowRun, event_id: int, valid: set[str]) -> str | None:
-    """Step announced by the last Maestro message before `event_id` (the step events inherit)."""
-    rows = db.scalars(
-        select(RunEvent)
-        .where(RunEvent.run_id == run.id, RunEvent.type == "agent.message", RunEvent.id < event_id)
-        .order_by(RunEvent.id.desc())
-    )
+def step_before(db: Session, run: WorkflowRun, event_id: int | None, valid: set[str]) -> str | None:
+    """Step announced by the last Maestro message before `event_id` (or overall when None)."""
+    query = select(RunEvent).where(RunEvent.run_id == run.id, RunEvent.type == "agent.message")
+    if event_id is not None:
+        # Never compare ids with huge sentinels: PostgreSQL ids are 32-bit integers.
+        query = query.where(RunEvent.id < event_id)
+    rows = db.scalars(query.order_by(RunEvent.id.desc()))
     for row in rows:
         announced = step_marker(agent_text(row.payload_json))
         if announced and (not valid or announced in valid):
@@ -106,7 +106,7 @@ def step_before(db: Session, run: WorkflowRun, event_id: int, valid: set[str]) -
 
 
 def current_step(db: Session, run: WorkflowRun) -> str | None:
-    return step_before(db, run, 2**62, design_step_ids(run))
+    return step_before(db, run, None, design_step_ids(run))
 
 
 def actions_context(db: Session, run: WorkflowRun) -> dict[str, Any]:
