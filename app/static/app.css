@@ -195,3 +195,8 @@ textarea.big { min-height: 14rem; font-family: var(--pico-font-family); }
 .plan-svg svg { display: block; width: 100%; height: auto; }
 .htmx-indicator { display: none; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
+
+/* Workflow templates */
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.template-card { margin: 0; display: flex; flex-direction: column; }
+.template-card a[role="button"] { margin-top: auto; align-self: flex-start; padding: .3rem .7rem; font-size: .85rem; }

@@ -99,7 +99,7 @@ class RunDriver:
                         settings.agent_version,
                         settings.environment_id or "",
                         [settings.vault_id or ""],
-                        f"Dispatch · {title}",
+                        f"Custom workflow · {title}",
                     )
                     db.commit()
                     log.info("Run %s: session %s created", run.id, run.session_id)

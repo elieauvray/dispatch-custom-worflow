@@ -122,3 +122,37 @@ def test_other_users_cannot_see_a_plan(client, fake):
     assert client.get(f"/workflows/{wf_id}/plan").status_code == 404
     assert client.get(f"/workflows/{wf_id}/plan.svg").status_code == 404
     assert fake.plan_calls == []
+
+
+def test_dispatch_steps_and_auto_policy_in_plan():
+    plan = normalize({"summary": "x", "steps": [
+        {"title": "Create the issue", "detail": "", "kind": "action", "service": "github"},
+        {"title": "Dispatch plans the change", "detail": "", "kind": "dispatch", "service": "dispatch"},
+        {"title": "Relay the plan", "detail": "", "kind": "question", "service": "none"},
+        {"title": "Dispatch opens the PR", "detail": "", "kind": "dispatch", "service": "dispatch"},
+    ]}, {"github": "auto"})
+    assert plan["steps"][0]["may_need_approval"] is True and plan["steps"][0]["needs_approval"] is False
+    assert plan["steps"][1]["needs_approval"] is False and plan["steps"][1]["missing_connector"] is False
+    svg = str(render_plan_svg(plan))
+    assert "Upsun Dispatch" in svg and "Approval if unsure" in svg and "Your reply" in svg
+
+
+def test_templates_prefill_the_new_workflow_form(client, fake):
+    make_user("admin", admin=True)
+    make_user("bob")
+    login(client, "bob")
+    page = client.get("/workflows").text
+    assert "Start from a template" in page and "/workflows/new?template=dispatch-issue-to-code" in page
+    form = client.get("/workflows/new?template=dispatch-issue-to-code").text
+    assert "Send a change to Dispatch" in form and "Upsun Dispatch Issue to Code" in form
+    assert client.get("/workflows/new?template=unknown").status_code == 200
+
+
+def test_agent_knows_the_dispatch_playbook_and_auto_policy():
+    from app.anthropic_client import ConnectorSpec, build_agent_config
+
+    cfg = build_agent_config("claude-opus-5-5", [ConnectorSpec("linear", "https://mcp.linear.app/mcp", "auto")], "bob")
+    assert "@upsun-dispatch" in cfg["system"] and "never decide yourself" in cfg["system"]
+    assert not cfg["system"].startswith("You are Dispatch")
+    toolset = [t for t in cfg["tools"] if t["type"] == "mcp_toolset"][0]
+    assert toolset["default_config"]["permission_policy"] == {"type": "auto"}

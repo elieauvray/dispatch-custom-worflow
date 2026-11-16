@@ -22,7 +22,7 @@ from app.templating import flash, render
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-POLICIES = {"always_ask": "Always ask", "always_allow": "Always allow"}
+POLICIES = {"always_ask": "Always ask", "auto": "Auto (Anthropic decides)", "always_allow": "Always allow"}
 
 
 def _back(section: str | None = None) -> RedirectResponse:

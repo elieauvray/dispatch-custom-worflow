@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -19,16 +20,42 @@ import anthropic
 
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are Dispatch, an assistant for a product and engineering team.
-Through MCP servers you can use the user's tools (Linear, GitHub, Jira and Confluence, depending on their setup).
+DISPATCH_MENTION = os.environ.get("DISPATCH_MENTION", "@upsun-dispatch")
+
+SYSTEM_PROMPT = f"""You are the workflow assistant of a product and engineering team. You run custom workflows
+and can hand coding work to Upsun Dispatch. Through MCP servers you can use the user's tools (Linear, GitHub,
+Jira and Confluence, depending on their setup). The user follows your work and answers you in a web app.
 
 Rules:
 - Reply in the user's language (English by default).
 - Use the available MCP tools to read or change data instead of guessing.
-- When you need information from the user to continue, ask ONE clear question and end your message with it.
+- When you need information or a decision from the user, ask ONE clear question and end your message with it.
 - When you are done, give a concise, structured final result in Markdown.
 - If the user denies a tool call, take their reason into account and suggest an alternative.
+
+Upsun Dispatch playbook
+Upsun Dispatch is an agent and human workflow system. Its "Issue to Code" workflow turns a tracker issue
+(GitHub, GitLab, Jira or Linear) into a pull or merge request: it gathers context, writes a plan, may wait for
+the plan to be approved, writes the code, reviews it, opens the pull request and links it on the issue.
+Dispatch has no API you can call: you drive it through the issue, exactly like a person would.
+1. Hand off: create the issue (or use an existing one) with a clear title, the problem, the expected
+   behavior and acceptance criteria. Mention {DISPATCH_MENTION} in the issue description, or in a new
+   comment on an existing issue, with an explicit request such as "{DISPATCH_MENTION} please implement this".
+   On Linear, assigning or delegating the issue to the Dispatch app also works when that app is available.
+2. Follow: Dispatch works asynchronously (planning can take up to 20 minutes, coding up to 30). Re-read the
+   issue comments every few minutes, waiting in between with the bash tool (for example `sleep 120`).
+   Stop following after 60 minutes in total. Do not post comments while you wait.
+3. Plan approval: when Dispatch posts a plan and waits for approval, never decide yourself. Summarize the
+   plan for the user and ask whether to approve it, reject it, or revise it with feedback. Then post exactly
+   the user's decision as a comment on the issue, mentioning {DISPATCH_MENTION} (for example
+   "{DISPATCH_MENTION} approve the plan" or "{DISPATCH_MENTION} revise the plan: <feedback>").
+4. Result: when Dispatch links a pull or merge request, report its link and a short summary. If Dispatch has
+   not finished when you stop following, report the issue link and its current state so the user can check later.
 """
+
+# always_ask: you approve every call. auto: Anthropic runs safe calls, denies high-risk ones and asks you
+# when unsure. always_allow: no approval.
+PERMISSION_POLICIES = ("always_ask", "auto", "always_allow")
 
 # Nom des serveurs MCP dans l'agent (référencés par mcp_toolset.mcp_server_name).
 MCP_SERVER_NAMES = {"linear": "linear", "github": "github", "atlassian": "atlassian"}
@@ -36,8 +63,8 @@ MCP_SERVER_NAMES = {"linear": "linear", "github": "github", "atlassian": "atlass
 
 # --- Planned workflow (diagram) ----------------------------------------------
 
-PLAN_KINDS = ["read", "action", "reasoning", "question", "result"]
-PLAN_SERVICES = ["linear", "github", "atlassian", "sandbox", "none"]
+PLAN_KINDS = ["read", "action", "reasoning", "question", "dispatch", "result"]
+PLAN_SERVICES = ["linear", "github", "atlassian", "dispatch", "sandbox", "none"]
 
 PLAN_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -71,8 +98,15 @@ Predict the main steps the agent will take, in order, as a high-level workflow:
 - kind: "read" (fetch data from a service), "action" (create, update or delete something on a service),
   "reasoning" (analysis, writing, deciding, without a tool), "question" (the agent asks the user for
   missing information it will need), "result" (the final answer). The last step is always "result".
-- service: the service the step uses ("linear", "github", "atlassian", "sandbox" for files or code,
-  "none" otherwise).
+- kind "dispatch": work done by Upsun Dispatch itself (planning, coding, opening the pull request), which
+  the agent only waits for. Use service "dispatch" for these steps.
+- service: the service the step uses ("linear", "github", "atlassian", "dispatch", "sandbox" for files or
+  code, "none" otherwise).
+- Upsun Dispatch is driven through a tracker issue: the agent creates or updates the issue with a mention of
+  the Dispatch app (an "action" step on the tracker), Dispatch plans the change ("dispatch" step), the agent
+  relays the plan to the user for approval (a "question" step), Dispatch writes the code and opens a pull
+  request ("dispatch" step), then the agent reports the link ("result"). Include these steps only when the
+  request asks to hand work to Dispatch or to turn an issue into code.
 - Add a "question" step only if the request clearly leaves out information the agent will need,
   or explicitly asks the agent to ask the user something.
 - title: 2 to 6 words, imperative, sentence case, no final period. detail: at most 10 words.
@@ -127,7 +161,7 @@ def build_agent_config(model: str, connectors: list[ConnectorSpec], login: str) 
     for spec in sorted(connectors, key=lambda c: c.provider):
         name = MCP_SERVER_NAMES.get(spec.provider, spec.provider)
         mcp_servers.append({"type": "url", "name": name, "url": spec.url})
-        policy = "always_allow" if spec.permission_policy == "always_allow" else "always_ask"
+        policy = spec.permission_policy if spec.permission_policy in PERMISSION_POLICIES else "always_ask"
         tools.append(
             {
                 "type": "mcp_toolset",
@@ -136,12 +170,12 @@ def build_agent_config(model: str, connectors: list[ConnectorSpec], login: str) 
             }
         )
     return {
-        "name": f"Dispatch · {login}",
+        "name": f"Custom workflows · {login}",
         "model": model,
         "system": SYSTEM_PROMPT,
         "mcp_servers": mcp_servers,
         "tools": tools,
-        "metadata": {"app": "dispatch", "user": login},
+        "metadata": {"app": "dispatch-custom-workflows", "user": login},
     }
 
 
@@ -286,7 +320,7 @@ class ManagedAgentsClient:
                 if st.vault_id:
                     result.vault_recreated = True
                 vault = beta.vaults.create(
-                    display_name=f"Dispatch · {login}",
+                    display_name=f"Custom workflows · {login}",
                     metadata={"app": "dispatch", "user": login},
                 )
                 st.vault_id = vault.id

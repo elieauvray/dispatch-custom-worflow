@@ -96,7 +96,7 @@ def discover(mcp_url: str, client: httpx.Client | None = None) -> AuthServer:
 
 
 def register_client(
-    server: AuthServer, redirect_uri: str, client_name: str = "Dispatch (Claude Managed Agents)"
+    server: AuthServer, redirect_uri: str, client_name: str = "Dispatch custom workflows (Claude Managed Agents)"
 ) -> tuple[str, str | None]:
     if not server.registration_endpoint:
         raise OAuthError("This server does not support dynamic client registration.")

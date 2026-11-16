@@ -60,6 +60,8 @@ def normalize(raw: dict[str, Any], policies: dict[str, str]) -> dict[str, Any]:
                 "service": service,
                 # Every MCP call on an "Always ask" connector pauses for your approval.
                 "needs_approval": uses_mcp and policies.get(service) == "always_ask",
+                # "Auto": Anthropic runs safe calls and only asks you when unsure.
+                "may_need_approval": uses_mcp and policies.get(service) == "auto",
                 # The agent cannot use a service you have not connected.
                 "missing_connector": uses_mcp and service not in policies,
             }
@@ -67,7 +69,7 @@ def normalize(raw: dict[str, Any], policies: dict[str, str]) -> dict[str, Any]:
     if not steps or steps[-1]["kind"] != "result":
         steps.append(
             {"title": "Final result", "detail": "", "kind": "result", "service": "none",
-             "needs_approval": False, "missing_connector": False}
+             "needs_approval": False, "may_need_approval": False, "missing_connector": False}
         )
     return {"summary": str(raw.get("summary") or "").strip()[:240], "steps": steps}
 

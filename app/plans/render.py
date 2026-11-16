@@ -23,7 +23,7 @@ BORDER = "var(--border, #D8DBDC)"
 SURFACE = "var(--surface, #FFFFFF)"
 BG = "var(--bg, #ECEDEE)"
 ACCENT = "var(--accent, #6046FF)"
-LIME, BLUE, ORANGE, NEUTRAL_1000 = "#D5F800", "#00D0EC", "#FF4A11", "#0C0F10"
+LIME, BLUE, ORANGE, PINK, NEUTRAL_1000 = "#D5F800", "#00D0EC", "#FF4A11", "#E81CEC", "#0C0F10"
 
 SERVICE_LABELS = {"linear": "Linear", "github": "GitHub", "atlassian": "Jira / Atlassian", "sandbox": "Sandbox"}
 KIND_LABELS = {
@@ -31,6 +31,7 @@ KIND_LABELS = {
     "action": "Action",
     "reasoning": "Claude",
     "question": "Question",
+    "dispatch": "Upsun Dispatch",
     "result": "Result",
 }
 
@@ -54,6 +55,8 @@ def _box_style(kind: str) -> tuple[str, str, str, str]:
         return BLUE, "0.16", BLUE, TEXT
     if kind == "action":
         return ACCENT, "0.14", ACCENT, TEXT
+    if kind == "dispatch":
+        return PINK, "0.12", PINK, TEXT
     if kind == "result":
         return TEXT, "1", TEXT, BG
     return SURFACE, "1", BORDER, TEXT  # reasoning, question
@@ -101,7 +104,7 @@ def render_plan_svg(plan: dict[str, Any], request_label: str = "Your request") -
         if detail:
             parts.append(_text(MAIN_X + MAIN_W / 2, y + 46, _clip(detail, 58), size=12,
                                fill=tcolor if kind == "result" else MUTED))
-        # Your interventions through Dispatch, on the side
+        # Your interventions in this app, on the side
         if step.get("missing_connector"):
             parts.append(_side(y, "Connector missing", fill=SURFACE, stroke=ORANGE, text_fill=ORANGE,
                                dashed=True))
@@ -109,6 +112,8 @@ def render_plan_svg(plan: dict[str, Any], request_label: str = "Your request") -
             parts.append(_side(y, "Your approval", fill=LIME, stroke=LIME, text_fill=NEUTRAL_1000))
         elif kind == "question":
             parts.append(_side(y, "Your reply", fill=LIME, stroke=LIME, text_fill=NEUTRAL_1000))
+        elif step.get("may_need_approval"):
+            parts.append(_side(y, "Approval if unsure", fill=SURFACE, stroke=LIME, text_fill=TEXT, dashed=True))
         # Arrow to the next step
         if i < len(nodes) - 1:
             x = MAIN_X + MAIN_W / 2
@@ -124,7 +129,8 @@ def render_plan_svg(plan: dict[str, Any], request_label: str = "Your request") -
         (BLUE, "0.16", BLUE, "Read"),
         (ACCENT, "0.14", ACCENT, "Action"),
         (SURFACE, "1", BORDER, "Claude step"),
-        (LIME, "1", LIME, "You, via Dispatch"),
+        (PINK, "0.12", PINK, "Upsun Dispatch"),
+        (LIME, "1", LIME, "You, in this app"),
     ]
     lx = MAIN_X
     for fill, opacity, stroke, label in legend:

@@ -95,7 +95,9 @@
       <button type="submit" class="secondary">Apply</button>
     </form>
   </div>
-  <small class="help">Tool permissions: <strong>Always ask</strong> (default) shows an approval card before each call. <strong>Always allow</strong> lets Claude call {{ prov.label }} tools without approval. Applied to the MCP toolset <code>permission_policy</code>.</small>
+  <small class="help">Tool permissions: <strong>Always ask</strong> (default) shows an approval card before each call.
+    <strong>Auto</strong> lets Anthropic run calls it judges safe (typically reads), deny high-risk ones and ask you when unsure: recommended when a workflow follows an issue handed to Upsun Dispatch, so each re-read does not wait for you.
+    <strong>Always allow</strong> lets Claude call {{ prov.label }} tools without approval. Applied to the MCP toolset <code>permission_policy</code>.</small>
   {% endif %}
 
   {% if settings.is_configured %}

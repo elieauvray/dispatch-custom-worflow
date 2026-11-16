@@ -12,6 +12,7 @@ from app.deps import csrf_protect, require_configured
 from app.models import RunStatus, User, Workflow, WorkflowRun
 from app.runs import service
 from app.templating import flash, render
+from app.workflows.templates import TEMPLATES
 
 router = APIRouter()
 
@@ -96,7 +97,8 @@ def workflows_list(
     return render(
         request,
         "workflows.html",
-        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting},
+        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting,
+         "templates": TEMPLATES},
     )
 
 
@@ -109,8 +111,16 @@ def _validate(name: str, content: str) -> str | None:
 
 
 @router.get("/workflows/new")
-def workflow_new(request: Request, user: User = Depends(require_configured)) -> Response:
-    return render(request, "workflow_form.html", {"workflow": None, "name": "", "content": ""})
+def workflow_new(
+    request: Request, template: str = "", user: User = Depends(require_configured)
+) -> Response:
+    tpl = TEMPLATES.get(template)
+    return render(
+        request,
+        "workflow_form.html",
+        {"workflow": None, "name": tpl.name if tpl else "", "content": tpl.content if tpl else "",
+         "template": tpl},
+    )
 
 
 @router.post("/workflows/new", dependencies=[Depends(csrf_protect)])

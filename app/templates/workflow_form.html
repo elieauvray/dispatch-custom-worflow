@@ -3,6 +3,7 @@
 {% block content %}
 <h1>{{ 'Edit workflow' if workflow else 'New workflow' }}</h1>
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if template %}<div class="banner">Template <strong>{{ template.name }}</strong>: replace the text in [brackets], then save. For workflows that follow a Dispatch issue, set the tracker connector to <strong>Auto</strong> in Settings so re-reading the issue does not wait for your approval each time.</div>{% endif %}
 <article>
   <form method="post" action="{{ '/workflows/%d/edit' % workflow.id if workflow else '/workflows/new' }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

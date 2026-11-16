@@ -32,7 +32,7 @@ SETUP_EXEMPT = ("/setup", "/static/", "/healthz", "/webhooks/")
 
 
 MISCONFIGURED_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>Incomplete configuration · Dispatch</title>
+<title>Incomplete configuration · Dispatch custom workflows</title>
 <style>body{{font-family:Arial,sans-serif;background:#ECEDEE;color:#0C0F10;max-width:720px;margin:4rem auto;padding:0 1rem}}
 code,pre{{background:#fff;border:1px solid #D8DBDC;border-radius:6px;padding:.1rem .3rem}}pre{{padding:.8rem;overflow:auto}}
 h1{{font-size:1.6rem}}</style></head><body>
@@ -75,7 +75,7 @@ def create_app() -> FastAPI:
         return create_misconfigured_app(missing)
     cfg = get_settings()
 
-    app = FastAPI(title="Dispatch", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Dispatch custom workflows", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.has_users = False
 
     @app.middleware("http")
