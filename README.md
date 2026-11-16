@@ -32,6 +32,10 @@ executable **meta-workflow** that orchestrates Upsun Dispatch:
    fit what Dispatch can do (tracker, who validates what, one PR per issue, completion signal, first run
    scope). The workflow shows "needs your answers"; the answers are passed to the designer as final
    decisions, shown with the design, and never asked again. A clear description goes straight to the design.
+   **Editing.** *Edit* (workflow list) changes the name and the description; a changed description is
+   designed again (tool check, Clarify, designer). Once the design is ready, the orchestration prompt can
+   also be edited by hand there, until the next regeneration. *Try again* on a blocked or failed design
+   shows the description so you can fix it first.
 2. **Visualization.** A swimlane diagram (one column per actor, phases as bands, GATE badges,
    Dispatch workflow type, repetitions and loops), exportable as SVG.
 3. **Launch.** *Run now* starts a run that you follow live. *Schedule Maestro* creates a scheduled

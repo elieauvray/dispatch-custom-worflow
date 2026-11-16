@@ -27,17 +27,21 @@
   </article>
 {% elif wf.design_status == 'blocked' %}
   <div class="flash error" role="alert"><strong>Maestro cannot create this workflow yet.</strong> {{ wf.design_error }}</div>
-  <div class="row-actions">
-    <a href="/settings#connectors" role="button" class="secondary">Open Settings</a>
-    <form method="post" action="/workflows/{{ wf.id }}/design/revise">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <form method="post" action="/workflows/{{ wf.id }}/design/revise">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
+    <small class="help">Edit it if needed, then try again.{% if wf.diagram_media_type %} Your diagram is sent again with the description.{% endif %}</small>
+    <div class="row-actions">
       <button type="submit">Try again</button>
-    </form>
-  </div>
+      <a href="/settings#connectors" role="button" class="secondary">Open Settings</a>
+    </div>
+  </form>
 {% elif wf.design_status == 'failed' %}
   <div class="flash error" role="alert">The design could not be generated. {{ wf.design_error }}</div>
   <form method="post" action="/workflows/{{ wf.id }}/design/revise">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
+    <small class="help">Edit it if needed, then try again.{% if wf.diagram_media_type %} Your diagram is sent again with the description.{% endif %}</small>
     <button type="submit" class="secondary">Try again</button>
   </form>
 {% endif %}

@@ -309,3 +309,77 @@ def test_tool_check_runs_before_clarification(client, fake):
     assert fake.clarify_calls == []
     with SessionLocal() as db:
         assert db.get(Workflow, wf_id).design_status == "blocked"
+
+
+NEW_DESCRIPTION = (
+    "Fix bugs one at a time: Maestro files each bug as a GitHub issue, Dispatch implements it, "
+    "the tech lead reviews and merges the PR before the next bug starts."
+)
+
+
+def test_edit_changes_the_description_and_redesigns(client, fake):
+    _setup(client)
+    wf_id = _create(client)
+    _design(wf_id)
+    page = client.get(f"/workflows/{wf_id}/edit").text
+    assert 'name="description"' in page and DESCRIPTION in page and 'name="content"' in page
+
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    r = client.post(f"/workflows/{wf_id}/edit", data={
+        "name": "Bug fixing", "description": NEW_DESCRIPTION, "content": "# Mission\nIgnored.", "csrf_token": token,
+    }, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == f"/workflows/{wf_id}/design"
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.name == "Bug fixing" and wf.description == NEW_DESCRIPTION and wf.design_status == "queued"
+        assert "Ignored." not in wf.content
+    _design(wf_id)
+    assert fake.tools_calls[-1] == NEW_DESCRIPTION and fake.design_calls[-1]["description"] == NEW_DESCRIPTION
+
+    # Prompt only: kept as edited, no redesign
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    client.post(f"/workflows/{wf_id}/edit", data={
+        "name": "Bug fixing", "description": NEW_DESCRIPTION, "content": "# Mission\nBy hand.", "csrf_token": token,
+    })
+    with SessionLocal() as db:
+        wf = db.get(Workflow, wf_id)
+        assert wf.content == "# Mission\nBy hand." and wf.design_status == "ready"
+
+    r = client.post(f"/workflows/{wf_id}/edit", data={"name": "Bug fixing", "description": "Too short.",
+                                                      "content": "x", "csrf_token": token})
+    assert r.status_code == 400 and "more detail" in r.text
+
+
+def test_edit_when_blocked_offers_the_description_only(client, fake):
+    uid = _setup(client)
+    fake.tools_response = {"connectors_needed": ["github", "linear"], "unsupported_tools": []}
+    wf_id = _create(client)
+    _design(wf_id)
+    page = client.get(f"/workflows/{wf_id}/edit").text
+    assert 'name="description"' in page and 'name="content"' not in page
+
+    _connect(uid, "linear")
+    token = csrf(client, f"/workflows/{wf_id}/edit")
+    client.post(f"/workflows/{wf_id}/edit", data={"name": "Page migration", "description": NEW_DESCRIPTION,
+                                                  "csrf_token": token})
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "queued"
+    _design(wf_id)
+    assert fake.design_calls[-1]["description"] == NEW_DESCRIPTION
+
+
+def test_try_again_takes_the_edited_description(client, fake):
+    _setup(client)
+    fake.design_error = "Claude declined to design this workflow."
+    wf_id = _create(client)
+    _design(wf_id)
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert 'name="description"' in page and DESCRIPTION in page
+
+    fake.design_error = None
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    client.post(f"/workflows/{wf_id}/design/revise", data={"description": NEW_DESCRIPTION, "csrf_token": token})
+    _design(wf_id)
+    assert fake.design_calls[-1]["description"] == NEW_DESCRIPTION
+    with SessionLocal() as db:
+        assert db.get(Workflow, wf_id).design_status == "ready"

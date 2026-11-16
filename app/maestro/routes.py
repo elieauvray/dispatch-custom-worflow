@@ -133,8 +133,12 @@ def design_revise(
     db: Session = Depends(get_db),
 ) -> Response:
     wf = _maestro(db, workflow_id, user)
-    if description.strip():
-        wf.description = description.strip()
+    description = description.strip()
+    if description and len(description) < 40 and not wf.diagram_data:
+        flash(request, "Describe the workflow in more detail (stages, who validates, tools), or add a diagram.", "error")
+        return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+    if description:
+        wf.description = description
     service.request_design(db, wf, feedback)
     flash(request, "Maestro is regenerating the design.", "info")
     return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)

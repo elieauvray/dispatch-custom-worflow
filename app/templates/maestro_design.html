@@ -17,7 +17,9 @@
 
 {% if wf.design_status != 'ready' %}
   {% include "partials/maestro_status.html" %}
+  {% if wf.design_status not in ['blocked', 'failed'] %}
   <details><summary>Your description</summary><div class="ev user md">{{ wf.description | md }}</div></details>
+  {% endif %}
   {% if wf.diagram_media_type %}
   <details{% if wf.design_status != 'ready' %} open{% endif %}><summary>Your diagram</summary>
     {% if wf.diagram_media_type.startswith('image/') %}<a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener"><img class="diagram-thumb" src="/workflows/{{ wf.id }}/diagram" alt="Workflow diagram you provided"></a>

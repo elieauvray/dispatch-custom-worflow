@@ -10,6 +10,7 @@ from app.anthropic_client import ManagedAgentsError
 from app.db import get_db
 from app.deps import csrf_protect, require_configured
 from app.maestro import service as maestro_service
+from app.maestro.diagram import DIAGRAM_ONLY_DESCRIPTION
 from app.models import RunStatus, Skill, User, Workflow, WorkflowRun
 from app.runs import service
 from app.templating import flash, render
@@ -76,12 +77,9 @@ def workflows_list(
     )
 
 
-def _validate(name: str, content: str) -> str | None:
-    if not name or len(name) > 128:
-        return "The name must be between 1 and 128 characters."
-    if not content:
-        return "Content is required."
-    return None
+def _edit_ctx(wf: Workflow, name: str, description: str, content: str, error: str | None = None) -> dict:
+    return {"workflow": wf, "name": name, "description": description, "content": content, "error": error,
+            "is_maestro": bool(wf.description), "can_edit_prompt": not wf.description or wf.design_status == "ready"}
 
 
 @router.get("/workflows/{workflow_id}/edit")
@@ -89,7 +87,7 @@ def workflow_edit(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = get_owned_workflow(db, workflow_id, user)
-    return render(request, "workflow_form.html", {"workflow": wf, "name": wf.name, "content": wf.content})
+    return render(request, "workflow_form.html", _edit_ctx(wf, wf.name, wf.description or "", wf.content))
 
 
 @router.post("/workflows/{workflow_id}/edit", dependencies=[Depends(csrf_protect)])
@@ -97,34 +95,58 @@ def workflow_update(
     request: Request,
     workflow_id: int,
     name: str = Form(...),
-    content: str = Form(...),
+    description: str | None = Form(None),
+    content: str | None = Form(None),
     user: User = Depends(require_configured),
     db: Session = Depends(get_db),
 ) -> Response:
+    """Maestro workflow: a changed description is redesigned; the prompt can be edited by hand once ready."""
     wf = get_owned_workflow(db, workflow_id, user)
-    name, content = name.strip(), content.strip()
-    error = _validate(name, content)
+    is_maestro = bool(wf.description)
+    name = name.strip()
+    if description is None or not is_maestro:
+        description = wf.description or ""
+    else:
+        description = description.strip()
+    can_edit_prompt = not is_maestro or wf.design_status == "ready"
+    content = wf.content if content is None or not can_edit_prompt else content.strip()
+    if is_maestro and not description and wf.diagram_data:
+        description = DIAGRAM_ONLY_DESCRIPTION
+    if not name or len(name) > 128:
+        error: str | None = "The name must be between 1 and 128 characters."
+    elif is_maestro and len(description) < 40 and not wf.diagram_data:
+        error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
+    elif can_edit_prompt and not content and not (is_maestro and description != wf.description):
+        error = "The orchestration prompt is required."
+    else:
+        error = None
     if not error:
-        wf.name, wf.content = name, content
+        redesign = is_maestro and description != wf.description
+        prompt_changed = not redesign and content != wf.content
+        wf.name = name
+        if redesign:
+            wf.description = description  # the new design replaces the prompt
+        else:
+            wf.content = content
         try:
             db.commit()
-            flash(request, "Workflow updated.", "success")
-            back = f"/workflows/{wf.id}/design" if wf.description else "/workflows"
-            if wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
-                from app.maestro.service import push_schedule
-
-                try:
-                    push_schedule(db, user, wf)
-                except ManagedAgentsError as exc:
-                    flash(request, f"The schedule could not be updated. {exc}", "error")
-            return RedirectResponse(back, status_code=303)
         except IntegrityError:
             db.rollback()
             error = f"You already have a workflow named {name}."
-    return render(
-        request, "workflow_form.html",
-        {"workflow": wf, "name": name, "content": content, "error": error}, status_code=400,
-    )
+    if error:
+        return render(request, "workflow_form.html", _edit_ctx(wf, name, description, content or "", error),
+                      status_code=400)
+    if redesign:
+        maestro_service.request_design(db, wf)
+        flash(request, "Description saved. Maestro is redesigning the workflow.", "info")
+    else:
+        flash(request, "Workflow updated.", "success")
+        if prompt_changed and wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
+            try:
+                maestro_service.push_schedule(db, user, wf)
+            except ManagedAgentsError as exc:
+                flash(request, f"The schedule could not be updated. {exc}", "error")
+    return RedirectResponse(f"/workflows/{wf.id}/design" if is_maestro else "/workflows", status_code=303)
 
 
 @router.post("/workflows/{workflow_id}/delete", dependencies=[Depends(csrf_protect)])
