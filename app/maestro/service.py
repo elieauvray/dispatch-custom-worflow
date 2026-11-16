@@ -316,7 +316,7 @@ def run_context(wf: Workflow, trigger: str) -> str:
         f"{markers}"
         "## Workflow status\n"
         "The run page shows whether the workflow is finished. End your final status report with exactly one "
-        "of these markers on its own line:\n"
+        "of these markers on its own line, even if the prompt above asks for another status line:\n"
         "- `[workflow: ongoing]`: something still has to happen (a Dispatch run to finish, a person to act, "
         "a step to start on a later run);\n"
         "- `[workflow: done]`: every step of the workflow is complete;\n"

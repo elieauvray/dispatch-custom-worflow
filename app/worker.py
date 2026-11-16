@@ -311,6 +311,14 @@ class Worker:
 
     def serve(self) -> None:
         log.info("Worker %s started", self.worker_id)
+        try:  # runs ended before the status parsing improved
+            with SessionLocal() as db:
+                from app.runs.progress import refresh_progress
+
+                if changed := refresh_progress(db):
+                    log.info("Workflow progress updated for %s run(s)", changed)
+        except Exception:
+            log.exception("Could not refresh workflow progress")
         while not self.stop.is_set():
             try:
                 self.tick()

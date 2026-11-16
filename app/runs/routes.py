@@ -265,7 +265,7 @@ def run_message(
     error = None
     if not text.strip():
         error = "The message is empty."
-    elif run.status in {RunStatus.CANCELLED, RunStatus.FAILED}:
+    elif run.status in {RunStatus.COMPLETED, RunStatus.CANCELLED, RunStatus.FAILED}:
         error = "This run has ended. Start a new one."
     else:
         try:

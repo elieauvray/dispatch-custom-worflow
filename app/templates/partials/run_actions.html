@@ -31,12 +31,12 @@
       <button type="submit" class="secondary outline">Cancel</button>
     </form>
   </article>
-{% elif run.status in ['waiting_input', 'completed'] %}
+{% elif run.status == 'waiting_input' %}
   <article>
-    {% if run.status == 'waiting_input' %}<p><span class="highlight">Claude is waiting for your reply.</span></p>{% endif %}
+    <p><span class="highlight">Claude is waiting for your reply.</span></p>
     <form hx-post="/runs/{{ run.id }}/message" hx-target="#run-actions" hx-swap="innerHTML">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>{{ 'Your reply' if run.status == 'waiting_input' else 'Continue the conversation' }}
+      <label>Your reply
         <textarea name="text" rows="3" required></textarea>
       </label>
       <div class="row-actions">
@@ -44,6 +44,8 @@
       </div>
     </form>
   </article>
+{% elif run.status == 'completed' %}
+  <p class="muted">Run finished.{% if run.workflow_id %} <a href="/workflows/{{ run.workflow_id }}/design">Start a new run</a> from the workflow.{% endif %}</p>
 {% elif run.status == 'cancelled' %}
   <p class="muted">Run canceled.</p>
 {% elif run.status == 'failed' %}

@@ -21,11 +21,23 @@ from sqlalchemy.orm import Session
 from app.models import RunEvent, RunStatus, WorkflowRun
 
 WORKFLOW_MARKER = re.compile(r"\[workflow:\s*(ongoing|done|blocked)\s*\]", re.IGNORECASE)
+# Orchestration prompts often ask for a status line instead ("Workflow: active", "**Workflow:** done").
+STATUS_LINE = re.compile(
+    r"^[\s>*_#-]*workflow\s*(?:status)?[*_]*\s*:[*_\s]*(ongoing|active|in progress|done|complete|completed|"
+    r"finished|blocked)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+STATUS_WORDS = {"active": "ongoing", "in progress": "ongoing", "complete": "done", "completed": "done",
+                "finished": "done"}
 
 
 def workflow_marker(text: str | None) -> str | None:
-    found = WORKFLOW_MARKER.findall(text or "")
-    return found[-1].lower() if found else None
+    """Workflow status Maestro reported in a message: its marker, else a "Workflow: ..." status line."""
+    found = WORKFLOW_MARKER.findall(text or "") or STATUS_LINE.findall(text or "")
+    if not found:
+        return None
+    word = re.sub(r"\s+", " ", found[-1].lower())
+    return STATUS_WORDS.get(word, word)
 
 
 def strip_workflow_markers(text: str | None) -> str:
@@ -87,3 +99,22 @@ def mark_continued(db: Session, run: WorkflowRun) -> None:
         )
         .values(progress="continued", continued_by_run_id=run.id)
     )
+
+
+def refresh_progress(db: Session) -> int:
+    """Recompute the progress of ended Maestro runs still shown as ongoing (or never computed)."""
+    runs = db.scalars(
+        select(WorkflowRun).where(
+            WorkflowRun.status == RunStatus.COMPLETED,
+            (WorkflowRun.progress.is_(None)) | (WorkflowRun.progress == "ongoing"),
+        )
+    ).all()
+    changed = 0
+    for run in runs:
+        if not is_maestro_run(run):
+            continue
+        progress = compute_progress(db, run)
+        if progress != run.progress:
+            run.progress, changed = progress, changed + 1
+    db.commit()
+    return changed

@@ -214,3 +214,35 @@ def test_long_step_texts_can_be_read_in_full(client, fake):
     page = client.get(f"/workflows/{wf_id}/design").text
     assert 'id="step-dialog"' in page and "Click a step to read it in full." in page
     assert long_detail.strip() in page.split('id="step-dialog"')[1]  # step data handed to the dialog
+
+
+def test_status_lines_count_as_workflow_markers():
+    from app.runs.progress import workflow_marker
+
+    assert workflow_marker("[step: S12]\nWorkflow: done\n\nThe chain is finished.") == "done"
+    assert workflow_marker("[step: S5]\n**Workflow:** active\n\nDispatch is coding.") == "ongoing"
+    assert workflow_marker("- Workflow status: blocked") == "blocked"
+    assert workflow_marker("The workflow: done soon, maybe") is None  # not a status line
+    assert workflow_marker("Workflow: active\n...\n[workflow: done]") == "done"
+
+
+def test_finished_runs_are_closed_and_old_progress_is_refreshed(client, fake):
+    from app.runs.progress import refresh_progress
+
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    run_id = _run_with(client, fake, uid, wf_id, ["[step: S2]\nWorkflow: done\n\nBoth PRs are merged."])
+    with SessionLocal() as db:
+        assert db.get(WorkflowRun, run_id).progress == "done"
+        db.get(WorkflowRun, run_id).progress = "ongoing"  # as computed before status lines were read
+        db.commit()
+        assert refresh_progress(db) == 1 and db.get(WorkflowRun, run_id).progress == "done"
+
+    page = client.get(f"/runs/{run_id}").text
+    assert "Continue the conversation" not in page and f"/runs/{run_id}/message" not in page
+    assert "Run finished." in page
+    token = csrf(client, f"/runs/{run_id}")
+    r = client.post(f"/runs/{run_id}/message", data={"text": "hi", "csrf_token": token})
+    assert "This run has ended" in r.text
