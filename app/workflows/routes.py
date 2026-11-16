@@ -26,54 +26,16 @@ def get_owned_workflow(db: Session, workflow_id: int, user: User) -> Workflow:
 # --- Prompt ------------------------------------------------------------------
 
 
-@router.get("/")
-def home() -> Response:
-    return RedirectResponse("/prompt", status_code=303)
-
-
-@router.get("/prompt")
-def prompt_page(
-    request: Request, user: User = Depends(require_configured), db: Session = Depends(get_db)
-) -> Response:
-    recent = list(
-        db.scalars(
-            select(WorkflowRun)
-            .where(WorkflowRun.user_id == user.id, WorkflowRun.workflow_id.is_(None))
-            .order_by(WorkflowRun.id.desc())
-            .limit(10)
-        )
-    )
-    return render(request, "prompt.html", {"recent": recent})
-
-
-@router.post("/prompt", dependencies=[Depends(csrf_protect)])
-def prompt_submit(
-    request: Request,
-    prompt: str = Form(...),
-    user: User = Depends(require_configured),
-    db: Session = Depends(get_db),
-) -> Response:
-    prompt = prompt.strip()
-    if not prompt:
-        flash(request, "The prompt is empty.", "error")
-        return RedirectResponse("/prompt", status_code=303)
-    try:
-        run = service.create_prompt_run(db, user, prompt)
-    except ManagedAgentsError as exc:
-        flash(request, f"Could not start the session. {exc}", "error")
-        return RedirectResponse("/prompt", status_code=303)
-    return RedirectResponse(f"/runs/{run.id}", status_code=303)
-
-
-# --- Custom Workflows --------------------------------------------------------
-
-
 @router.get("/workflows")
 def workflows_list(
     request: Request, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     workflows = list(
-        db.scalars(select(Workflow).where(Workflow.user_id == user.id).order_by(Workflow.name))
+        db.scalars(
+            select(Workflow)
+            .where(Workflow.user_id == user.id, Workflow.description.is_not(None))
+            .order_by(Workflow.name)
+        )
     )
     counts = dict(
         db.execute(
@@ -108,36 +70,6 @@ def _validate(name: str, content: str) -> str | None:
     return None
 
 
-@router.get("/workflows/new")
-def workflow_new(request: Request, user: User = Depends(require_configured)) -> Response:
-    return render(request, "workflow_form.html", {"workflow": None, "name": "", "content": ""})
-
-
-@router.post("/workflows/new", dependencies=[Depends(csrf_protect)])
-def workflow_create(
-    request: Request,
-    name: str = Form(...),
-    content: str = Form(...),
-    user: User = Depends(require_configured),
-    db: Session = Depends(get_db),
-) -> Response:
-    name, content = name.strip(), content.strip()
-    error = _validate(name, content)
-    if not error:
-        db.add(Workflow(user_id=user.id, name=name, content=content))
-        try:
-            db.commit()
-            flash(request, f"Workflow {name} created.", "success")
-            return RedirectResponse("/workflows", status_code=303)
-        except IntegrityError:
-            db.rollback()
-            error = f"You already have a workflow named {name}."
-    return render(
-        request, "workflow_form.html",
-        {"workflow": None, "name": name, "content": content, "error": error}, status_code=400,
-    )
-
-
 @router.get("/workflows/{workflow_id}/edit")
 def workflow_edit(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
@@ -163,6 +95,7 @@ def workflow_update(
         try:
             db.commit()
             flash(request, "Workflow updated.", "success")
+            back = f"/workflows/{wf.id}/design" if wf.description else "/workflows"
             if wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
                 from app.maestro.service import push_schedule
 
@@ -170,7 +103,7 @@ def workflow_update(
                     push_schedule(db, user, wf)
                 except ManagedAgentsError as exc:
                     flash(request, f"The schedule could not be updated. {exc}", "error")
-            return RedirectResponse("/workflows", status_code=303)
+            return RedirectResponse(back, status_code=303)
         except IntegrityError:
             db.rollback()
             error = f"You already have a workflow named {name}."

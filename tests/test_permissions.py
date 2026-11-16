@@ -25,12 +25,12 @@ def test_user_cannot_access_admin_pages(client):
     login(client, "bob")
     assert client.get("/admin/users").status_code == 403
     assert client.get("/admin/skills").status_code == 403
-    token = csrf(client, "/prompt")
+    token = csrf(client, "/")
     r = client.post("/admin/users", data={"login": "x", "password": "y" * 12, "csrf_token": token})
     assert r.status_code == 403
     r = client.post("/admin/skills", data={"name": "x", "content": "y", "csrf_token": token})
     assert r.status_code == 403
-    page = client.get("/prompt").text
+    page = client.get("/").text
     assert "/admin/users" not in page
 
 
@@ -86,9 +86,9 @@ def test_password_reset_invalidates_sessions(client):
 
     bob_client = TestClient(client.app, base_url="https://testserver")
     login(bob_client, "bob")
-    assert bob_client.get("/prompt", follow_redirects=False).status_code == 200
+    assert bob_client.get("/", follow_redirects=False).status_code == 200
     login(client, "admin")
     token = csrf(client, "/admin/users")
     client.post(f"/admin/users/{bob_id}/password", data={"password": "nouveau-mdp-123", "csrf_token": token})
-    assert bob_client.get("/prompt", follow_redirects=False).status_code == 303
+    assert bob_client.get("/", follow_redirects=False).status_code == 303
     assert login(bob_client, "bob", "nouveau-mdp-123").status_code == 303

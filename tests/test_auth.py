@@ -8,7 +8,7 @@ from tests.conftest import PASSWORD, csrf, login, make_user
 
 
 def test_first_run_redirects_to_setup(client):
-    r = client.get("/prompt", follow_redirects=False)
+    r = client.get("/", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/setup"
     r = client.get("/login", follow_redirects=False)
     assert r.headers["location"] == "/setup"
@@ -72,10 +72,10 @@ def test_login_rate_limit(client):
 def test_logout(client):
     make_user("alice")
     login(client, "alice")
-    assert client.get("/prompt", follow_redirects=False).status_code == 200
-    token = csrf(client, "/prompt")
+    assert client.get("/", follow_redirects=False).status_code == 200
+    token = csrf(client, "/")
     client.post("/logout", data={"csrf_token": token})
-    r = client.get("/prompt", follow_redirects=False)
+    r = client.get("/", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/login"
 
 
@@ -83,7 +83,7 @@ def test_unconfigured_user_is_blocked(client):
     make_user("admin", admin=True)
     make_user("bob", configured=False)
     login(client, "bob")
-    r = client.get("/prompt", follow_redirects=False)
+    r = client.get("/", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/settings"
     assert client.get("/workflows", follow_redirects=False).status_code == 303
     assert client.get("/settings").status_code == 200

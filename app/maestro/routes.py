@@ -44,6 +44,7 @@ def _panel_ctx(request: Request, wf: Workflow) -> dict[str, Any]:
     }
 
 
+@router.get("/")
 @router.get("/maestro/new")
 def maestro_new(request: Request, user: User = Depends(require_configured)) -> Response:
     return render(request, "maestro_new.html", {"name": "", "description": ""})

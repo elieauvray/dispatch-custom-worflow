@@ -7,7 +7,7 @@ from app.models import RunEvent, RunStatus, WorkflowRun
 from app.runs import routes as runs_routes
 from app.runs.events import apply_event, is_question
 from app.worker import RunDriver, Worker
-from tests.conftest import csrf, login, make_user
+from tests.conftest import csrf, login, make_user, start_run
 
 
 def _run(**kw) -> WorkflowRun:
@@ -65,10 +65,7 @@ def test_cancelled_is_sticky_and_errors_are_recorded():
 
 
 def _prompt_run(client, text: str) -> int:
-    token = csrf(client, "/prompt")
-    r = client.post("/prompt", data={"prompt": text, "csrf_token": token}, follow_redirects=False)
-    assert r.status_code == 303
-    return int(r.headers["location"].rsplit("/", 1)[1])
+    return start_run(client, text)
 
 
 def _drive(run_id: int) -> None:
@@ -95,7 +92,8 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
         assert run.session_id and run.initial_sent
-        assert ("send_user_message", (run.session_id, "Create a Linear ticket for the login bug")) in fake.calls
+        sent = [d for c, d in fake.calls if c == "send_user_message"]
+        assert sent[0][0] == run.session_id and "Create a Linear ticket for the login bug" in sent[0][1]
         tool_event = db.query(RunEvent).filter_by(run_id=run_id, type="agent.mcp_tool_use").one()
         sid = run.session_id
         assert run.status == RunStatus.WAITING_APPROVAL
@@ -142,15 +140,6 @@ def test_worker_full_flow_with_tool_approval_and_question(client, fake):
         assert len(ids) == len(set(ids))
         # The second user message was not resent by the worker
         assert sum(1 for c, _ in fake.calls if c == "send_user_message") == 2
-
-    # Save as a workflow
-    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Bug ticket", "csrf_token": token},
-                    follow_redirects=False)
-    assert r.headers["location"] == "/workflows"
-    page = client.get("/workflows").text
-    assert "Bug ticket" in page
-    r = client.post(f"/runs/{run_id}/save-workflow", data={"name": "Bug ticket", "csrf_token": token})
-    assert "already have a workflow" in r.text
 
 
 def test_cancel_interrupts_session(client, fake):

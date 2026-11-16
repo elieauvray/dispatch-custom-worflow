@@ -43,17 +43,6 @@
         <button type="submit">Send</button>
       </div>
     </form>
-    {% if can_save %}
-    <details>
-      <summary>Approve and save as a workflow</summary>
-      <form method="post" action="/runs/{{ run.id }}/save-workflow" class="inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="text" name="name" required maxlength="128" placeholder="Workflow name (unique)">
-        <button type="submit">Save</button>
-      </form>
-      <small class="help" style="margin-top:.4rem">The initial prompt becomes the workflow content (you can edit it later). The latest result is kept as a reference.</small>
-    </details>
-    {% endif %}
   </article>
 {% elif run.status == 'cancelled' %}
   <p class="muted">Run canceled.</p>

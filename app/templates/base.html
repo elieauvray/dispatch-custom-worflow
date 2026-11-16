@@ -27,8 +27,8 @@
       <ul class="nav-right">
       {% if current_user %}
       {% set path = request.url.path %}
-        <li><a href="/prompt" {% if path.startswith('/prompt') or path.startswith('/runs') %}aria-current="page"{% endif %}>Prompt</a></li>
-        <li><a href="/workflows" {% if path.startswith('/workflows') %}aria-current="page"{% endif %}>Custom workflows</a></li>
+        <li><a href="/" {% if path == '/' or path.startswith('/maestro') %}aria-current="page"{% endif %}>New workflow</a></li>
+        <li><a href="/workflows" {% if path.startswith('/workflows') or path.startswith('/runs') %}aria-current="page"{% endif %}>Custom workflows</a></li>
         <li><a href="/settings" {% if path.startswith('/settings') %}aria-current="page"{% endif %}>Settings</a></li>
         {% if current_user.is_admin %}
         <li><a href="/admin/users" {% if path.startswith('/admin/users') %}aria-current="page"{% endif %}>Users</a></li>
@@ -49,7 +49,7 @@
     {% if current_user and not user_configured %}
     <div class="banner warning">
       Your required settings are incomplete. Add your <a href="/settings#anthropic">Anthropic API key</a>
-      to unlock the Prompt and Custom workflows pages.
+      to describe and run workflows.
     </div>
     {% endif %}
     {% for f in flashes if not (sectioned and f.section) %}<div class="flash {{ f.category }}" role="status">{{ f.message }}</div>{% endfor %}

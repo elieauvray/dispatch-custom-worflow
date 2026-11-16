@@ -300,3 +300,26 @@ def login(client: TestClient, user: str, password: str = PASSWORD) -> Any:
         "/login", data={"login": user, "password": password, "csrf_token": token},
         follow_redirects=False,
     )
+
+
+def start_run(client: TestClient, text: str, login_name: str = "bob") -> int:
+    """Start a run of a ready Maestro workflow whose orchestration prompt is `text`; return the run id."""
+    import secrets as _secrets
+
+    from sqlalchemy import select
+
+    from app.models import Workflow
+
+    with SessionLocal() as db:
+        uid = db.scalar(select(User.id).where(User.login == login_name))
+        wf = Workflow(user_id=uid, name=f"wf-{_secrets.token_hex(3)}", content=text,
+                      description="A test workflow described in enough words to be accepted.",
+                      design_json={"summary": "", "steps": [], "config": [], "connectors_needed": []},
+                      design_status="ready")
+        db.add(wf)
+        db.commit()
+        wf_id = wf.id
+    token = csrf(client, "/workflows")
+    r = client.post(f"/workflows/{wf_id}/run", data={"csrf_token": token}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/runs/"), r.headers.get("location")
+    return int(r.headers["location"].rsplit("/", 1)[1])

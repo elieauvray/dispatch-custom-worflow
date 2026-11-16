@@ -4,7 +4,7 @@ from app.db import SessionLocal
 from app.models import Connector, ConnectorStatus, Workflow, WorkflowRun
 from app.plans.render import render_plan_svg
 from app.plans.service import normalize
-from tests.conftest import csrf, login, make_user
+from tests.conftest import csrf, login, make_user, start_run
 
 
 def _connect(user_id: int, provider: str, policy: str) -> None:
@@ -16,9 +16,7 @@ def _connect(user_id: int, provider: str, policy: str) -> None:
 
 
 def _prompt_run(client, text: str) -> int:
-    token = csrf(client, "/prompt")
-    r = client.post("/prompt", data={"prompt": text, "csrf_token": token}, follow_redirects=False)
-    return int(r.headers["location"].rsplit("/", 1)[1])
+    return start_run(client, text)
 
 
 def test_approvals_and_missing_connectors_are_computed_by_the_app():
@@ -59,7 +57,7 @@ def test_prompt_run_shows_planned_workflow_once(client, fake):
     frag = client.get(f"/runs/{run_id}/plan").text
     assert "<svg" in frag and "List my recent issues" in frag and "Your approval" in frag
     model, request_text, services = fake.plan_calls[0]
-    assert request_text == "Comment on one of my Linear issues" and services == ["linear"]
+    assert "Comment on one of my Linear issues" in request_text and services == ["linear"]
 
     client.get(f"/runs/{run_id}/plan")  # cached: no second call
     assert len(fake.plan_calls) == 1

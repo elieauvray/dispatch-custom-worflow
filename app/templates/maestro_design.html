@@ -3,7 +3,7 @@
 {% block content %}
 <nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ wf.name }}</li></ul></nav>
 <header class="connector-head" style="margin-bottom:1rem">
-  <h1 style="margin:0">{{ wf.name }} <span class="badge maestro">Maestro</span></h1>
+  <h1 style="margin:0">{{ wf.name }}</h1>
   <div class="row-actions">
     {% if wf.design_status == 'ready' and not missing %}
     <form method="post" action="/workflows/{{ wf.id }}/run">

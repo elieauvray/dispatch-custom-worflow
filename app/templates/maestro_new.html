@@ -1,8 +1,7 @@
 {% extends "base.html" %}
-{% block title %}New Maestro workflow{% endblock %}
+{% block title %}Describe your workflow{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>New Maestro workflow</li></ul></nav>
-<h1>New Maestro workflow</h1>
+<h1>Describe your workflow</h1>
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 <article>
   <form method="post" action="/maestro/new">
@@ -16,7 +15,7 @@
       <strong>Maestro</strong> (orchestration, tracker updates, checks, reports), <strong>Upsun Dispatch</strong>
       (Issue to code, Code review, CVE scan), <strong>people</strong> (validation gates) and <strong>Upsun Cloud</strong>
       (preview and acceptance environments). It also lists what Dispatch cannot do today with the alternative it chose.
-      You review everything before launching.
+      You review everything, then launch it from Custom workflows, where it is saved.
     </small>
     <button type="submit">Design the workflow</button>
   </form>

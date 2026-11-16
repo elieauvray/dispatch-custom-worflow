@@ -74,7 +74,7 @@ def setup_submit(
 @router.get("/login")
 def login_form(request: Request, db: Session = Depends(get_db)) -> Response:
     if load_user(request, db):
-        return RedirectResponse("/settings", status_code=303)
+        return RedirectResponse("/", status_code=303)
     return render(request, "login.html")
 
 
@@ -130,7 +130,7 @@ def login_submit(
     user.last_login_at = utcnow()
     db.commit()
     start_session(request, user)
-    return RedirectResponse("/settings", status_code=303)
+    return RedirectResponse("/", status_code=303)
 
 
 @router.post("/logout", dependencies=[Depends(csrf_protect)])

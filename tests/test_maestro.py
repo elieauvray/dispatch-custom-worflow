@@ -217,3 +217,19 @@ def test_runs_are_blocked_when_a_connector_is_removed_later(client, fake):
         assert db.query(WorkflowRun).filter_by(workflow_id=wf_id).count() == 0
     client.post(f"/workflows/{wf_id}/schedule", data={"cron": "0 * * * *", "csrf_token": token})
     assert fake.deployments == {}
+
+
+def test_home_is_describe_your_workflow_and_only_maestro_workflows_exist(client, fake):
+    uid = _setup(client)
+    r = login(client, "bob")
+    assert r.headers["location"] == "/"
+    home = client.get("/").text
+    assert "Describe your workflow" in home and 'action="/maestro/new"' in home
+    assert 'href="/prompt"' not in home and "New workflow" in home
+    assert client.get("/prompt").status_code == 404
+    assert client.get("/workflows/new").status_code in (404, 405)
+    with SessionLocal() as db:
+        db.add(Workflow(user_id=uid, name="Legacy saved prompt", content="x"))  # no description
+        db.commit()
+    page = client.get("/workflows").text
+    assert "Legacy saved prompt" not in page and "Describe a new workflow" in page

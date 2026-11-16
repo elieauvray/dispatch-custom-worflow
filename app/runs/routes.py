@@ -8,13 +8,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.anthropic_client import ManagedAgentsError
 from app.db import SessionLocal, get_db
 from app.deps import csrf_protect, require_configured
-from app.models import RunEvent, RunStatus, User, Workflow, WorkflowRun
+from app.models import RunEvent, RunStatus, User, WorkflowRun
 from app.runs import service
 from app.templating import flash, render, templates
 
@@ -72,15 +71,9 @@ def event_views(db: Session, run: WorkflowRun, events: list[RunEvent]) -> list[d
 
 def actions_context(db: Session, run: WorkflowRun) -> dict[str, Any]:
     pending = tool_uses(db, run, list(run.pending_event_ids or []))
-    can_save = (
-        run.workflow_id is None
-        and run.status in {RunStatus.COMPLETED, RunStatus.WAITING_INPUT}
-        and bool(service.reference_result(db, run))
-    )
     return {
         "run": run,
         "pending_tools": [pending[i] for i in run.pending_event_ids or [] if i in pending],
-        "can_save": can_save,
     }
 
 
@@ -254,33 +247,3 @@ def run_cancel(
         except ManagedAgentsError as exc:
             error = str(exc)
     return _actions_response(request, db, run, error)
-
-
-@router.post("/runs/{run_id}/save-workflow", dependencies=[Depends(csrf_protect)])
-def run_save_workflow(
-    request: Request,
-    run_id: int,
-    name: str = Form(...),
-    user: User = Depends(require_configured),
-    db: Session = Depends(get_db),
-) -> Response:
-    run = get_owned_run(db, run_id, user)
-    name = name.strip()
-    if run.workflow_id is not None or not name or len(name) > 128:
-        flash(request, "Invalid name (1 to 128 characters).", "error")
-        return RedirectResponse(f"/runs/{run.id}", status_code=303)
-    wf = Workflow(
-        user_id=user.id,
-        name=name,
-        content=run.content_snapshot,
-        reference_result=service.reference_result(db, run),
-    )
-    db.add(wf)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        flash(request, f"You already have a workflow named {name}.", "error")
-        return RedirectResponse(f"/runs/{run.id}", status_code=303)
-    flash(request, f"Workflow {name} saved.", "success")
-    return RedirectResponse("/workflows", status_code=303)

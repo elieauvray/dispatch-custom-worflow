@@ -1,8 +1,9 @@
 # Maestro: meta-workflow orchestrator for Upsun Dispatch
 
-A web application (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) that lets a team send prompts to
-Claude through **Claude Managed Agents**. Claude accesses your tools (Linear, GitHub, Jira/Confluence) through
-**remote MCP servers**. Prompts can be saved as reusable **Custom Workflows**.
+A web application (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) where a team **describes a workflow**, lets
+Maestro design it, **reviews** the result, then **runs** it on Claude Managed Agents. Maestro works with your
+tools (Linear, GitHub, Jira/Confluence) through **remote MCP servers** and hands coding work to
+**Upsun Dispatch**. There is a single kind of workflow: the Maestro workflow, saved in *Custom workflows*.
 The application is ready to deploy on **Upsun**. The interface is in American English, in line with the Upsun brand guidelines, and so is this documentation.
 
 ## Maestro at a glance
@@ -10,7 +11,7 @@ The application is ready to deploy on **Upsun**. The interface is in American En
 Maestro lets you describe a complete process (steps, approvals, loops, tools) and turns it into an
 executable **meta-workflow** that orchestrates Upsun Dispatch:
 
-1. **Description → design.** In *Custom workflows → New Maestro workflow*, you paste the description of the
+1. **Description → design.** On the home page (*New workflow*, "Describe your workflow"), you paste the description of the
    process. Maestro (Claude, Messages API, structured output, `high` effort) generates:
    - the **orchestration prompt** followed on every run (mission, config, preflight, guardrails, ledger, steps,
      ticket and comment templates, end-of-run report);
@@ -70,7 +71,7 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 | `app/auth` | First launch (`/setup`), login, logout, rate limiting of login attempts |
 | `app/settings` | API key, model, MCP connectors, OAuth (discovery, DCR, PKCE), resource synchronization |
 | `app/anthropic_client.py` | **All** the Managed Agents logic: agent, environment, vault, credentials, sessions, events |
-| `app/workflows` | Prompt page, workflow CRUD, message composition (skills, then content) |
+| `app/workflows` | Workflow list, edit, delete, run, history; message composition (skills, then content) |
 | `app/runs` | Run details, SSE stream, replies, tool approvals, cancellation, state machine |
 | `app/worker.py` | Upsun worker: drives the sessions, resumes after a restart (claim + heartbeat) |
 | `app/admin` | Users (creation, deletion, password reset) and Skills |
@@ -85,7 +86,7 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 
 ### Run lifecycle
 
-1. The web app creates a `workflow_run` with the `running` status. Free-form prompts have `workflow_id = NULL`.
+1. The web app creates a `workflow_run` with the `running` status (Run now), or the worker imports a session fired by the schedule or a GitHub wake-up.
 2. The worker claims it, creates the session (`agent`, `environment_id`, `vault_ids`), opens the stream, rereads the history (deduplication by event id), then sends the `user.message`.
 3. Each event is stored in `run_events` and updates the status:
    - `session.status_idle` + `requires_action` gives **waiting for approval**. The blocking `event_ids` are stored.
@@ -96,10 +97,10 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 
 ### Predicted plan (diagram)
 
-Each prompt and each workflow shows a **Planned workflow** diagram: the main steps that Claude
+Each run and each workflow shows a **Planned workflow** diagram: the main steps that Claude
 expects to carry out, inferred from the request alone, before any execution.
 
-- **Generation**: on first display, Dispatch sends the request (the prompt, or the active skills followed by the
+- **Generation**: on first display, Maestro sends the request (the active skills followed by the
   workflow content) and the list of connectors to Claude (Messages API, model chosen in Settings, structured
   JSON output, `low` effort). One call per plan, billed to the user's key.
 - **Interventions computed by the app**, never guessed by Claude: a call to a connector set to

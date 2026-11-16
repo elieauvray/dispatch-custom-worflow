@@ -3,12 +3,9 @@
 {% block content %}
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">Custom workflows</h1>
-  <div class="row-actions">
-    <a href="/maestro/new" role="button">New Maestro workflow</a>
-    <a href="/workflows/new" role="button" class="secondary">New simple workflow</a>
-  </div>
+  <a href="/" role="button">Describe a new workflow</a>
 </header>
-<p class="muted"><strong>Maestro workflows</strong> are designed from a description: Maestro writes the orchestration prompt, decides which steps Upsun Dispatch runs, and can run on a schedule. <strong>Simple workflows</strong> are saved prompts (from the Prompt page or created here). Every run sends the admin's active skills first.</p>
+<p class="muted">Each workflow is designed by Maestro from your description. Open one to review its design, set its config, run it now or schedule it. Every run sends the admin's active skills first.</p>
 {% if workflows %}
 <div class="overflow-auto">
 <table>
@@ -17,7 +14,7 @@
   {% for wf in workflows %}
   {% set last = last_runs.get(wf.id) %}
   <tr>
-    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a> <span class="badge maestro">Maestro</span>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
+    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
     <td class="small">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(110) }}</td>
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>
@@ -45,6 +42,6 @@
 </table>
 </div>
 {% else %}
-<article><p>No workflows yet. Run a <a href="/prompt">prompt</a>, then save it as a workflow.</p></article>
+<article><p>No workflows yet. <a href="/">Describe your first workflow</a>.</p></article>
 {% endif %}
 {% endblock %}
