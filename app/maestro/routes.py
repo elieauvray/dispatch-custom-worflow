@@ -20,24 +20,28 @@ from app.maestro.render import render_design_svg, step_info
 from app.models import User, Workflow
 from app.security import get_or_create_csrf_token
 from app.templating import flash, render, templates
-from app.workflows.routes import get_owned_workflow
+from app.workflows.routes import get_owned_workflow, get_visible_workflow
 
 router = APIRouter()
 CRON_RE = re.compile(r"^\S+ \S+ \S+ \S+ \S+$")
 
 
-def _maestro(db: Session, workflow_id: int, user: User) -> Workflow:
-    wf = get_owned_workflow(db, workflow_id, user)
+def _maestro(db: Session, workflow_id: int, user: User, *, view: bool = False) -> Workflow:
+    """Owner only, unless `view`: then a workflow shared by another user is fine too (read and run)."""
+    wf = (get_visible_workflow if view else get_owned_workflow)(db, workflow_id, user)
     if not wf.description:
         raise HTTPException(status_code=404)
     return wf
 
 
-def _panel_ctx(request: Request, wf: Workflow, db: Session | None = None) -> dict[str, Any]:
+def _panel_ctx(request: Request, wf: Workflow, db: Session | None = None, user: User | None = None) -> dict[str, Any]:
     design = wf.design_json or {}
     progress = (service.progress_view(wf, service.design_estimates(db))
                 if db is not None and wf.design_status in {"queued", "generating"} else None)
+    owner = db.get(User, wf.user_id) if db is not None else None
     return {
+        "is_owner": user is None or user.id == wf.user_id,
+        "owner_login": owner.login if owner else "",
         "progress": progress,
         "request": request,
         "csrf_token": get_or_create_csrf_token(request.session),
@@ -52,7 +56,7 @@ def _panel_ctx(request: Request, wf: Workflow, db: Session | None = None) -> dic
 @router.get("/")
 @router.get("/maestro/new")
 def maestro_new(request: Request, user: User = Depends(require_configured)) -> Response:
-    return render(request, "maestro_new.html", {"name": "", "description": ""})
+    return render(request, "maestro_new.html", {"name": "", "description": "", "shared": False})
 
 
 @router.post("/maestro/new", dependencies=[Depends(csrf_protect)])
@@ -60,6 +64,7 @@ async def maestro_create(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
+    shared: str = Form(""),
     diagram: UploadFile | None = File(None),
     user: User = Depends(require_configured),
     db: Session = Depends(get_db),
@@ -80,14 +85,16 @@ async def maestro_create(
         error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
     if not error:
         try:
-            wf = service.create_maestro_workflow(db, user, name, description or DIAGRAM_ONLY_DESCRIPTION, attached)
+            wf = service.create_maestro_workflow(db, user, name, description or DIAGRAM_ONLY_DESCRIPTION, attached,
+                                                 shared=bool(shared))
             return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
         except IntegrityError:
             db.rollback()
             error = f"You already have a workflow named {name}."
     if attached and error:
         error += " Attach the diagram again."
-    return render(request, "maestro_new.html", {"name": name, "description": description, "error": error},
+    return render(request, "maestro_new.html", {"name": name, "description": description, "error": error,
+                                                "shared": bool(shared)},
                   status_code=400)
 
 
@@ -95,7 +102,7 @@ async def maestro_create(
 def workflow_diagram(
     workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
-    wf = _maestro(db, workflow_id, user)
+    wf = _maestro(db, workflow_id, user, view=True)
     if not wf.diagram_data or not wf.diagram_media_type:
         raise HTTPException(status_code=404)
     return Response(wf.diagram_data, media_type=wf.diagram_media_type,
@@ -106,8 +113,8 @@ def workflow_diagram(
 def design_page(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
-    wf = _maestro(db, workflow_id, user)
-    ctx = _panel_ctx(request, wf, db)
+    wf = _maestro(db, workflow_id, user, view=True)
+    ctx = _panel_ctx(request, wf, db, user)
     ctx.pop("request"), ctx.pop("csrf_token")
     ctx["missing"] = service.missing_connectors(db, user, wf) if wf.design_status == "ready" else []
     ctx["steps_info"] = [step_info(st) for st in (wf.design_json or {}).get("steps") or []] if ctx["svg"] else []
@@ -119,11 +126,11 @@ def design_page(
 def design_panel(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
-    wf = _maestro(db, workflow_id, user)
+    wf = _maestro(db, workflow_id, user, view=True)
     if wf.design_status == "ready":
         # Generation finished: reload the full page (config form, schedule, prompt).
         return Response(status_code=204, headers={"HX-Redirect": f"/workflows/{wf.id}/design"})
-    return HTMLResponse(templates.get_template("partials/maestro_status.html").render(_panel_ctx(request, wf, db)))
+    return HTMLResponse(templates.get_template("partials/maestro_status.html").render(_panel_ctx(request, wf, db, user)))
 
 
 @router.post("/workflows/{workflow_id}/design/revise", dependencies=[Depends(csrf_protect)])
@@ -237,7 +244,7 @@ def schedule_toggle(
 
 @router.get("/workflows/{workflow_id}/design.svg")
 def design_svg(workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)) -> Response:
-    wf = _maestro(db, workflow_id, user)
+    wf = _maestro(db, workflow_id, user, view=True)
     if wf.design_status != "ready" or not wf.design_json:
         raise HTTPException(status_code=404)
     slug = re.sub(r"[^a-z0-9]+", "-", wf.name.lower()).strip("-") or "workflow"

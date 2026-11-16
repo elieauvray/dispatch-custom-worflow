@@ -30,6 +30,8 @@
       <p class="small muted" style="margin:0">Estimated from recent designs; a long description or a diagram takes longer. You can leave this page, the design keeps going.</p>
     </article>
   </div>
+{% elif not is_owner and wf.design_status in ['needs_answers', 'blocked', 'failed'] %}
+  <div class="flash warning" role="status">This shared workflow is not ready yet. {{ owner_login }} has to finish its design.</div>
 {% elif wf.design_status == 'needs_answers' %}
   <article class="clarify">
     <header><strong>Maestro needs a few decisions before designing this workflow.</strong>

@@ -94,6 +94,7 @@ def mark_continued(db: Session, run: WorkflowRun) -> None:
         update(WorkflowRun)
         .where(
             WorkflowRun.workflow_id == run.workflow_id,
+            WorkflowRun.user_id == run.user_id,  # a shared workflow: each user's runs follow their own items
             WorkflowRun.id != run.id,
             WorkflowRun.progress.in_(["ongoing", "blocked"]),
         )

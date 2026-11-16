@@ -1,0 +1,27 @@
+{# Private / Shared switch, used on the create and edit pages. `shared` is the current value. #}
+<div class="share-switch">
+  <span class="share-side{% if not shared %} is-on{% endif %}" data-side="private">{{ icon('lock') }}Private</span>
+  <label class="switch" title="Share this workflow with every user">
+    <input type="checkbox" name="shared" value="1" role="switch" aria-label="Shared with every user" {% if shared %}checked{% endif %}>
+    <span class="switch-track"><span class="switch-thumb"></span></span>
+  </label>
+  <span class="share-side{% if shared %} is-on{% endif %}" data-side="shared">{{ icon('users') }}Shared</span>
+</div>
+<small class="help share-help" data-private="Only you can see and run this workflow." data-shared="Every user can see this workflow and run it with their own connectors. Only you can edit, configure or schedule it.">{{ 'Every user can see this workflow and run it with their own connectors. Only you can edit, configure or schedule it.' if shared else 'Only you can see and run this workflow.' }}</small>
+<script>
+  (function () {
+    var box = document.currentScript.previousElementSibling.previousElementSibling;
+    var input = box.querySelector("input[name=shared]");
+    var help = box.nextElementSibling;
+    function sync() {
+      box.querySelectorAll(".share-side").forEach(function (el) {
+        el.classList.toggle("is-on", (el.dataset.side === "shared") === input.checked);
+      });
+      help.textContent = input.checked ? help.dataset.shared : help.dataset.private;
+    }
+    input.addEventListener("change", sync);
+    box.querySelectorAll(".share-side").forEach(function (el) {
+      el.addEventListener("click", function () { input.checked = el.dataset.side === "shared"; sync(); });
+    });
+  })();
+</script>

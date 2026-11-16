@@ -34,8 +34,9 @@ DONE_WHEN = {"pr_merged", "pr_approved", "issue_closed", "pr_opened"}
 
 
 def create_maestro_workflow(db: Session, user: User, name: str, description: str,
-                            diagram: tuple[str, bytes] | None = None) -> Workflow:
-    wf = Workflow(user_id=user.id, name=name, description=description, content="", design_status="queued")
+                            diagram: tuple[str, bytes] | None = None, shared: bool = False) -> Workflow:
+    wf = Workflow(user_id=user.id, name=name, description=description, content="", design_status="queued",
+                  shared=shared)
     if diagram:
         wf.diagram_media_type, wf.diagram_data = diagram
     db.add(wf)

@@ -7,6 +7,7 @@
   <form method="post" action="/maestro/new" enctype="multipart/form-data" id="describe-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Name <input name="name" value="{{ name }}" required maxlength="128" placeholder="e.g. Legacy page migration"></label>
+    {% include "partials/share_switch.html" %}
     {% include "partials/diagram_input.html" %}
 
     <label>Describe the workflow

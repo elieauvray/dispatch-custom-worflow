@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
@@ -192,6 +193,8 @@ class Workflow(Base):
     # Clarification questions asked before the design and the user's answers
     clarifications: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     design_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Private to its owner (default) or shared: every user can see it and run it with their own connectors.
+    shared: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Live progress of the design generation (stage, characters written) and the timings of the last one.
     design_progress: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     schedule_cron: Mapped[str | None] = mapped_column(String(64))

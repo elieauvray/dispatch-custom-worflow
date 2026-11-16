@@ -9,6 +9,8 @@
   <article>
     <label>Name <input name="name" value="{{ name }}" required maxlength="128"></label>
     <small class="help">Must be unique among your workflows.</small>
+    {% set shared = workflow.shared %}
+    {% include "partials/share_switch.html" %}
 
     {% if is_maestro %}
     {% set current = workflow if workflow.diagram_media_type else None %}

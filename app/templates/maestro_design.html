@@ -3,7 +3,7 @@
 {% block content %}
 <nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ wf.name }}</li></ul></nav>
 <header class="connector-head" style="margin-bottom:1rem">
-  <h1 style="margin:0">{{ wf.name }}</h1>
+  <h1 style="margin:0">{{ wf.name }} <span class="badge {{ 'shared' if wf.shared else 'private' }}">{{ icon('users' if wf.shared else 'lock') }}{{ 'Shared' if wf.shared else 'Private' }}</span></h1>
   <div class="row-actions">
     {% if wf.design_status == 'ready' and not missing %}
     <form method="post" action="/workflows/{{ wf.id }}/run">
@@ -11,7 +11,7 @@
       <button type="submit">{{ icon('run') }}Run now</button>
     </form>
     {% endif %}
-    <a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">{{ icon('edit') }}Edit</a>
+    {% if is_owner %}<a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">{{ icon('edit') }}Edit</a>{% endif %}
     <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">{{ icon('runs') }}Runs</a>
   </div>
 </header>
@@ -35,10 +35,10 @@
   <div class="flash warning" role="status">
     <strong>The system instructions changed since this design was generated.</strong>
     Runs already apply the new instructions, but the diagram and the orchestration prompt may not match them.
-    <form method="post" action="/workflows/{{ wf.id }}/design/revise" style="display:inline;margin:0">
+    {% if is_owner %}<form method="post" action="/workflows/{{ wf.id }}/design/revise" style="display:inline;margin:0">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="linklike">{{ icon('refresh') }}Regenerate the design</button>
-    </form>
+    </form>{% endif %}
   </div>
   {% endif %}
   {% if design.summary %}<p>{{ design.summary }}</p>{% endif %}
@@ -103,7 +103,10 @@
 
   <section id="config">
     <h2 class="section-title">Config</h2>
-    {% if design.config %}
+    {% if design.config and not is_owner %}
+    <table><tbody>{% for c in design.config %}<tr><th>{{ c.key }}</th><td>{{ c.value or '—' }}</td><td class="small muted">{{ c.description }}</td></tr>{% endfor %}</tbody></table>
+    <small class="help">Set by {{ owner_login }}, who shared this workflow.</small>
+    {% elif design.config %}
     <article>
       <form method="post" action="/workflows/{{ wf.id }}/design/config">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -117,6 +120,7 @@
     {% else %}<p class="muted">No config needed.</p>{% endif %}
   </section>
 
+  {% if is_owner %}
   <section id="schedule">
     <h2 class="section-title">Launch</h2>
     <article>
@@ -144,6 +148,12 @@
       {% endif %}
     </article>
   </section>
+  {% else %}
+  <section id="schedule">
+    <h2 class="section-title">Launch</h2>
+    <p class="small">Shared by <strong>{{ owner_login }}</strong>. <strong>Run now</strong> starts a run with your own connectors, so Upsun Dispatch sees your account. Only {{ owner_login }} can change this workflow or schedule it.</p>
+  </section>
+  {% endif %}
 
 {% endif %}
 {% if steps_info %}

@@ -20,8 +20,17 @@ router = APIRouter()
 
 
 def get_owned_workflow(db: Session, workflow_id: int, user: User) -> Workflow:
+    """A workflow its owner can change (edit, delete, config, schedule)."""
     wf = db.get(Workflow, workflow_id)
     if wf is None or wf.user_id != user.id:
+        raise HTTPException(status_code=404)
+    return wf
+
+
+def get_visible_workflow(db: Session, workflow_id: int, user: User) -> Workflow:
+    """A workflow the user can see and run: their own, or one another user shared."""
+    wf = db.get(Workflow, workflow_id)
+    if wf is None or (wf.user_id != user.id and not wf.shared):
         raise HTTPException(status_code=404)
     return wf
 
@@ -47,10 +56,11 @@ def workflows_list(
     workflows = list(
         db.scalars(
             select(Workflow)
-            .where(Workflow.user_id == user.id, Workflow.description.is_not(None))
+            .where((Workflow.user_id == user.id) | Workflow.shared.is_(True), Workflow.description.is_not(None))
             .order_by(Workflow.name)
         )
     )
+    owners = {u.id: u.login for u in db.scalars(select(User).where(User.id.in_({w.user_id for w in workflows})))}
     counts = dict(
         db.execute(
             select(WorkflowRun.workflow_id, func.count(WorkflowRun.id))
@@ -73,7 +83,7 @@ def workflows_list(
     return render(
         request,
         "workflows.html",
-        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting,
+        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting, "owners": owners,
          "outdated": {wf.id for wf in workflows if maestro_service.instructions_changed(wf, instr_hash)}},
     )
 
@@ -101,6 +111,7 @@ async def workflow_update(
     content: str | None = Form(None),
     feedback: str = Form(""),
     remove_diagram: str = Form(""),
+    shared: str = Form(""),
     diagram: UploadFile | None = File(None),
     user: User = Depends(require_configured),
     db: Session = Depends(get_db),
@@ -143,6 +154,7 @@ async def workflow_update(
     if not error:
         prompt_changed = not redesign and content != wf.content
         wf.name = name
+        wf.shared = bool(shared)
         if redesign:
             wf.description = description  # the new design replaces the prompt
             if new_diagram:
@@ -198,7 +210,7 @@ def workflow_delete(
 def workflow_run(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
-    wf = get_owned_workflow(db, workflow_id, user)
+    wf = get_visible_workflow(db, workflow_id, user)
     if wf.description:  # Maestro workflow: it can only run with the connectors it was designed for
         from app.maestro.service import missing_connectors
 
@@ -219,10 +231,11 @@ def workflow_run(
 def workflow_history(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
-    wf = get_owned_workflow(db, workflow_id, user)
+    wf = get_visible_workflow(db, workflow_id, user)
     runs = list(
         db.scalars(
-            select(WorkflowRun).where(WorkflowRun.workflow_id == wf.id).order_by(WorkflowRun.id.desc())
+            select(WorkflowRun).where(WorkflowRun.workflow_id == wf.id, WorkflowRun.user_id == user.id)
+            .order_by(WorkflowRun.id.desc())
         )
     )
     return render(request, "workflow_history.html", {"workflow": wf, "runs": runs})
