@@ -45,6 +45,9 @@ class FakeManagedAgents:
     stream_script: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     counter: int = 0
     bad_key: bool = False
+    plan_calls: list[tuple[str, str, list[str]]] = field(default_factory=list)
+    plan_error: str | None = None
+    plan_response: dict[str, Any] | None = None
 
     def _id(self, prefix: str) -> str:
         self.counter += 1
@@ -135,6 +138,22 @@ class FakeManagedAgents:
 
     def session_status(self, session_id: str) -> str:
         return "idle"
+
+    def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]:
+        self.plan_calls.append((model, request_text, services))
+        if self.plan_error:
+            raise anthropic_client.ManagedAgentsError(self.plan_error)
+        return self.plan_response or {
+            "summary": "Review recent Linear issues and comment on one.",
+            "steps": [
+                {"title": "List my recent issues", "detail": "5 most recently updated",
+                 "kind": "read", "service": "linear"},
+                {"title": "Ask which issue", "detail": "", "kind": "question", "service": "none"},
+                {"title": "Add the comment", "detail": "Reviewed via Dispatch",
+                 "kind": "action", "service": "linear"},
+                {"title": "Summarize", "detail": "", "kind": "result", "service": "none"},
+            ],
+        }
 
 
 @pytest.fixture(autouse=True)

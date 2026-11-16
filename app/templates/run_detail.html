@@ -36,6 +36,9 @@
   </details>
   {% endif %}
 
+  {% with plan_base = "/runs/%d/plan" % run.id %}{% include "partials/plan_section.html" %}{% endwith %}
+
+  <h2 class="small muted" style="margin:1.2rem 0 .6rem">Transcript</h2>
   <div id="transcript" class="transcript" sse-swap="transcript" hx-swap="beforeend">
     {% for ev in events %}{% include "partials/event.html" %}{% endfor %}
   </div>

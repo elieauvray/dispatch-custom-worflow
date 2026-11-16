@@ -54,6 +54,22 @@ Navigateur ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL �
 4. Le navigateur suit en direct via `/runs/{id}/stream` (SSE). Le flux lit la base par polling court (1 s), après un premier affichage des événements déjà stockés.
 5. Les réponses (`user.message`) et les validations (`user.tool_confirmation` allow/deny + `deny_message`) partent du web directement vers l'API. L'exécution repasse alors au worker.
 
+### Plan prévu (diagramme)
+
+Chaque prompt et chaque workflow affiche un diagramme **Planned workflow** : les grandes étapes que Claude
+prévoit d'exécuter, déduites de la demande seule, avant toute exécution.
+
+- **Génération** : au premier affichage, Dispatch envoie la demande (le prompt, ou les skills actifs suivis du
+  contenu du workflow) et la liste des connecteurs à Claude (API Messages, modèle choisi dans Settings, sortie
+  JSON structurée, effort `low`). Un appel par plan, facturé sur la clé de l'utilisateur.
+- **Interventions calculées par l'app**, jamais devinées par Claude : un appel à un connecteur réglé sur
+  « Always ask » affiche « Your approval », une question affiche « Your reply », et un service non connecté
+  affiche « Connector missing ».
+- **Cache** : le plan d'une exécution est figé. Celui d'un workflow est recalculé quand son contenu, les skills
+  actifs, les connecteurs ou le modèle changent. Une exécution lancée depuis un workflow réutilise son plan.
+- **Export** : bouton « Download SVG » ; le fichier garde les couleurs Upsun hors de l'application.
+- Le plan est une prévision : la transcription montre ce qui s'est réellement passé.
+
 ### Message envoyé pour un workflow
 
 ```xml

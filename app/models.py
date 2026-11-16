@@ -171,6 +171,12 @@ class Workflow(Base):
     name: Mapped[str] = mapped_column(String(128))
     content: Mapped[str] = mapped_column(Text)
     reference_result: Mapped[str | None] = mapped_column(Text)
+    # Plan prévu (diagramme) généré par Claude à partir de la demande
+    plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    plan_hash: Mapped[str | None] = mapped_column(String(64))
+    plan_status: Mapped[str | None] = mapped_column(String(16))  # generating | ready | failed
+    plan_error: Mapped[str | None] = mapped_column(Text)
+    plan_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -207,6 +213,12 @@ class WorkflowRun(Base):
     # Réservation par le worker (reprise après redémarrage)
     claimed_by: Mapped[str | None] = mapped_column(String(64))
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Plan prévu (diagramme) généré par Claude à partir de la demande
+    plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    plan_hash: Mapped[str | None] = mapped_column(String(64))
+    plan_status: Mapped[str | None] = mapped_column(String(16))  # generating | ready | failed
+    plan_error: Mapped[str | None] = mapped_column(Text)
+    plan_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     workflow: Mapped[Workflow | None] = relationship(back_populates="runs")
     user: Mapped[User] = relationship()

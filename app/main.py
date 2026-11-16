@@ -15,6 +15,7 @@ from app.config import get_settings, missing_secrets
 from app.db import SessionLocal
 from app.deps import RedirectError
 from app.models import User
+from app.plans.routes import router as plans_router
 from app.runs.routes import router as runs_router
 from app.settings.routes import router as settings_router
 from app.templating import render
@@ -133,7 +134,8 @@ def create_app() -> FastAPI:
         "/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static"
     )
     for router in (
-        auth_router, settings_router, workflows_router, runs_router, admin_router, webhooks_router,
+        auth_router, settings_router, workflows_router, runs_router, plans_router, admin_router,
+        webhooks_router,
     ):
         app.include_router(router)
 

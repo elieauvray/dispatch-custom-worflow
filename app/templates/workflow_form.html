@@ -16,6 +16,7 @@
     </div>
   </form>
 </article>
+{% if workflow %}{% with plan_base = "/workflows/%d/plan" % workflow.id %}{% include "partials/plan_section.html" %}{% endwith %}{% endif %}
 {% if workflow and workflow.reference_result %}
 <details>
   <summary>Reference result (saved {{ workflow.created_at | dt }} by {{ workflow.user.login }})</summary>

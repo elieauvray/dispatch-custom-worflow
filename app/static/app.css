@@ -186,3 +186,12 @@ textarea.big { min-height: 14rem; font-family: var(--pico-font-family); }
 :root:not([data-theme]) .theme-toggle .icon-auto,
 :root[data-theme="light"] .theme-toggle .icon-light,
 :root[data-theme="dark"] .theme-toggle .icon-dark { display: block; }
+
+/* Planned workflow diagram */
+.plan-section { margin: 1rem 0; }
+.plan-section > summary { font-size: 1rem; }
+.plan-panel { padding: .8rem 0 0; }
+.plan-svg { max-width: 680px; }
+.plan-svg svg { display: block; width: 100%; height: auto; }
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
