@@ -1,0 +1,13 @@
+<div id="maestro-status">
+{% if wf.design_status in ['queued', 'generating'] %}
+  <div hx-get="/workflows/{{ wf.id }}/design/panel" hx-trigger="every 3s" hx-target="#maestro-status" hx-swap="outerHTML">
+    <article><p aria-busy="true">Maestro is designing the workflow. This can take a few minutes for a detailed description.</p></article>
+  </div>
+{% elif wf.design_status == 'failed' %}
+  <div class="flash error" role="alert">The design could not be generated. {{ wf.design_error }}</div>
+  <form method="post" action="/workflows/{{ wf.id }}/design/revise">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="secondary">Try again</button>
+  </form>
+{% endif %}
+</div>

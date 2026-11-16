@@ -22,8 +22,8 @@ log = logging.getLogger(__name__)
 
 DISPATCH_MENTION = os.environ.get("DISPATCH_MENTION", "@upsun-dispatch")
 
-SYSTEM_PROMPT = f"""You are the workflow assistant of a product and engineering team. You run custom workflows
-and can hand coding work to Upsun Dispatch. Through MCP servers you can use the user's tools (Linear, GitHub,
+SYSTEM_PROMPT = f"""You are Maestro, the workflow orchestrator of a product and engineering team. You run custom
+workflows and hand coding work to Upsun Dispatch. Through MCP servers you can use the user's tools (Linear, GitHub,
 Jira and Confluence, depending on their setup). The user follows your work and answers you in a web app.
 
 Rules:
@@ -175,7 +175,7 @@ def build_agent_config(model: str, connectors: list[ConnectorSpec], login: str) 
             }
         )
     return {
-        "name": f"Custom workflows · {login}",
+        "name": f"Maestro · {login}",
         "model": model,
         "system": SYSTEM_PROMPT,
         "mcp_servers": mcp_servers,
@@ -257,6 +257,16 @@ class ManagedAgentsAPI(Protocol):
     def open_stream(self, session_id: str) -> Any: ...
     def session_status(self, session_id: str) -> str: ...
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]: ...
+    def design_workflow(self, model: str, description: str, services: list[str],
+                        previous: dict[str, Any] | None, feedback: str | None) -> dict[str, Any]: ...
+    def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
+                          message: str, cron: str, timezone: str, budget_cents: int | None) -> str: ...
+    def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
+                          budget_cents: int | None) -> None: ...
+    def set_deployment_paused(self, deployment_id: str, paused: bool) -> None: ...
+    def run_deployment(self, deployment_id: str) -> None: ...
+    def archive_deployment(self, deployment_id: str) -> None: ...
+    def list_deployment_runs(self, deployment_id: str) -> list[dict[str, Any]]: ...
 
 
 class ManagedAgentsClient:
@@ -325,7 +335,7 @@ class ManagedAgentsClient:
                 if st.vault_id:
                     result.vault_recreated = True
                 vault = beta.vaults.create(
-                    display_name=f"Custom workflows · {login}",
+                    display_name=f"Maestro · {login}",
                     metadata={"app": "dispatch", "user": login},
                 )
                 st.vault_id = vault.id
@@ -453,6 +463,102 @@ class ManagedAgentsClient:
         if not isinstance(plan, dict) or not plan.get("steps"):
             raise ManagedAgentsError("Claude returned an empty plan.")
         return plan
+
+    # -- Maestro designer --------------------------------------------------------
+    def design_workflow(self, model: str, description: str, services: list[str],
+                        previous: dict[str, Any] | None, feedback: str | None) -> dict[str, Any]:
+        """Turn a process description into a Maestro design (structured JSON, streamed: long output)."""
+        from app.maestro.knowledge import DESIGN_SCHEMA, DESIGNER_SYSTEM, DISPATCH_KNOWLEDGE
+
+        listed = ", ".join(services) if services else "none yet (the user can add connectors later)"
+        parts = [f"Connectors the user has configured: {listed}.",
+                 f"<process_description>\n{description}\n</process_description>"]
+        if previous and feedback:
+            parts.append("<previous_design>\n" + json.dumps(previous, ensure_ascii=False) + "\n</previous_design>")
+            parts.append(f"<revision_request>\n{feedback}\n</revision_request>\nRevise the design accordingly.")
+        params: dict[str, Any] = {
+            "model": model,
+            "max_tokens": 64000,
+            "system": [
+                {"type": "text", "text": DESIGNER_SYSTEM},
+                {"type": "text", "text": DISPATCH_KNOWLEDGE, "cache_control": {"type": "ephemeral"}},
+            ],
+            "messages": [{"role": "user", "content": "\n\n".join(parts)}],
+            "output_config": {"effort": "high", "format": {"type": "json_schema", "schema": DESIGN_SCHEMA}},
+        }
+        if model in _FALLBACK_MODELS:
+            params["betas"] = ["server-side-fallback-2026-07-01"]
+            params["fallbacks"] = "default"
+        with self._wrap():
+            with self._client.beta.messages.stream(**params) as stream:
+                response = stream.get_final_message()
+        if response.stop_reason == "refusal":
+            raise ManagedAgentsError("Claude declined to design this workflow.")
+        if response.stop_reason == "max_tokens":
+            raise ManagedAgentsError("The design was too long to generate. Shorten the description.")
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        try:
+            design = json.loads(text)
+        except ValueError as exc:
+            raise ManagedAgentsError("Claude returned an unreadable design.") from exc
+        if not design.get("steps") or not design.get("orchestration_prompt"):
+            raise ManagedAgentsError("Claude returned an incomplete design.")
+        return design
+
+    # -- scheduled Maestro runs (Managed Agents deployments) -----------------------
+    @staticmethod
+    def _deployment_fields(message: str, cron: str, timezone: str, budget_cents: int | None) -> dict[str, Any]:
+        fields: dict[str, Any] = {
+            "initial_events": [{"type": "user.message", "content": [{"type": "text", "text": message}]}],
+            "schedule": {"type": "cron", "expression": cron, "timezone": timezone},
+        }
+        fields["budget"] = (
+            {"type": "limit", "max_list_cost": {"amount": str(budget_cents), "currency": "USD"}}
+            if budget_cents else None
+        )
+        return fields
+
+    def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
+                          message: str, cron: str, timezone: str, budget_cents: int | None) -> str:
+        fields = self._deployment_fields(message, cron, timezone, budget_cents)
+        if fields["budget"] is None:
+            del fields["budget"]
+        with self._wrap():
+            dep = self._client.beta.deployments.create(
+                name=name[:200], agent=agent_id, environment_id=environment_id, vault_ids=vault_ids,
+                **fields,
+            )
+        return dep.id
+
+    def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
+                          budget_cents: int | None) -> None:
+        with self._wrap():
+            self._client.beta.deployments.update(
+                deployment_id, **self._deployment_fields(message, cron, timezone, budget_cents)
+            )
+
+    def set_deployment_paused(self, deployment_id: str, paused: bool) -> None:
+        with self._wrap():
+            if paused:
+                self._client.beta.deployments.pause(deployment_id)
+            else:
+                self._client.beta.deployments.unpause(deployment_id)
+
+    def run_deployment(self, deployment_id: str) -> None:
+        with self._wrap():
+            self._client.beta.deployments.run(deployment_id)
+
+    def archive_deployment(self, deployment_id: str) -> None:
+        with self._wrap():
+            try:
+                self._client.beta.deployments.archive(deployment_id)
+            except anthropic.NotFoundError:
+                pass
+
+    def list_deployment_runs(self, deployment_id: str) -> list[dict[str, Any]]:
+        with self._wrap():
+            page = self._client.beta.deployment_runs.list(deployment_id=deployment_id, limit=50)
+            return [event_to_dict(r) for r in page.data]
 
     # -- sessions ------------------------------------------------------------
     def create_session(

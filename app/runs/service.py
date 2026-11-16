@@ -37,15 +37,22 @@ def create_prompt_run(db: Session, user: User, prompt: str) -> WorkflowRun:
 
 def create_workflow_run(db: Session, user: User, workflow: Workflow) -> WorkflowRun:
     ensure_ready(db, user)
-    skills = snapshot_skills(db.scalars(select(Skill)))
+    if workflow.description:  # Maestro workflow: orchestration prompt + config + run context
+        from app.maestro.service import maestro_message
+
+        skills, message = maestro_message(db, workflow, "manual")
+    else:
+        skills = snapshot_skills(db.scalars(select(Skill)))
+        message = compose_workflow_message(skills, workflow.name, workflow.content)
     run = WorkflowRun(
         user_id=user.id,
         workflow_id=workflow.id,
         status=RunStatus.RUNNING,
+        trigger="manual",
         content_snapshot=workflow.content,
         workflow_name_snapshot=workflow.name,
         skills_snapshot=skills,
-        initial_message=compose_workflow_message(skills, workflow.name, workflow.content),
+        initial_message=message,
         pending_event_ids=[],
     )
     db.add(run)

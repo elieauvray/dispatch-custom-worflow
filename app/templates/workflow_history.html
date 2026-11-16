@@ -2,6 +2,7 @@
 {% block title %}History: {{ workflow.name }}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ workflow.name }}</li></ul></nav>
+{% if workflow.description %}<p><a href="/workflows/{{ workflow.id }}/design">Open the Maestro design</a></p>{% endif %}
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">History: {{ workflow.name }}</h1>
   <form method="post" action="/workflows/{{ workflow.id }}/run" style="margin:0">
@@ -14,12 +15,13 @@
 <h2 style="font-size:1.1rem">Runs</h2>
 {% if runs %}
 <table>
-  <thead><tr><th>#</th><th>Date</th><th>User</th><th>Duration</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Date</th><th>Trigger</th><th>User</th><th>Duration</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for r in runs %}
   <tr>
     <td>{{ r.id }}</td>
     <td>{{ r.started_at | dt }}</td>
+    <td class="small">{{ r.trigger }}</td>
     <td>{{ r.user.login }}</td>
     <td>{{ r.duration_seconds | duration }}</td>
     <td><span class="badge {{ r.status }}">{{ r.status_label }}</span></td>

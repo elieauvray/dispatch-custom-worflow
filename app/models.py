@@ -171,6 +171,18 @@ class Workflow(Base):
     name: Mapped[str] = mapped_column(String(128))
     content: Mapped[str] = mapped_column(Text)
     reference_result: Mapped[str | None] = mapped_column(Text)
+    # Maestro: the user's description, the generated design (steps per actor) and the schedule
+    description: Mapped[str | None] = mapped_column(Text)
+    design_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    design_status: Mapped[str | None] = mapped_column(String(16))  # generating | ready | failed
+    design_error: Mapped[str | None] = mapped_column(Text)
+    design_feedback: Mapped[str | None] = mapped_column(Text)
+    design_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    schedule_cron: Mapped[str | None] = mapped_column(String(64))
+    schedule_timezone: Mapped[str] = mapped_column(String(64), default="Europe/Paris")
+    budget_cents: Mapped[int | None] = mapped_column(Integer)
+    deployment_id: Mapped[str | None] = mapped_column(String(128))
+    deployment_status: Mapped[str | None] = mapped_column(String(16))  # active | paused
     # Plan prévu (diagramme) généré par Claude à partir de la demande
     plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     plan_hash: Mapped[str | None] = mapped_column(String(64))
@@ -213,6 +225,8 @@ class WorkflowRun(Base):
     # Réservation par le worker (reprise après redémarrage)
     claimed_by: Mapped[str | None] = mapped_column(String(64))
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual | schedule
+    deployment_run_id: Mapped[str | None] = mapped_column(String(128), index=True, unique=True)
     # Plan prévu (diagramme) généré par Claude à partir de la demande
     plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     plan_hash: Mapped[str | None] = mapped_column(String(64))

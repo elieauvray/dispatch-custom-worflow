@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.anthropic_client import ManagedAgentsAPI, ManagedAgentsError
 from app.db import SessionLocal
-from app.models import RunEvent, RunStatus, User, WorkflowRun, utcnow
+from app.models import RunEvent, RunStatus, User, Workflow, WorkflowRun, utcnow
 from app.runs.events import apply_event, last_agent_text, store_event
 from app.settings.service import client_for, resources_ready, sync_user_resources
 
@@ -99,7 +99,7 @@ class RunDriver:
                         settings.agent_version,
                         settings.environment_id or "",
                         [settings.vault_id or ""],
-                        f"Custom workflow · {title}",
+                        f"Maestro · {title}",
                     )
                     db.commit()
                     log.info("Run %s: session %s created", run.id, run.session_id)
@@ -192,6 +192,21 @@ class RunDriver:
         return False
 
 
+SCHEDULE_SYNC_SECONDS = 60.0
+
+
+def _design_job(wf_id: int) -> None:
+    from app.maestro.service import generate_design
+
+    db = SessionLocal()
+    try:
+        generate_design(db, wf_id)
+    except Exception:
+        log.exception("Workflow %s: design generation crashed", wf_id)
+    finally:
+        db.close()
+
+
 class Worker:
     def __init__(self) -> None:
         self.worker_id = f"{socket.gethostname()}-{os.getpid()}"
@@ -256,9 +271,30 @@ class Worker:
             for rid in done:
                 del self.threads[rid]
 
+    def maestro_jobs(self, db: Session) -> None:
+        """Generate queued Maestro designs and import runs fired by schedules."""
+        from app.maestro import service as maestro
+
+        self.design_threads = {k: t for k, t in getattr(self, "design_threads", {}).items() if t.is_alive()}
+        for wf_id in maestro.claim_design_jobs(db):
+            t = threading.Thread(target=_design_job, args=(wf_id,), name=f"design-{wf_id}", daemon=True)
+            self.design_threads[wf_id] = t
+            t.start()
+            log.info("Workflow %s: design generation started", wf_id)
+        if time.monotonic() - getattr(self, "_last_schedule_sync", 0.0) >= SCHEDULE_SYNC_SECONDS:
+            self._last_schedule_sync = time.monotonic()
+            for wf in db.scalars(select(Workflow).where(Workflow.deployment_id.is_not(None))):
+                try:
+                    if maestro.import_scheduled_runs(db, wf):
+                        log.info("Workflow %s: scheduled run(s) imported", wf.id)
+                except Exception:
+                    db.rollback()
+                    log.exception("Workflow %s: could not import scheduled runs", wf.id)
+
     def tick(self) -> None:
         db = SessionLocal()
         try:
+            self.maestro_jobs(db)
             self.reap(db)
             for run_id in self.claim(db):
                 t = threading.Thread(

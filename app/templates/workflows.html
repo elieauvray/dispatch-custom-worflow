@@ -3,22 +3,12 @@
 {% block content %}
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">Custom workflows</h1>
-  <a href="/workflows/new" role="button" class="secondary">New workflow</a>
-</header>
-<p class="muted">Save a prompt from the Prompt page (<strong>Approve and save as a workflow</strong>) or create one here. Every run sends the admin's active skills before the workflow content.</p>
-<section class="templates">
-  <h2 style="font-size:1.05rem;margin-bottom:.5rem">Start from a template</h2>
-  <div class="grid-3">
-  {% for key, t in templates.items() %}
-    <article class="template-card">
-      <strong>{{ t.name }}</strong>
-      <p class="small muted" style="margin:.3rem 0 .6rem">{{ t.description }}</p>
-      <a href="/workflows/new?template={{ key }}" role="button" class="secondary">Use this template</a>
-    </article>
-  {% endfor %}
+  <div class="row-actions">
+    <a href="/maestro/new" role="button">New Maestro workflow</a>
+    <a href="/workflows/new" role="button" class="secondary">New simple workflow</a>
   </div>
-</section>
-
+</header>
+<p class="muted"><strong>Maestro workflows</strong> are designed from a description: Maestro writes the orchestration prompt, decides which steps Upsun Dispatch runs, and can run on a schedule. <strong>Simple workflows</strong> are saved prompts (from the Prompt page or created here). Every run sends the admin's active skills first.</p>
 {% if workflows %}
 <div class="overflow-auto">
 <table>
@@ -27,8 +17,8 @@
   {% for wf in workflows %}
   {% set last = last_runs.get(wf.id) %}
   <tr>
-    <td><strong>{{ wf.name }}</strong></td>
-    <td class="small">{{ wf.content | excerpt(110) }}</td>
+    <td>{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a> <span class="badge maestro">Maestro</span>{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
+    <td class="small">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(110) }}</td>
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>
     <td>

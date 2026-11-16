@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ wf.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ wf.name }}</li></ul></nav>
+<header class="connector-head" style="margin-bottom:1rem">
+  <h1 style="margin:0">{{ wf.name }} <span class="badge maestro">Maestro</span></h1>
+  <div class="row-actions">
+    {% if wf.design_status == 'ready' %}
+    <form method="post" action="/workflows/{{ wf.id }}/run">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Run now</button>
+    </form>
+    {% endif %}
+    <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">Runs</a>
+  </div>
+</header>
+
+{% if wf.design_status != 'ready' %}
+  {% include "partials/maestro_status.html" %}
+  <details><summary>Your description</summary><div class="ev user md">{{ wf.description | md }}</div></details>
+{% else %}
+  {% if design.summary %}<p>{{ design.summary }}</p>{% endif %}
+  <p class="small muted">
+    {{ counts.maestro }} Maestro · {{ counts.dispatch }} Upsun Dispatch · {{ counts.human }} human gate(s){% if counts.upsun %} · {{ counts.upsun }} Upsun Cloud{% endif %}{% if counts.external %} · {{ counts.external }} other{% endif %}
+  </p>
+
+  <section>
+    <div class="maestro-svg">{{ svg }}</div>
+    <div class="row-actions" style="margin-top:.6rem">
+      <a href="/workflows/{{ wf.id }}/design.svg" role="button" class="secondary" download>Download SVG</a>
+    </div>
+  </section>
+
+  {% if design.not_possible %}
+  <section>
+    <h2 class="section-title">Not possible with Dispatch today</h2>
+    <table>
+      <thead><tr><th>Need</th><th>Alternative chosen</th></tr></thead>
+      <tbody>{% for n in design.not_possible %}<tr><td>{{ n.need }}</td><td>{{ n.alternative }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <div class="grid-2">
+    {% if design.assumptions %}
+    <section>
+      <h2 class="section-title">Assumptions</h2>
+      <ul>{% for a in design.assumptions %}<li>{{ a }}</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+    {% if design.tools %}
+    <section>
+      <h2 class="section-title">Tools and access needed</h2>
+      <ul>{% for t in design.tools %}<li>{{ t }}</li>{% endfor %}</ul>
+      <small class="help">Connectors are set in <a href="/settings#connectors">Settings</a>. Maestro posts in trackers with your credentials, so Dispatch sees your account, not a bot.</small>
+    </section>
+    {% endif %}
+  </div>
+
+  <section id="config">
+    <h2 class="section-title">Config</h2>
+    {% if design.config %}
+    <article>
+      <form method="post" action="/workflows/{{ wf.id }}/design/config">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for c in design.config %}
+        <label>{{ c.key }} <input name="cfg:{{ c.key }}" value="{{ c.value }}" placeholder="{{ c.description }}"></label>
+        <small class="help">{{ c.description }}</small>
+        {% endfor %}
+        <button type="submit">Save config</button>
+      </form>
+    </article>
+    {% else %}<p class="muted">No config needed.</p>{% endif %}
+  </section>
+
+  <section id="schedule">
+    <h2 class="section-title">Launch</h2>
+    <article>
+      <p class="small">
+        <strong>Run now</strong> starts one Maestro run, followed live like any run.
+        A <strong>schedule</strong> starts a fresh run at each tick (Claude Managed Agents deployment): each run reads the ledgers in the trackers, advances every item, stops at the gates.
+        {% if design.schedule and design.schedule.reason %}<br>Suggested: <code>{{ design.schedule.cron }}</code>. {{ design.schedule.reason }}{% endif %}
+      </p>
+      <form method="post" action="/workflows/{{ wf.id }}/schedule" class="grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Cron <input name="cron" value="{{ wf.schedule_cron or '0 * * * *' }}" required></label>
+        <label>Timezone <input name="timezone" value="{{ wf.schedule_timezone }}"></label>
+        <label>Budget per run (USD) <input name="budget" value="{{ '%.2f' % (wf.budget_cents / 100) if wf.budget_cents else '' }}" placeholder="optional"></label>
+        <button type="submit" style="align-self:end">{{ 'Update schedule' if wf.deployment_id else 'Schedule Maestro' }}</button>
+      </form>
+      {% if wf.deployment_id %}
+      <div class="row-actions">
+        <span class="badge {{ 'configured' if wf.deployment_status == 'active' else 'not_configured' }}">{{ 'Scheduled' if wf.deployment_status == 'active' else 'Paused' }}</span>
+        <span class="small muted">Deployment <code>{{ wf.deployment_id }}</code></span>
+        <form method="post" action="/workflows/{{ wf.id }}/schedule/{{ 'pause' if wf.deployment_status == 'active' else 'resume' }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary">{{ 'Pause' if wf.deployment_status == 'active' else 'Resume' }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </article>
+  </section>
+
+  <details>
+    <summary>Orchestration prompt (generated)</summary>
+    <p class="small"><a href="/workflows/{{ wf.id }}/edit">Edit it by hand</a>. Regenerating the design replaces it.</p>
+    <div class="ev agent md">{{ wf.content | md }}</div>
+  </details>
+
+  <details>
+    <summary>Revise the design</summary>
+    <form method="post" action="/workflows/{{ wf.id }}/design/revise">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>What should change? <textarea name="feedback" rows="3" placeholder="e.g. the tech lead validates the split; use Jira instead of GitHub Issues; run every 30 minutes"></textarea></label>
+      <label>Description <textarea name="description" class="big">{{ wf.description }}</textarea></label>
+      <button type="submit">Regenerate</button>
+    </form>
+  </details>
+{% endif %}
+{% endblock %}

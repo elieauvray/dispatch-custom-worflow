@@ -137,17 +137,6 @@ def test_dispatch_steps_and_auto_policy_in_plan():
     assert "Upsun Dispatch" in svg and "Approval if unsure" in svg and "Your reply" in svg
 
 
-def test_templates_prefill_the_new_workflow_form(client, fake):
-    make_user("admin", admin=True)
-    make_user("bob")
-    login(client, "bob")
-    page = client.get("/workflows").text
-    assert "Start from a template" in page and "/workflows/new?template=dispatch-issue-to-code" in page
-    form = client.get("/workflows/new?template=dispatch-issue-to-code").text
-    assert "Send a change to Dispatch" in form and "Upsun Dispatch Issue to Code" in form
-    assert client.get("/workflows/new?template=unknown").status_code == 200
-
-
 def test_agent_knows_the_dispatch_playbook_and_auto_policy():
     from app.anthropic_client import ConnectorSpec, build_agent_config
 

@@ -1,9 +1,39 @@
-# Dispatch : Claude Managed Agents + MCP + Custom Workflows
+# Maestro : orchestrateur de méta-workflows pour Upsun Dispatch
 
 Application web (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) qui permet à une équipe d'envoyer des prompts à
 Claude via **Claude Managed Agents**. Claude accède à vos outils (Linear, GitHub, Jira/Confluence) par des
 serveurs **MCP distants**. Les prompts peuvent être enregistrés comme **Custom Workflows** réutilisables.
 L'application est prête à être déployée sur **Upsun**. L'interface est en anglais (américain, conforme à la charte Upsun) ; cette documentation est en français.
+
+## Maestro en bref
+
+Maestro permet de décrire un processus complet (étapes, validations, boucles, outils), et en tire un
+**méta-workflow** exécutable qui orchestre Upsun Dispatch :
+
+1. **Description → design.** Dans *Custom workflows → New Maestro workflow*, tu colles la description du
+   processus. Maestro (Claude, API Messages, sortie structurée, effort `high`) génère :
+   - le **prompt d'orchestration** suivi à chaque run (mission, config, préflight, garde-fous, ledger, étapes,
+     modèles de tickets et de commentaires, rapport de fin de run) ;
+   - les **étapes et leur acteur** : Maestro, Upsun Dispatch (Issue to code, Code review, full review, CVE
+     scan), personnes (gates) ou Upsun Cloud ;
+   - les **hypothèses**, ce qui **n'est pas possible avec Dispatch** et l'alternative retenue, les outils
+     requis, les paramètres de config et un planning suggéré.
+
+   Le designer s'appuie sur une base de connaissances Dispatch (`app/maestro/knowledge.py`), sans modèle de
+   workflow intégré.
+2. **Visualisation.** Un diagramme en couloirs (une colonne par acteur, phases en bandeaux, badges GATE,
+   type de workflow Dispatch, répétitions et boucles), exportable en SVG.
+3. **Lancement.** *Run now* lance un run suivi en direct. *Schedule Maestro* crée un déploiement planifié
+   Claude Managed Agents (cron, fuseau, budget par run) : chaque tick crée une session que le worker importe
+   et suit comme les autres runs (transcription, validations, questions). Pause, reprise et mise à jour
+   automatique quand le prompt, la config ou les skills changent ; suppression du workflow = archivage du
+   déploiement.
+
+**Déclenchement de Dispatch.** Maestro n'appelle pas d'API Dispatch (il n'y en a pas pour Issue to code) :
+il crée le ticket et poste le commentaire `@upsun-dispatch implement` via les connecteurs MCP (GitHub,
+Linear, Jira), avec **les credentials de l'utilisateur**. Dispatch voit donc un compte humain (les triggers
+de bots sont ignorés). Il suit l'avancement en relisant le ticket et la PR au run suivant ; l'état vit dans
+un « ledger » (commentaire édité) sur chaque élément suivi.
 
 ## Sommaire
 

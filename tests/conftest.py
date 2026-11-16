@@ -48,6 +48,10 @@ class FakeManagedAgents:
     plan_calls: list[tuple[str, str, list[str]]] = field(default_factory=list)
     plan_error: str | None = None
     plan_response: dict[str, Any] | None = None
+    design_calls: list[dict[str, Any]] = field(default_factory=list)
+    design_error: str | None = None
+    deployments: dict[str, dict[str, Any]] = field(default_factory=dict)
+    deployment_runs: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     def _id(self, prefix: str) -> str:
         self.counter += 1
@@ -138,6 +142,55 @@ class FakeManagedAgents:
 
     def session_status(self, session_id: str) -> str:
         return "idle"
+
+    def design_workflow(self, model, description, services, previous, feedback):  # type: ignore[no-untyped-def]
+        self.design_calls.append({"description": description, "services": services,
+                                  "previous": previous, "feedback": feedback})
+        if self.design_error:
+            raise anthropic_client.ManagedAgentsError(self.design_error)
+        return {
+            "summary": "Migrate each page through Dispatch with human gates.",
+            "steps": [
+                {"id": "S1", "phase": "Spec", "title": "Write the stage issue", "detail": "Scope and context",
+                 "actor": "maestro", "dispatch_workflow": "none", "gate_owner": "", "repeat": "per page", "loop": ""},
+                {"id": "S2", "phase": "Spec", "title": "Generate the spec", "detail": "Issue to code run",
+                 "actor": "dispatch", "dispatch_workflow": "issue_to_code", "gate_owner": "", "repeat": "",
+                 "loop": "max 3 corrections"},
+                {"id": "S3", "phase": "Spec", "title": "Approve the spec PR", "detail": "",
+                 "actor": "human", "dispatch_workflow": "none", "gate_owner": "PO", "repeat": "", "loop": ""},
+                {"id": "S4", "phase": "Tests", "title": "Run e2e on <preview>", "detail": "",
+                 "actor": "upsun", "dispatch_workflow": "none", "gate_owner": "", "repeat": "", "loop": ""},
+            ],
+            "config": [{"key": "REPO", "description": "GitHub owner/repo"}],
+            "assumptions": ["GitHub is the code host"],
+            "not_possible": [{"need": "Custom Dispatch workflow", "alternative": "Maestro chains Issue to code runs"}],
+            "tools": ["GitHub connector"],
+            "schedule": {"cron": "0 * * * *", "reason": "Hourly is enough for human gates."},
+            "orchestration_prompt": "# Mission\nYou are the Executor of the page migration factory.",
+        }
+
+    def create_deployment(self, name, agent_id, environment_id, vault_ids, message, cron, timezone, budget_cents):  # type: ignore[no-untyped-def]
+        dep_id = self._id("depl")
+        self.deployments[dep_id] = {"name": name, "message": message, "cron": cron, "timezone": timezone,
+                                    "budget": budget_cents, "paused": False, "archived": False}
+        self.calls.append(("create_deployment", dep_id))
+        return dep_id
+
+    def update_deployment(self, deployment_id, message, cron, timezone, budget_cents):  # type: ignore[no-untyped-def]
+        self.deployments[deployment_id].update(message=message, cron=cron, timezone=timezone, budget=budget_cents)
+        self.calls.append(("update_deployment", deployment_id))
+
+    def set_deployment_paused(self, deployment_id, paused):  # type: ignore[no-untyped-def]
+        self.deployments[deployment_id]["paused"] = paused
+
+    def run_deployment(self, deployment_id):  # type: ignore[no-untyped-def]
+        self.calls.append(("run_deployment", deployment_id))
+
+    def archive_deployment(self, deployment_id):  # type: ignore[no-untyped-def]
+        self.deployments[deployment_id]["archived"] = True
+
+    def list_deployment_runs(self, deployment_id):  # type: ignore[no-untyped-def]
+        return list(self.deployment_runs.get(deployment_id, []))
 
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]:
         self.plan_calls.append((model, request_text, services))

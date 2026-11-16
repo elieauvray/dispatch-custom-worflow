@@ -12,7 +12,6 @@ from app.deps import csrf_protect, require_configured
 from app.models import RunStatus, User, Workflow, WorkflowRun
 from app.runs import service
 from app.templating import flash, render
-from app.workflows.templates import TEMPLATES
 
 router = APIRouter()
 
@@ -97,8 +96,7 @@ def workflows_list(
     return render(
         request,
         "workflows.html",
-        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting,
-         "templates": TEMPLATES},
+        {"workflows": workflows, "counts": counts, "last_runs": last_runs, "waiting": waiting},
     )
 
 
@@ -111,16 +109,8 @@ def _validate(name: str, content: str) -> str | None:
 
 
 @router.get("/workflows/new")
-def workflow_new(
-    request: Request, template: str = "", user: User = Depends(require_configured)
-) -> Response:
-    tpl = TEMPLATES.get(template)
-    return render(
-        request,
-        "workflow_form.html",
-        {"workflow": None, "name": tpl.name if tpl else "", "content": tpl.content if tpl else "",
-         "template": tpl},
-    )
+def workflow_new(request: Request, user: User = Depends(require_configured)) -> Response:
+    return render(request, "workflow_form.html", {"workflow": None, "name": "", "content": ""})
 
 
 @router.post("/workflows/new", dependencies=[Depends(csrf_protect)])
@@ -173,6 +163,13 @@ def workflow_update(
         try:
             db.commit()
             flash(request, "Workflow updated.", "success")
+            if wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
+                from app.maestro.service import push_schedule
+
+                try:
+                    push_schedule(db, user, wf)
+                except ManagedAgentsError as exc:
+                    flash(request, f"The schedule could not be updated. {exc}", "error")
             return RedirectResponse("/workflows", status_code=303)
         except IntegrityError:
             db.rollback()
@@ -188,6 +185,14 @@ def workflow_delete(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = get_owned_workflow(db, workflow_id, user)
+    if wf.deployment_id:  # stop the schedule for good, or it would keep firing runs
+        from app.maestro.service import archive_schedule
+
+        try:
+            archive_schedule(db, user, wf)
+        except ManagedAgentsError as exc:
+            flash(request, f"The workflow was not deleted: its schedule could not be stopped. {exc}", "error")
+            return RedirectResponse("/workflows", status_code=303)
     db.delete(wf)
     db.commit()
     flash(request, "Workflow deleted.", "success")

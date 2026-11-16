@@ -15,6 +15,7 @@ from app.config import get_settings, missing_secrets
 from app.db import SessionLocal
 from app.deps import RedirectError
 from app.models import User
+from app.maestro.routes import router as maestro_router
 from app.plans.routes import router as plans_router
 from app.runs.routes import router as runs_router
 from app.settings.routes import router as settings_router
@@ -32,7 +33,7 @@ SETUP_EXEMPT = ("/setup", "/static/", "/healthz", "/webhooks/")
 
 
 MISCONFIGURED_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>Incomplete configuration · Dispatch custom workflows</title>
+<title>Incomplete configuration · Maestro</title>
 <style>body{{font-family:Arial,sans-serif;background:#ECEDEE;color:#0C0F10;max-width:720px;margin:4rem auto;padding:0 1rem}}
 code,pre{{background:#fff;border:1px solid #D8DBDC;border-radius:6px;padding:.1rem .3rem}}pre{{padding:.8rem;overflow:auto}}
 h1{{font-size:1.6rem}}</style></head><body>
@@ -75,7 +76,7 @@ def create_app() -> FastAPI:
         return create_misconfigured_app(missing)
     cfg = get_settings()
 
-    app = FastAPI(title="Dispatch custom workflows", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Maestro", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.has_users = False
 
     @app.middleware("http")
@@ -134,7 +135,7 @@ def create_app() -> FastAPI:
         "/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static"
     )
     for router in (
-        auth_router, settings_router, workflows_router, runs_router, plans_router, admin_router,
+        auth_router, settings_router, maestro_router, workflows_router, runs_router, plans_router, admin_router,
         webhooks_router,
     ):
         app.include_router(router)

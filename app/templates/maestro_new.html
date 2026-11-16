@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}New Maestro workflow{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>New Maestro workflow</li></ul></nav>
+<h1>New Maestro workflow</h1>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<article>
+  <form method="post" action="/maestro/new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Name <input name="name" value="{{ name }}" required maxlength="128" placeholder="e.g. Legacy page migration"></label>
+    <label>Describe the workflow
+      <textarea name="description" class="huge" required placeholder="Describe the process as you would to a team: the starting point, the expected result, the stages in order, who validates what, the loops (retries, corrections), the tools (GitHub, Jira, Linear, Confluence, Upsun environments) and what should happen when a step is done.">{{ description }}</textarea>
+    </label>
+    <small class="help">
+      Maestro turns this description into an orchestration prompt and decides, step by step, who does what:
+      <strong>Maestro</strong> (orchestration, tracker updates, checks, reports), <strong>Upsun Dispatch</strong>
+      (Issue to code, Code review, CVE scan), <strong>people</strong> (validation gates) and <strong>Upsun Cloud</strong>
+      (preview and acceptance environments). It also lists what Dispatch cannot do today with the alternative it chose.
+      You review everything before launching.
+    </small>
+    <button type="submit">Design the workflow</button>
+  </form>
+</article>
+{% endblock %}

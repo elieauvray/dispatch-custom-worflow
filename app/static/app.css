@@ -108,6 +108,7 @@ main :not(nav) > ul ul > li::before { content: "\25CB"; font-size: .8em; top: .2
 .brand-logo__icon { width: 1em; height: 1em; flex-shrink: 0; }
 .brand-logo__chevron { height: .4375em; width: auto; flex-shrink: 0; overflow: visible; }
 .brand-logo__word { height: .8em; width: auto; flex-shrink: 0; }
+.brand-logo__text { font-family: "Instrument Sans", Arial, sans-serif; font-weight: 600; font-size: .82em; letter-spacing: -0.02em; line-height: 1; }
 .topbar nav a { color: var(--text); }
 .topbar nav a[aria-current="page"] { font-weight: 600; color: var(--accent); }
 .topbar nav ul li form { margin: 0; }
@@ -200,3 +201,10 @@ textarea.big { min-height: 14rem; font-family: var(--pico-font-family); }
 .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
 .template-card { margin: 0; display: flex; flex-direction: column; }
 .template-card a[role="button"] { margin-top: auto; align-self: flex-start; padding: .3rem .7rem; font-size: .85rem; }
+
+/* Maestro */
+textarea.huge { min-height: 22rem; font-family: var(--pico-font-family); }
+.badge.maestro { background: color-mix(in srgb, var(--u-violet-600) 18%, transparent); }
+.section-title { font-size: 1.05rem; margin: 1.4rem 0 .6rem; }
+.maestro-svg { max-width: 960px; overflow-x: auto; }
+.maestro-svg svg { display: block; width: 100%; min-width: 640px; height: auto; }
