@@ -143,7 +143,7 @@
   <details class="card fold" id="github-webhook" {% if new_hook_secret or not github_hook_url %}open{% endif %}>
     <summary>Wake-up on merged pull requests <span class="badge {{ 'configured' if github_hook_url else 'not_configured' }}">{{ 'On' if github_hook_url else 'Off' }}</span></summary>
     {{ section_flashes('github-webhook') }}
-    <p class="small">When a PR is merged, GitHub calls Maestro, which starts a run of every workflow that mentions the repository instead of waiting for the next scheduled run.</p>
+    <p class="small">When a PR is merged, GitHub calls Maestro, which starts a run of every project that mentions the repository instead of waiting for the next scheduled run.</p>
     {% if github_hook_url %}
     <label>Payload URL <input value="{{ github_hook_url }}" readonly onclick="this.select()"></label>
     {% if new_hook_secret %}<label>Secret (shown once) <input value="{{ new_hook_secret }}" readonly onclick="this.select()"></label>{% endif %}

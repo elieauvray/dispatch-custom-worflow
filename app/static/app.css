@@ -377,3 +377,4 @@ button .icon, a[role="button"] .icon { margin-right: .4em; }
 h1 .badge { font-size: .8rem; vertical-align: middle; font-weight: 600; }
 .badge .icon { width: .95em; height: .95em; margin-right: .25em; }
 @media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
+.lead { font-size: 1.02rem; max-width: 52rem; margin: -.4rem 0 1.2rem; }

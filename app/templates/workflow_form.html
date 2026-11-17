@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Edit {{ workflow.name }}{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li><a href="/workflows/{{ workflow.id }}/design">{{ workflow.name }}</a></li><li>Edit</li></ul></nav>
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Projects</a></li><li><a href="/workflows/{{ workflow.id }}/design">{{ workflow.name }}</a></li><li>Edit</li></ul></nav>
 <h1>Edit {{ workflow.name }}</h1>
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 <form method="post" action="/workflows/{{ workflow.id }}/edit" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <article>
     <label>Name <input name="name" value="{{ name }}" required maxlength="128"></label>
-    <small class="help">Must be unique among your workflows.</small>
+    <small class="help">Must be unique among your projects.</small>
     {% set shared = workflow.shared %}
     {% include "partials/share_switch.html" %}
 
@@ -23,7 +23,7 @@
       <textarea name="feedback" rows="3" placeholder="e.g. the tech lead validates the split; use Linear instead of Jira; run every 30 minutes">{{ feedback }}</textarea>
     </label>
     {% endif %}
-    <small class="help">Changing the description, the diagram or asking for a change makes Maestro design the workflow again: the diagram and the orchestration prompt are regenerated.</small>
+    <small class="help">Changing the description, the diagram or asking for a change makes Maestro design the project again: the diagram and the orchestration prompt are regenerated.</small>
     {% endif %}
   </article>
 

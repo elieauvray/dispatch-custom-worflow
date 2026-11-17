@@ -82,7 +82,7 @@ async def maestro_create(
     elif not name or len(name) > 128:
         error = "The name must be between 1 and 128 characters."
     elif not attached and len(description) < 40:
-        error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
+        error = "Describe the project in more detail (stages, who validates, tools), or add a diagram."
     if not error:
         try:
             wf = service.create_maestro_workflow(db, user, name, description or DIAGRAM_ONLY_DESCRIPTION, attached,
@@ -90,7 +90,7 @@ async def maestro_create(
             return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
         except IntegrityError:
             db.rollback()
-            error = f"You already have a workflow named {name}."
+            error = f"You already have a project named {name}."
     if attached and error:
         error += " Attach the diagram again."
     return render(request, "maestro_new.html", {"name": name, "description": description, "error": error,
@@ -145,7 +145,7 @@ def design_revise(
     wf = _maestro(db, workflow_id, user)
     description = description.strip()
     if description and len(description) < 40 and not wf.diagram_data:
-        flash(request, "Describe the workflow in more detail (stages, who validates, tools), or add a diagram.", "error")
+        flash(request, "Describe the project in more detail (stages, who validates, tools), or add a diagram.", "error")
         return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
     if description:
         wf.description = description
@@ -170,7 +170,7 @@ async def design_answers(
     if missing:
         flash(request, "Answer every question (pick an option, or choose Other and write your answer).", "error")
     else:
-        flash(request, "Thanks. Maestro is designing the workflow with your decisions.", "info")
+        flash(request, "Thanks. Maestro is designing the project with your decisions.", "info")
     return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
 
 
@@ -205,7 +205,7 @@ def schedule_save(
     wf = _maestro(db, workflow_id, user)
     missing = service.missing_connectors(db, user, wf)
     if missing:
-        flash(request, f"Connect {', '.join(missing)} in Settings before scheduling this workflow.", "error")
+        flash(request, f"Connect {', '.join(missing)} in Settings before scheduling this project.", "error")
         return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
     cron = " ".join(cron.split())
     if not CRON_RE.match(cron):

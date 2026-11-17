@@ -67,7 +67,7 @@ def test_run_page_shows_the_map_and_tracks_steps(client, fake, monkeypatch):
 
     page = client.get(f"/runs/{run_id}").text
     assert 'id="run-map"' in page and page.count('class="ms-step"') == 3
-    assert "Planned workflow" not in page  # the design map replaces the predicted plan
+    assert "Planned steps" not in page  # the design map replaces the predicted plan
     steps = re.findall(r'class="ev-item" data-step="([^"]*)"', page)
     # initial user message (no step yet), S1 message, tool call (inherits S1), unknown marker (stays S1), S2
     assert "S1" in steps and steps[-2:] == ["S2", "S2"] or steps[-1] == "S2"
@@ -87,7 +87,7 @@ def test_runs_without_design_keep_the_predicted_plan(client, fake):
     login(client, "bob")
     run_id = start_run(client, "Do something")
     page = client.get(f"/runs/{run_id}").text
-    assert 'id="run-map"' not in page and "Planned workflow" in page
+    assert 'id="run-map"' not in page and "Planned steps" in page
 
 
 
@@ -135,7 +135,7 @@ def test_runs_list_has_no_diagram(client, fake):
     wf_id = _workflow(uid)
     login(client, "bob")
     page = client.get(f"/workflows/{wf_id}/history").text
-    assert "maestro-diagram" not in page and "maestro-map" not in page and "Planned workflow" not in page
+    assert "maestro-diagram" not in page and "maestro-map" not in page and "Planned steps" not in page
 
 
 def _run_with(client, fake, uid, wf_id, messages):  # type: ignore[no-untyped-def]
@@ -160,7 +160,7 @@ def test_workflow_stays_ongoing_until_maestro_reports_it_done(client, fake):
         run = db.get(WorkflowRun, first)
         assert run.status == "completed" and run.progress == "ongoing" and run.display_label == "ongoing"
     page = client.get(f"/runs/{first}").text
-    assert 'badge ongoing' in page and "the workflow continues on the next run" in page
+    assert 'badge ongoing' in page and "the project continues on the next run" in page
     assert "[workflow:" not in page.split('id="transcript"')[1].split('id="run-actions"')[0]
     assert "badge ongoing" in client.get("/workflows").text
 
@@ -188,7 +188,7 @@ def test_progress_without_marker_and_blocked_reports(client, fake):
     run_id = _run_with(client, fake, uid, wf_id, ["[step: S2]\nPR #13 was closed without merge.\n[workflow: blocked]"])
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
-        assert run.progress == "blocked" and run.display_label == "workflow blocked"
+        assert run.progress == "blocked" and run.display_label == "project blocked"
     # Maestro is told how to report the workflow status
     with SessionLocal() as db:
         assert "[workflow: ongoing]" in db.get(WorkflowRun, run_id).initial_message

@@ -518,7 +518,7 @@ class ManagedAgentsClient:
                             on_progress(written, tail)
                 response = stream.get_final_message()
         if response.stop_reason == "refusal":
-            raise ManagedAgentsError("Claude declined to design this workflow.")
+            raise ManagedAgentsError("Claude declined to design this project.")
         if response.stop_reason == "max_tokens":
             raise ManagedAgentsError("The design was too long to generate. Shorten the description.")
         text = next((b.text for b in response.content if b.type == "text"), "")

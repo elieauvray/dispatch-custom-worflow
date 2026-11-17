@@ -48,7 +48,7 @@ def test_description_becomes_a_design_with_actors(client, fake):
     _setup(client)
     wf_id = _create(client)
     page = client.get(f"/workflows/{wf_id}/design").text
-    assert "Maestro is designing your workflow" in page and f"/workflows/{wf_id}/design/panel" in page
+    assert "Maestro is designing your project" in page and f"/workflows/{wf_id}/design/panel" in page
 
     _design(wf_id)
     assert fake.design_calls[0]["description"] == DESCRIPTION
@@ -225,7 +225,7 @@ def test_home_is_describe_your_workflow_and_only_maestro_workflows_exist(client,
     r = login(client, "bob")
     assert r.headers["location"] == "/"
     home = client.get("/").text
-    assert "Describe your workflow" in home and 'action="/maestro/new"' in home
+    assert "Describe your project" in home and 'action="/maestro/new"' in home
     assert 'href="/prompt"' not in home and ">Create<" in home
     assert client.get("/prompt").status_code == 404
     assert client.get("/workflows/new").status_code in (404, 405)
@@ -233,7 +233,7 @@ def test_home_is_describe_your_workflow_and_only_maestro_workflows_exist(client,
         db.add(Workflow(user_id=uid, name="Legacy saved prompt", content="x"))  # no description
         db.commit()
     page = client.get("/workflows").text
-    assert "Legacy saved prompt" not in page and "Describe a new workflow" in page
+    assert "Legacy saved prompt" not in page and "Describe a new project" in page
 
 
 QUESTIONS = {"questions": [
@@ -518,4 +518,4 @@ def test_blocked_runs_say_why():
                                                  "None of the values are set.\n[workflow: blocked]"}]}))
         db.commit()
         assert blocked_reason(db, run) == "TMA run: blocked by missing configuration"
-        assert run.display_label == "workflow blocked"
+        assert run.display_label == "project blocked"

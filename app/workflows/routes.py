@@ -146,7 +146,7 @@ async def workflow_update(
     elif not name or len(name) > 128:
         error = "The name must be between 1 and 128 characters."
     elif is_maestro and len(description) < 40 and not keeps_diagram:
-        error = "Describe the workflow in more detail (stages, who validates, tools), or add a diagram."
+        error = "Describe the project in more detail (stages, who validates, tools), or add a diagram."
     diagram_changed = new_diagram is not None or (drop_diagram and bool(wf.diagram_data))
     redesign = is_maestro and (description != wf.description or diagram_changed or bool(feedback))
     if not error and can_edit_prompt and not content and not redesign:
@@ -167,7 +167,7 @@ async def workflow_update(
             db.commit()
         except IntegrityError:
             db.rollback()
-            error = f"You already have a workflow named {name}."
+            error = f"You already have a project named {name}."
     if error:
         if new_diagram:
             error += " Attach the diagram again."
@@ -176,9 +176,9 @@ async def workflow_update(
         return render(request, "workflow_form.html", ctx, status_code=400)
     if redesign:
         maestro_service.request_design(db, wf, feedback or None)
-        flash(request, "Saved. Maestro is redesigning the workflow.", "info")
+        flash(request, "Saved. Maestro is redesigning the project.", "info")
     else:
-        flash(request, "Workflow updated.", "success")
+        flash(request, "Project updated.", "success")
         if prompt_changed and wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
             try:
                 maestro_service.push_schedule(db, user, wf)
@@ -198,11 +198,11 @@ def workflow_delete(
         try:
             archive_schedule(db, user, wf)
         except ManagedAgentsError as exc:
-            flash(request, f"The workflow was not deleted: its schedule could not be stopped. {exc}", "error")
+            flash(request, f"The project was not deleted: its schedule could not be stopped. {exc}", "error")
             return RedirectResponse("/workflows", status_code=303)
     db.delete(wf)
     db.commit()
-    flash(request, "Workflow deleted.", "success")
+    flash(request, "Project deleted.", "success")
     return RedirectResponse("/workflows", status_code=303)
 
 
@@ -222,7 +222,7 @@ def workflow_run(
     try:
         run = service.create_workflow_run(db, user, wf)
     except ManagedAgentsError as exc:
-        flash(request, f"Could not start the workflow. {exc}", "error")
+        flash(request, f"Could not start the project. {exc}", "error")
         return RedirectResponse("/workflows", status_code=303)
     return RedirectResponse(f"/runs/{run.id}", status_code=303)
 

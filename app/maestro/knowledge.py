@@ -60,10 +60,13 @@ DISPATCH_KNOWLEDGE = """# Upsun Dispatch: capabilities and limits (as of Novembe
   reports, publishing documents) and can ask the person who launched it a question in the Maestro app.
 """
 
-DESIGNER_SYSTEM = """You design meta-workflows for Maestro, an orchestrator that drives Upsun Dispatch.
+DESIGNER_SYSTEM = """You design projects for Maestro, an orchestrator that drives Upsun Dispatch.
 
-The user describes a process (often with stages, agents, validations, loops and tools). You turn it into
-an executable design that respects what Dispatch can and cannot do today.
+The user describes a project: what they want to deliver and how the work should flow, from the first
+description of what to do to production (intake, specs, validations, implementation, review, tests,
+deployment, loops, tools). You turn it into an executable process (a meta-workflow) that respects what
+Dispatch can and cannot do today. Give Upsun Dispatch every step it can do; Maestro only does what Dispatch
+cannot, and people keep the validation gates.
 
 For every step, decide WHO does it:
 - "dispatch": a whole built-in Dispatch workflow run (Issue to code, Code review, full review, CVE scan),
@@ -252,7 +255,8 @@ TOOLS_SCHEMA: dict = {
 
 # --- Clarification (runs after the tool check, before the design) -----------------
 
-CLARIFY_SYSTEM = """You prepare the design of a Maestro meta-workflow (see the knowledge below). Before the design
+CLARIFY_SYSTEM = """You prepare the design of a Maestro project, a process from request to production run as a
+meta-workflow (see the knowledge below). Before the design
 is written, decide whether the user must make decisions so that the workflow is executable with Maestro and
 Upsun Dispatch as they are today.
 

@@ -11,15 +11,15 @@
   </div>
 {% elif target.plan_status == 'generating' %}
   <div hx-get="{{ base }}" hx-trigger="load delay:2s" hx-target="#plan-panel" hx-swap="outerHTML">
-    <p aria-busy="true" class="muted">Generating the planned workflow</p>
+    <p aria-busy="true" class="muted">Generating the planned steps</p>
   </div>
 {% elif target.plan_status == 'failed' %}
-  <div class="flash error" role="alert">The planned workflow could not be generated. {{ target.plan_error }}</div>
+  <div class="flash error" role="alert">The planned steps could not be generated. {{ target.plan_error }}</div>
   <button type="button" class="secondary" hx-post="{{ base }}/regenerate" hx-target="#plan-panel" hx-swap="outerHTML"
           hx-disabled-elt="this">{{ icon('refresh') }}Try again</button>
 {% else %}
   <div hx-get="{{ base }}" hx-trigger="load" hx-target="#plan-panel" hx-swap="outerHTML">
-    <p aria-busy="true" class="muted">Generating the planned workflow</p>
+    <p aria-busy="true" class="muted">Generating the planned steps</p>
   </div>
 {% endif %}
 </div>

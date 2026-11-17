@@ -3,7 +3,7 @@
   <div hx-get="/workflows/{{ wf.id }}/design/panel" hx-trigger="every 2s" hx-target="#maestro-status" hx-swap="outerHTML">
     <article class="gen-progress" aria-live="polite">
       <header class="gen-head">
-        <strong>Maestro is designing your workflow</strong>
+        <strong>Maestro is designing your project</strong>
         <span class="small muted">
           {% if progress and progress.queued %}Starting…
           {% elif progress %}About {{ progress.remaining }} left · {{ progress.elapsed }} so far{% endif %}
@@ -31,11 +31,11 @@
     </article>
   </div>
 {% elif not is_owner and wf.design_status in ['needs_answers', 'blocked', 'failed'] %}
-  <div class="flash warning" role="status">This shared workflow is not ready yet. {{ owner_login }} has to finish its design.</div>
+  <div class="flash warning" role="status">This shared project is not ready yet. {{ owner_login }} has to finish its design.</div>
 {% elif wf.design_status == 'needs_answers' %}
   <article class="clarify">
-    <header><strong>Maestro needs a few decisions before designing this workflow.</strong>
-      <p class="small muted" style="margin:.3rem 0 0">They make the workflow executable with Maestro and Upsun Dispatch as they are today. The recommended option is selected.</p>
+    <header><strong>Maestro needs a few decisions before designing this project.</strong>
+      <p class="small muted" style="margin:.3rem 0 0">They make the project executable with Maestro and Upsun Dispatch as they are today. The recommended option is selected.</p>
     </header>
     <form method="post" action="/workflows/{{ wf.id }}/design/answers">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

@@ -52,7 +52,7 @@ def test_prompt_run_shows_planned_workflow_once(client, fake):
     login(client, "bob")
     run_id = _prompt_run(client, "Comment on one of my Linear issues")
     page = client.get(f"/runs/{run_id}").text
-    assert f'hx-get="/runs/{run_id}/plan"' in page and "Planned workflow" in page
+    assert f'hx-get="/runs/{run_id}/plan"' in page and "Planned steps" in page
 
     frag = client.get(f"/runs/{run_id}/plan").text
     assert "<svg" in frag and "List my recent issues" in frag and "Your approval" in frag

@@ -46,7 +46,7 @@ RUN_STATUS_LABELS: dict[str, str] = {
 # Workflow progress shown instead of "completed" when Maestro's session ended but the workflow did not.
 PROGRESS_LABELS: dict[str, str] = {
     "ongoing": "ongoing",
-    "blocked": "workflow blocked",
+    "blocked": "project blocked",
     "done": "completed",
     "continued": "continued",
 }

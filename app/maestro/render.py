@@ -323,10 +323,10 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
 
     height = cursor + 16
     total_w = width + gutter
-    summary = escape(design.get("summary") or "Maestro workflow")
+    summary = escape(design.get("summary") or "Maestro project")
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total_w:.0f} {height:.0f}" width="100%" role="img" '
-        f'aria-labelledby="ms-title ms-desc" class="maestro-diagram"><title id="ms-title">Maestro workflow'
+        f'aria-labelledby="ms-title ms-desc" class="maestro-diagram"><title id="ms-title">Maestro project'
         f'</title><desc id="ms-desc">{summary}</desc><defs><marker id="ms-arrow" viewBox="0 0 10 10" '
         f'refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path '
         f'd="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" '
@@ -387,5 +387,5 @@ def render_design_map(design: dict[str, Any]) -> Markup:
     height = y + 4
     return Markup(
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CW} {height}" width="100%" role="img" '
-        f'aria-label="Workflow steps" class="maestro-map">' + "".join(parts) + "</svg>"
+        f'aria-label="Project steps" class="maestro-map">' + "".join(parts) + "</svg>"
     )

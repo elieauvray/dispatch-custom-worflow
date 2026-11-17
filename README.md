@@ -1,18 +1,19 @@
-# Maestro: meta-workflow orchestrator for Upsun Dispatch
+# Maestro: project orchestrator for Upsun Dispatch
 
-A web application (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) where a team **describes a workflow**, lets
-Maestro design it, **reviews** the result, then **runs** it on Claude Managed Agents. Maestro works with your
+A web application (FastAPI, Jinja2, HTMX, SSE, PostgreSQL) where a team **describes a project** (what to deliver and how the work flows from the request to
+production), lets Maestro design it, **reviews** the result, then **runs** it on Claude Managed Agents. Maestro works with your
 tools (Linear, GitHub, Jira/Confluence) through **remote MCP servers** and hands coding work to
-**Upsun Dispatch**. There is a single kind of workflow: the Maestro workflow, saved in *Custom workflows*.
+**Upsun Dispatch**. Each project is saved in *Projects* (the **Manage** menu); internally, it is stored as a Maestro workflow.
 The application is ready to deploy on **Upsun**. The interface is in American English, in line with the Upsun brand guidelines, and so is this documentation.
 
 ## Maestro at a glance
 
-Maestro lets you describe a complete process (steps, approvals, loops, tools) and turns it into an
-executable **meta-workflow** that orchestrates Upsun Dispatch:
+Maestro lets you describe a project, the complete process from the request to production (steps,
+approvals, loops, tools), and turns it into an executable **meta-workflow** that orchestrates Upsun
+Dispatch, giving Dispatch every step it can do:
 
-1. **Description → design.** On the home page (*New workflow*, "Describe your workflow"), you paste the description of the
-   process. Maestro (Claude, Messages API, structured output, `high` effort) generates:
+1. **Description → design.** On the home page (*Create*, "Describe your project"), you describe the project and how its
+   work flows. Maestro (Claude, Messages API, structured output, `high` effort) generates:
    - the **orchestration prompt** followed on every run (mission, config, preflight, guardrails, ledger, steps,
      ticket and comment templates, end-of-run report);
    - the **steps and their actor**: Maestro, Upsun Dispatch (Issue to code, Code review, full review, CVE
@@ -24,13 +25,13 @@ executable **meta-workflow** that orchestrates Upsun Dispatch:
    template.
    **Required tools.** Before any generation, Maestro checks (with a short call) the tools it will have to use
    itself. If the description involves a connector that is not configured (for example Linear) or a tool with no
-   connector in Maestro (GitLab, Slack, sending emails, and so on), **no prompt is created**: the workflow
+   connector in Maestro (GitLab, Slack, sending emails, and so on), **no prompt is created**: the project
    switches to "blocked" with the message "connect it in Settings, then try again". If a required connector
    is removed later, Run now and the schedule are disabled.
    **Clarify.** After the tool check and before the design, Maestro asks at most 6 multiple-choice questions
    (recommended option first, plus "Other") when a decision materially changes the workflow or is needed to
    fit what Dispatch can do (tracker, who validates what, one PR per issue, completion signal, first run
-   scope). The workflow shows "needs your answers"; the answers are passed to the designer as final
+   scope). The project shows "needs your answers"; the answers are passed to the designer as final
    decisions, shown with the design, and never asked again. A clear description goes straight to the design.
    **Editing.** *Edit* (workflow list) changes the name and the description; a changed description is
    designed again (tool check, Clarify, designer). Once the design is ready, the orchestration prompt can
@@ -129,7 +130,7 @@ expects to carry out, inferred from the request alone, before any execution.
 
 ### Workflow diagrams
 
-On **Describe your workflow** you can give the process as a diagram instead of, or in addition to,
+On **Describe your project** you can give the process as a diagram instead of, or in addition to,
 text: paste an image into the description field (Ctrl+V or Cmd+V), drop a file, or choose one
 (PNG, JPEG, GIF or WebP up to 3.75 MB, or a PDF up to 10 MB). The file type is checked from its
 content. The diagram is stored with the workflow (`workflows.diagram_data`) and sent to Claude with

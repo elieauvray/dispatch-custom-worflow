@@ -5,7 +5,7 @@
   <div class="who">You</div>
   {%- set text = p.content | selectattr('type', 'equalto', 'text') | map(attribute='text') | join('\n') -%}
   {%- if ev.is_initial and run.workflow_id -%}
-  <details><summary>Initial message sent to Maestro (system instructions and workflow)</summary><pre>{{ text }}</pre></details>
+  <details><summary>Initial message sent to Maestro (system instructions and project)</summary><pre>{{ text }}</pre></details>
   {%- else -%}
   <div class="md">{{ text | md }}</div>
   {%- endif %}

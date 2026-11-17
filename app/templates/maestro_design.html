@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ wf.name }}{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Custom workflows</a></li><li>{{ wf.name }}</li></ul></nav>
+<nav aria-label="breadcrumb"><ul><li><a href="/workflows">Projects</a></li><li>{{ wf.name }}</li></ul></nav>
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">{{ wf.name }} <span class="badge {{ 'shared' if wf.shared else 'private' }}">{{ icon('users' if wf.shared else 'lock') }}{{ 'Shared' if wf.shared else 'Private' }}</span></h1>
   <div class="row-actions">
@@ -23,13 +23,13 @@
   {% endif %}
   {% if wf.diagram_media_type %}
   <details{% if wf.design_status != 'ready' %} open{% endif %}><summary>Your diagram</summary>
-    {% if wf.diagram_media_type.startswith('image/') %}<a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener"><img class="diagram-thumb" src="/workflows/{{ wf.id }}/diagram" alt="Workflow diagram you provided"></a>
+    {% if wf.diagram_media_type.startswith('image/') %}<a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener"><img class="diagram-thumb" src="/workflows/{{ wf.id }}/diagram" alt="Project diagram you provided"></a>
     {% else %}<p><a href="/workflows/{{ wf.id }}/diagram" target="_blank" rel="noopener">Open the PDF</a></p>{% endif %}
   </details>
   {% endif %}
 {% else %}
   {% if missing %}
-  <div class="flash error" role="alert">This workflow needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
+  <div class="flash error" role="alert">This project needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
   {% endif %}
   {% if instructions_changed %}
   <div class="flash warning" role="status">
@@ -65,9 +65,9 @@
   {% if design.instruction_adjustments %}
   <section>
     <h2 class="section-title">Adjusted to system instructions</h2>
-    <p class="small muted">The <a href="/instructions">system instructions</a> take precedence over your description. Maestro changed the workflow to comply:</p>
+    <p class="small muted">The <a href="/instructions">system instructions</a> take precedence over your description. Maestro changed the project to comply:</p>
     <table>
-      <thead><tr><th>Instruction</th><th>Change to the workflow</th></tr></thead>
+      <thead><tr><th>Instruction</th><th>Change to the project</th></tr></thead>
       <tbody>{% for a in design.instruction_adjustments %}<tr><td>{{ a.instruction }}</td><td>{{ a.change }}</td></tr>{% endfor %}</tbody>
     </table>
   </section>
@@ -113,7 +113,7 @@
     <h2 class="section-title">Config</h2>
     {% if design.config and not is_owner %}
     <table><tbody>{% for c in design.config %}<tr><th>{{ c.key }}</th><td>{{ c.value or '—' }}</td><td class="small muted">{{ c.description }}</td></tr>{% endfor %}</tbody></table>
-    <small class="help">Set by {{ owner_login }}, who shared this workflow.</small>
+    <small class="help">Set by {{ owner_login }}, who shared this project.</small>
     {% elif design.config %}
     <article>
       <form method="post" action="/workflows/{{ wf.id }}/design/config">
@@ -159,7 +159,7 @@
   {% else %}
   <section id="schedule">
     <h2 class="section-title">Launch</h2>
-    <p class="small">Shared by <strong>{{ owner_login }}</strong>. <strong>Run now</strong> starts a run with your own connectors, so Upsun Dispatch sees your account. Only {{ owner_login }} can change this workflow or schedule it.</p>
+    <p class="small">Shared by <strong>{{ owner_login }}</strong>. <strong>Run now</strong> starts a run with your own connectors, so Upsun Dispatch sees your account. Only {{ owner_login }} can change this project or schedule it.</p>
   </section>
   {% endif %}
 

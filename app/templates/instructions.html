@@ -3,11 +3,11 @@
 {% block content %}
 <h1>System instructions</h1>
 <div class="banner">
-  System instructions are rules that apply to <strong>every workflow</strong>, for every user. They take
-  <strong>precedence</strong> over what a workflow description says: when a description contradicts them,
-  Maestro rewrites the workflow to comply and lists each change under <em>Adjusted to system instructions</em>
+  System instructions are rules that apply to <strong>every project</strong>, for every user. They take
+  <strong>precedence</strong> over what a project description says: when a description contradicts them,
+  Maestro rewrites the project to comply and lists each change under <em>Adjusted to system instructions</em>
   on the design. Maestro also receives them at the start of every run.
-  {% if can_edit %}Only admins can edit them. When you change them, existing workflows are marked
+  {% if can_edit %}Only admins can edit them. When you change them, existing projects are marked
   <em>instructions changed</em> so their owners can regenerate the design; their runs apply the new
   instructions right away.{% else %}Only admins can edit them.{% endif %}
   They never override Maestro's built-in rules for driving Upsun Dispatch.

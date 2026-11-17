@@ -1,29 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Describe your workflow{% endblock %}
+{% block title %}Describe your project{% endblock %}
 {% block content %}
-<h1>Describe your workflow</h1>
+<h1>Describe your project</h1>
+<p class="lead muted">Tell Maestro what you want to deliver and how the work should flow, from the first description of what to do to production: who writes and validates the specs, where the work is tracked, what Upsun Dispatch builds, who reviews, how it is tested and deployed. Maestro turns it into a process it runs for you, with Upsun Dispatch doing as much of the work as it can.</p>
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 <article>
   <form method="post" action="/maestro/new" enctype="multipart/form-data" id="describe-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Name <input name="name" value="{{ name }}" required maxlength="128" placeholder="e.g. Legacy page migration"></label>
+    <label>Name <input name="name" value="{{ name }}" required maxlength="128" placeholder="e.g. Legacy app migration, Client support (TMA)"></label>
     {% include "partials/share_switch.html" %}
     {% include "partials/diagram_input.html" %}
 
-    <label>Describe the workflow
-      <textarea name="description" id="description" class="huge" placeholder="Describe the process as you would to a team: the starting point, the expected result, the stages in order, who validates what, the loops (retries, corrections), the tools (GitHub, Jira, Linear, Confluence, Upsun environments) and what should happen when a step is done.
+    <label>Describe the project
+      <textarea name="description" id="description" class="huge" placeholder="What is the project, and how should it move from the request to production? For example: where requests come from, how they are qualified, who writes and validates the specs, what Upsun Dispatch implements, who reviews and merges, how it is tested (Upsun preview environments) and released, what happens when something is refused or fails, and the tools (GitHub, Linear, Jira, Confluence).
 
-You can also paste an image of a workflow diagram here (Ctrl+V or Cmd+V).">{{ description }}</textarea>
+You can also paste an image of a process diagram here (Ctrl+V or Cmd+V).">{{ description }}</textarea>
     </label>
 
     <small class="help">
-      Maestro turns this description into an orchestration prompt and decides, step by step, who does what:
-      <strong>Maestro</strong> (orchestration, tracker updates, checks, reports), <strong>Upsun Dispatch</strong>
-      (Issue to code, Code review, CVE scan), <strong>people</strong> (validation gates) and <strong>Upsun Cloud</strong>
-      (preview and acceptance environments). It also lists what Dispatch cannot do today with the alternative it chose.
-      You review everything, then launch it from Custom workflows, where it is saved.
+      Maestro designs the whole process, step by step, and decides who does what:
+      <strong>Upsun Dispatch</strong> takes every step it can (Issue to code, Code review, CVE scan),
+      <strong>Maestro</strong> orchestrates the rest (tracker updates, triggers, checks, reports),
+      <strong>people</strong> keep the validation gates, and <strong>Upsun Cloud</strong> provides the preview and
+      acceptance environments. Maestro also lists what Dispatch cannot do today and the alternative it chose.
+      You review the design, then run the project from Manage, where it is saved.
     </small>
-    <button type="submit">{{ icon('design') }}Design the workflow</button>
+    <button type="submit">{{ icon('design') }}Design the project</button>
   </form>
 </article>
 <script src="{{ asset('diagram-input.js') }}"></script>

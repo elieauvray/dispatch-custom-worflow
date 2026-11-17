@@ -144,7 +144,7 @@ def blocking_message(needed: list[str], connected: set[str], unsupported: list[d
     missing = [CONNECTOR_NAMES[c] for c in needed if c not in connected]
     if missing:
         problems.append(
-            "This workflow needs " + ", ".join(missing) + ", which " + ("is" if len(missing) == 1 else "are")
+            "This project needs " + ", ".join(missing) + ", which " + ("is" if len(missing) == 1 else "are")
             + " not connected to Maestro. Connect " + ("it" if len(missing) == 1 else "them")
             + " in Settings, then submit your request again."
         )
@@ -154,7 +154,7 @@ def blocking_message(needed: list[str], connected: set[str], unsupported: list[d
             "It also mentions tools Maestro cannot connect to today: " + names
             + ". Remove them from the description or replace them with Linear, GitHub or Jira/Confluence."
             if missing else
-            "This workflow mentions tools Maestro cannot connect to today: " + names
+            "This project mentions tools Maestro cannot connect to today: " + names
             + ". Remove them from the description or replace them with Linear, GitHub or Jira/Confluence, "
             "then submit your request again."
         )
@@ -215,7 +215,7 @@ STAGES = ("tools", "clarify", "design")
 STAGE_LABELS = {
     "tools": "Checking the tools it needs",
     "clarify": "Looking for decisions to ask you",
-    "design": "Designing the workflow",
+    "design": "Designing the project",
 }
 # Typical durations (seconds) and design length (characters) before any generation has been timed.
 DEFAULT_TIMINGS = {"tools": 15.0, "clarify": 40.0, "design": 240.0, "design_chars": 20000.0}

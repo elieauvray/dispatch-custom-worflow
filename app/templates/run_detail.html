@@ -5,10 +5,10 @@
 <nav aria-label="breadcrumb">
   <ul>
     {% if run.workflow_id %}
-    <li><a href="/workflows">Custom workflows</a></li>
+    <li><a href="/workflows">Projects</a></li>
     <li><a href="/workflows/{{ run.workflow_id }}/history">{{ run.workflow_name_snapshot }}</a></li>
     {% else %}
-    <li><a href="/workflows">Custom workflows</a></li>
+    <li><a href="/workflows">Projects</a></li>
     {% endif %}
     <li>Run #{{ run.id }}</li>
   </ul>
@@ -16,9 +16,9 @@
 
 <div hx-ext="sse" sse-connect="/runs/{{ run.id }}/stream?after={{ last_event_id }}"{% if map_svg %} class="run-layout"{% endif %}>
   {% if map_svg %}
-  <aside class="run-map" id="run-map" aria-label="Workflow progress">
+  <aside class="run-map" id="run-map" aria-label="Project progress">
     <div class="run-map-head">
-      <strong>Workflow</strong>
+      <strong>Project</strong>
       <span id="run-map-label" class="small muted">{{ 'Not started' if not current_step else '' }}</span>
       {% if run.workflow_id %}<a class="small" href="/workflows/{{ run.workflow_id }}/design">Open the design</a>{% endif %}
     </div>
@@ -43,7 +43,7 @@
     {% else %}<p class="muted">No system instructions at launch time.</p>{% endfor %}
   </details>
   <details>
-    <summary>Workflow content (frozen at launch)</summary>
+    <summary>Project content (frozen at launch)</summary>
     <div class="ev user md">{{ run.content_snapshot | md }}</div>
   </details>
   {% endif %}

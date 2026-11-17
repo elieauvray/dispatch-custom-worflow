@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Custom workflows{% endblock %}
+{% block title %}Projects{% endblock %}
 {% block content %}
 <header class="connector-head" style="margin-bottom:1rem">
-  <h1 style="margin:0">Custom workflows</h1>
-  <a href="/" role="button">{{ icon('create') }}Describe a new workflow</a>
+  <h1 style="margin:0">Projects</h1>
+  <a href="/" role="button">{{ icon('create') }}Describe a new project</a>
 </header>
-<p class="muted">Each workflow is designed by Maestro from your description. Open one to review its design, set its config, run it now or schedule it. The admin's <a href="/instructions">system instructions</a> apply to every workflow and take precedence over its description.</p>
+<p class="muted">Each project is a process Maestro designed from your description, from the request to production. Open one to review its design, set its config, run it now or schedule it. The admin's <a href="/instructions">system instructions</a> apply to every project and take precedence over its description.</p>
 {% if workflows %}
 <div class="overflow-auto">
 <table>
@@ -31,7 +31,7 @@
         <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">{{ icon('history') }}History</a>
         {% if wf.user_id == current_user.id %}
         <a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">{{ icon('edit') }}Edit</a>
-        <form method="post" action="/workflows/{{ wf.id }}/delete" onsubmit='return confirm({{ ("Delete the workflow " ~ wf.name ~ " and its whole history?") | tojson }})'>
+        <form method="post" action="/workflows/{{ wf.id }}/delete" onsubmit='return confirm({{ ("Delete the project " ~ wf.name ~ " and its whole history?") | tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary outline">{{ icon('delete') }}Delete</button>
         </form>
@@ -44,6 +44,6 @@
 </table>
 </div>
 {% else %}
-<article><p>No workflows yet. <a href="/">Describe your first workflow</a>.</p></article>
+<article><p>No projects yet. <a href="/">Describe your first project</a>.</p></article>
 {% endif %}
 {% endblock %}
