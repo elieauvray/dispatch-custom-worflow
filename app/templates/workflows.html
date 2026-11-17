@@ -24,7 +24,7 @@
     </td>
     <td class="actions-cell">
       <div class="row-actions">
-        <form method="post" action="/workflows/{{ wf.id }}/run">
+        <form method="post" action="/workflows/{{ wf.id }}/run"{% if wf.empty_config %} onsubmit='return confirm({{ (wf.empty_config | length | string) ~ " config values are not set. Maestro will not guess them, so the run will stop before doing anything that needs them. Run anyway?" | tojson }})'{% endif %}>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit">{{ icon('run') }}Run</button>
         </form>

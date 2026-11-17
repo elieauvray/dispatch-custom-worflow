@@ -188,7 +188,7 @@ def test_progress_without_marker_and_blocked_reports(client, fake):
     run_id = _run_with(client, fake, uid, wf_id, ["[step: S2]\nPR #13 was closed without merge.\n[workflow: blocked]"])
     with SessionLocal() as db:
         run = db.get(WorkflowRun, run_id)
-        assert run.progress == "blocked" and run.display_label == "needs attention"
+        assert run.progress == "blocked" and run.display_label == "workflow blocked"
     # Maestro is told how to report the workflow status
     with SessionLocal() as db:
         assert "[workflow: ongoing]" in db.get(WorkflowRun, run_id).initial_message

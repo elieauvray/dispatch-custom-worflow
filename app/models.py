@@ -46,7 +46,7 @@ RUN_STATUS_LABELS: dict[str, str] = {
 # Workflow progress shown instead of "completed" when Maestro's session ended but the workflow did not.
 PROGRESS_LABELS: dict[str, str] = {
     "ongoing": "ongoing",
-    "blocked": "needs attention",
+    "blocked": "workflow blocked",
     "done": "completed",
     "continued": "continued",
 }
@@ -218,6 +218,12 @@ class Workflow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+    @property
+    def empty_config(self) -> list[str]:
+        """Config keys of the design that have no value yet (Maestro never guesses them)."""
+        return [str(c.get("key")) for c in (self.design_json or {}).get("config") or []
+                if not str(c.get("value") or "").strip()]
 
     user: Mapped[User] = relationship()
     runs: Mapped[list[WorkflowRun]] = relationship(

@@ -19,6 +19,8 @@ from app.maestro.render import render_design_svg, step_info
 from app.runs.events import agent_text, step_marker
 from app.templating import flash, render, templates
 
+from app.runs.progress import blocked_reason
+
 router = APIRouter()
 
 SSE_POLL_SECONDS = 1.0
@@ -156,6 +158,7 @@ def run_detail(
             "map_svg": render_design_svg(design) if has_steps else None,
             "map_steps": [step_info(st) for st in design.get("steps") or []],
             "current_step": current_step(db, run) if has_steps else None,
+            "blocked_reason": blocked_reason(db, run),
             **actions_context(db, run),
         },
     )
@@ -210,7 +213,8 @@ async def run_stream(
             if state != last_state:
                 ctx = actions_context(db, run)
                 out.append(_sse("actions", _partial(request, "partials/run_actions.html", ctx)))
-                out.append(_sse("status", _partial(request, "partials/run_status.html", {"run": run})))
+                out.append(_sse("status", _partial(request, "partials/run_status.html",
+                                                    {"run": run, "blocked_reason": blocked_reason(db, run)})))
             return out, last, state, False
         finally:
             db.close()

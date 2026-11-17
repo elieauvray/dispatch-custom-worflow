@@ -119,3 +119,25 @@ def refresh_progress(db: Session) -> int:
             run.progress, changed = progress, changed + 1
     db.commit()
     return changed
+
+
+def blocked_reason(db: Session, run: WorkflowRun) -> str | None:
+    """One line saying why Maestro marked the workflow blocked: the title of its last report."""
+    if run.status != RunStatus.COMPLETED or run.progress != "blocked":
+        return None
+    from app.runs.events import agent_text, strip_step_markers
+
+    rows = db.scalars(
+        select(RunEvent).where(RunEvent.run_id == run.id, RunEvent.type == "agent.message")
+        .order_by(RunEvent.id.desc()).limit(5)
+    )
+    for row in rows:
+        text = agent_text(row.payload_json)
+        if workflow_marker(text) != "blocked":
+            continue
+        lines = [ln.strip() for ln in strip_workflow_markers(strip_step_markers(text)).splitlines() if ln.strip()]
+        heading = next((ln.lstrip("#").strip() for ln in lines if ln.startswith("#")), None)
+        line = heading or (lines[0] if lines else "")
+        line = re.sub(r"[*_`]", "", line)
+        return (line[:157] + "…") if len(line) > 160 else (line or None)
+    return None

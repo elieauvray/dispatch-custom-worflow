@@ -487,3 +487,35 @@ def test_answered_questions_show_as_done_while_designing(client, fake, monkeypat
     rows = {r["key"]: r for r in seen["view"]["rows"]}
     assert rows["tools"]["state"] == "done" and rows["design"]["state"] == "active"
     assert rows["clarify"]["state"] == "done" and rows["clarify"]["note"] == "Already answered"
+
+
+def test_empty_config_is_flagged_before_running(client, fake):
+    _setup(client)
+    wf_id = _create(client)
+    _design(wf_id)  # the fake design has one config key, REPO, with no value
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "1 of 1 config values are not set" in page and "(REPO)" in page and "Run anyway?" in page
+    assert "Run anyway?" in client.get("/workflows").text
+    token = csrf(client, f"/workflows/{wf_id}/design")
+    client.post(f"/workflows/{wf_id}/design/config", data={"cfg:REPO": "acme/shop", "csrf_token": token})
+    page = client.get(f"/workflows/{wf_id}/design").text
+    assert "config values are not set" not in page and "Run anyway?" not in page
+
+
+def test_blocked_runs_say_why():
+    from app.runs.progress import blocked_reason
+    from app.models import RunEvent
+
+    with SessionLocal() as db:
+        uid = make_user("carol")
+        run = WorkflowRun(user_id=uid, status="completed", progress="blocked", trigger="manual",
+                          content_snapshot="", workflow_name_snapshot="TMA", skills_snapshot=[],
+                          initial_message="", pending_event_ids=[])
+        db.add(run)
+        db.flush()
+        db.add(RunEvent(run_id=run.id, anthropic_event_id="e1", type="agent.message", payload_json={
+            "content": [{"type": "text", "text": "[step: S24]\n## TMA run: blocked by **missing configuration**\n"
+                                                 "None of the values are set.\n[workflow: blocked]"}]}))
+        db.commit()
+        assert blocked_reason(db, run) == "TMA run: blocked by missing configuration"
+        assert run.display_label == "workflow blocked"
