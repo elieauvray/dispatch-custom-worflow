@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -16,6 +18,19 @@ from markupsafe import Markup
 from app.security import get_or_create_csrf_token
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+_STATIC = Path(__file__).parent / "static"
+
+
+@lru_cache(maxsize=64)
+def asset(path: str) -> str:
+    """URL of a static file with a fingerprint of its content: browsers reload it as soon as it changes."""
+    try:
+        digest = hashlib.sha256((_STATIC / path).read_bytes()).hexdigest()[:10]
+    except OSError:
+        return f"/static/{path}"
+    return f"/static/{path}?v={digest}"
+
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 _md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
@@ -63,6 +78,7 @@ def strip_step(text: str | None) -> str:
 
 templates.env.filters["md"] = markdown
 templates.env.globals["icon"] = icon
+templates.env.globals["asset"] = asset
 templates.env.filters["strip_step"] = strip_step
 templates.env.filters["dt"] = format_dt
 templates.env.filters["duration"] = format_duration

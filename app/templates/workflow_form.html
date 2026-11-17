@@ -41,5 +41,5 @@
     <a href="/workflows/{{ workflow.id }}/design" role="button" class="secondary">{{ icon('close') }}Cancel</a>
   </div>
 </form>
-{% if is_maestro %}<script src="/static/diagram-input.js"></script>{% endif %}
+{% if is_maestro %}<script src="{{ asset('diagram-input.js') }}"></script>{% endif %}
 {% endblock %}
