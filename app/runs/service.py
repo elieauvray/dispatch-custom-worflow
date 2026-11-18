@@ -20,12 +20,12 @@ def ensure_ready(db: Session, user: User) -> None:
 
 
 def create_workflow_run(db: Session, user: User, workflow: Workflow,
-                        config_values: dict[str, str] | None = None) -> WorkflowRun:
+                        config_values: dict[str, str] | None = None, trigger: str = "manual") -> WorkflowRun:
     ensure_ready(db, user)
     if workflow.description:  # Maestro project: orchestration prompt + settings + run context
         from app.maestro.service import maestro_message
 
-        skills, message = maestro_message(db, workflow, "manual", config_values)
+        skills, message = maestro_message(db, workflow, trigger, config_values)
     else:
         skills = snapshot_skills(db.scalars(select(Skill)))
         message = compose_workflow_message(skills, workflow.name, workflow.content)
@@ -33,7 +33,8 @@ def create_workflow_run(db: Session, user: User, workflow: Workflow,
         user_id=user.id,
         workflow_id=workflow.id,
         status=RunStatus.RUNNING,
-        trigger="manual",
+        trigger=trigger,
+        config_values=config_values,
         design_snapshot=workflow.design_json if workflow.description else None,
         content_snapshot=workflow.content,
         workflow_name_snapshot=workflow.name,
@@ -88,3 +89,18 @@ def cancel_run(db: Session, user: User, run: WorkflowRun) -> None:
     run.pending_event_ids = []
     run.finished_at = utcnow()
     db.commit()
+
+
+def can_continue(run: WorkflowRun) -> bool:
+    """A Maestro run that stopped before the project was finished, and was not continued yet."""
+    return (bool(run.workflow_id and run.design_snapshot) and run.continued_by_run_id is None
+            and run.progress in {"ongoing", "blocked"}
+            and run.status in {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED})
+
+
+def continue_run(db: Session, user: User, run: WorkflowRun) -> WorkflowRun:
+    """Next run of the same project, with the settings of `run`: Maestro picks up where it stopped."""
+    workflow = run.workflow
+    if workflow is None:
+        raise ManagedAgentsError("This project no longer exists.")
+    return create_workflow_run(db, user, workflow, run.config_values, trigger="continue")

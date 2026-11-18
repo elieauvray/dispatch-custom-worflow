@@ -130,6 +130,8 @@ def actions_context(db: Session, run: WorkflowRun) -> dict[str, Any]:
     return {
         "run": run,
         "pending_tools": [pending[i] for i in run.pending_event_ids or [] if i in pending],
+        "can_continue": service.can_continue(run),
+        "waiting_step": current_step(db, run) if service.can_continue(run) else None,
     }
 
 
@@ -296,6 +298,35 @@ def run_confirm(
     except ManagedAgentsError as exc:
         error = str(exc)
     return _actions_response(request, db, run, error)
+
+
+@router.post("/runs/{run_id}/continue", dependencies=[Depends(csrf_protect)])
+def run_continue(
+    request: Request, run_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
+) -> Response:
+    """Continue the project of a stopped run: a new run with the same settings picks up where it stopped."""
+    run = get_owned_run(db, run_id, user)
+    if run.continued_by_run_id:
+        return _redirect(request, f"/runs/{run.continued_by_run_id}")
+    if not service.can_continue(run):
+        return _redirect(request, f"/runs/{run.id}")
+    from app.maestro.service import missing_connectors
+
+    missing = missing_connectors(db, user, run.workflow) if run.workflow else []
+    if missing:
+        return _actions_response(request, db, run, f"Connect {', '.join(missing)} in Settings first.")
+    try:
+        new = service.continue_run(db, user, run)
+    except ManagedAgentsError as exc:
+        return _actions_response(request, db, run, f"Could not continue the project. {exc}")
+    return _redirect(request, f"/runs/{new.id}")
+
+
+def _redirect(request: Request, url: str) -> Response:
+    """Full-page navigation, from an htmx form or a plain one."""
+    if request.headers.get("HX-Request"):
+        return Response(status_code=204, headers={"HX-Redirect": url})
+    return RedirectResponse(url, status_code=303)
 
 
 @router.post("/runs/{run_id}/cancel", dependencies=[Depends(csrf_protect)])

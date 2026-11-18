@@ -160,7 +160,7 @@ def test_workflow_stays_ongoing_until_maestro_reports_it_done(client, fake):
         run = db.get(WorkflowRun, first)
         assert run.status == "completed" and run.progress == "ongoing" and run.display_label == "ongoing"
     page = client.get(f"/runs/{first}").text
-    assert 'badge ongoing' in page and "the project continues on the next run" in page
+    assert 'badge ongoing' in page and "Continue the project" in page and "waiting at <strong>S2</strong>" in page
     assert "[workflow:" not in page.split('id="transcript"')[1].split('id="run-actions"')[0]
     assert "badge ongoing" in client.get("/workflows").text
 
@@ -246,3 +246,33 @@ def test_finished_runs_are_closed_and_old_progress_is_refreshed(client, fake):
     token = csrf(client, f"/runs/{run_id}")
     r = client.post(f"/runs/{run_id}/message", data={"text": "hi", "csrf_token": token})
     assert "This run has ended" in r.text
+
+
+def test_continue_the_project_from_a_stopped_run(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    token = csrf(client, "/workflows")
+    r = client.post(f"/workflows/{wf_id}/run", data={"csrf_token": token, "cfg:repo": "acme/ttt"},
+                    follow_redirects=False)
+    first = int(r.headers["location"].rsplit("/", 1)[1])
+    fake.stream_script["*"] = [
+        {"type": "agent.message", "content": [{"type": "text", "text": "[step: S2]\nDispatch is on it.\n[workflow: ongoing]"}]},
+        {"type": "session.status_idle", "stop_reason": {"type": "end_turn"}},
+    ]
+    RunDriver(first, threading.Event()).run()
+
+    r = client.post(f"/runs/{first}/continue", data={"csrf_token": token}, headers={"HX-Request": "true"})
+    assert r.status_code == 204
+    second = int(r.headers["HX-Redirect"].rsplit("/", 1)[1])
+    assert second != first
+    with SessionLocal() as db:
+        new = db.get(WorkflowRun, second)
+        assert new.trigger == "continue" and new.config_values == {"repo": "acme/ttt"}
+        assert db.get(WorkflowRun, first).continued_by_run_id == second
+    page = client.get(f"/runs/{first}").text
+    assert "Continue the project" not in page and f"continues in <a href=\"/runs/{second}\"" in page
+    # A second click lands on the run that already continues it, without starting another one.
+    r = client.post(f"/runs/{first}/continue", data={"csrf_token": token}, follow_redirects=False)
+    assert r.headers["location"] == f"/runs/{second}"
