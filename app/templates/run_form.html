@@ -2,34 +2,75 @@
 {% block title %}Run {{ wf.name }}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb"><ul><li><a href="/workflows">Projects</a></li><li><a href="/workflows/{{ wf.id }}/design">{{ wf.name }}</a></li><li>Run</li></ul></nav>
-<h1>Run {{ wf.name }}</h1>
-<form method="post" action="/workflows/{{ wf.id }}/run">
+<header class="run-head">
+  <h1>Run {{ wf.name }}</h1>
+  <p class="muted">The run starts with your account and your connectors, so Upsun Dispatch sees you. You follow it live.</p>
+</header>
+
+<form method="post" action="/workflows/{{ wf.id }}/run" class="run-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <article>
-    {% if config %}
-    <header class="card-head"><div><h2>Settings for this run</h2>
-      <p class="muted small">Maestro uses them to find your tracker, repository, people and limits. It never guesses a value: if you leave one empty, it asks you during the run.</p></div></header>
-    <div class="grid-2">
-      {% for c in config %}
-      <label>{{ c.key }}
-        <input name="cfg:{{ c.key }}" value="{{ c.value }}" placeholder="{{ c.description }}">
-        <small class="help">{{ c.description }}</small>
-      </label>
+  {% if config %}
+  <div class="settings-summary">
+    <div>
+      <h2>Settings</h2>
+      <p class="muted small">Maestro never guesses a value: if you leave one empty, it asks you during the run.
+        {% if not is_owner %}Prefilled with the values of {{ owner_login }}, who shared this project; your changes only apply to this run.{% endif %}</p>
+    </div>
+    <div class="settings-count" aria-live="polite"><strong id="filled-count">{{ filled }}</strong> of {{ config | length }} set
+      <div class="gen-bar"><span id="filled-bar" style="width: {{ (filled * 100 / config | length) | round | int }}%"></span></div>
+    </div>
+  </div>
+
+  {% for g in groups %}
+  <section class="settings-group">
+    <header>
+      <h3>{{ g.title }}</h3>
+      {% if g.hint %}<span class="small muted">{{ g.hint }}</span>{% endif %}
+    </header>
+    <div class="settings-rows">
+      {% for c in g.settings %}
+      <div class="setting-row">
+        <label for="cfg-{{ c.key }}">
+          <span class="setting-name">{{ c.label }}</span>
+          <code class="setting-key">{{ c.key }}</code>
+        </label>
+        <div class="setting-input">
+          <input id="cfg-{{ c.key }}" name="cfg:{{ c.key }}" value="{{ c.value }}" placeholder="Not set" autocomplete="off">
+          {% if c.description %}<small>{{ c.description }}</small>{% endif %}
+        </div>
+      </div>
       {% endfor %}
     </div>
-    {% if is_owner %}
+  </section>
+  {% endfor %}
+  {% else %}
+  <article><p style="margin:0">This project needs no settings.</p></article>
+  {% endif %}
+
+  <div class="run-actions">
+    {% if config and is_owner %}
     <label class="inline-check"><input type="checkbox" name="remember" value="1" checked> Use these values next time</label>
-    {% else %}
-    <p class="small muted">Prefilled with the values of {{ owner_login }}, who shared this project. Your changes only apply to this run.</p>
     {% endif %}
-    {% else %}
-    <p>This project needs no settings.</p>
-    {% endif %}
-    <p class="small muted" style="margin-bottom:0">The run starts with your account and your connectors, so Upsun Dispatch sees you. You can follow it live.</p>
-  </article>
-  <div class="row-actions">
-    <button type="submit">{{ icon('run') }}Run</button>
-    <a href="/workflows/{{ wf.id }}/design" role="button" class="secondary">{{ icon('close') }}Cancel</a>
+    <div class="row-actions">
+      <a href="/workflows/{{ wf.id }}/design" role="button" class="secondary">{{ icon('close') }}Cancel</a>
+      <button type="submit">{{ icon('run') }}Run</button>
+    </div>
   </div>
 </form>
+{% if config %}
+<script>
+  (function () {
+    var inputs = document.querySelectorAll(".run-form input[name^='cfg:']");
+    var count = document.getElementById("filled-count"), bar = document.getElementById("filled-bar");
+    function update() {
+      var n = 0;
+      inputs.forEach(function (i) { var set = i.value.trim() !== ""; if (set) n++; i.classList.toggle("is-empty", !set); });
+      count.textContent = n;
+      bar.style.width = Math.round(n * 100 / inputs.length) + "%";
+    }
+    inputs.forEach(function (i) { i.addEventListener("input", update); });
+    update();
+  })();
+</script>
+{% endif %}
 {% endblock %}

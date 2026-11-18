@@ -475,6 +475,62 @@ def _report_marker_rule(steps: list[dict[str, Any]]) -> str:
             "or nothing else happened in this run.")
 
 
+# --- Run settings, grouped for the Run page -------------------------------------
+
+_ACRONYMS = {"pr": "PR", "prs": "PRs", "url": "URL", "id": "ID", "api": "API", "sfd": "SFD", "us": "US",
+             "qa": "QA", "po": "PO", "ci": "CI", "e2e": "E2E", "cve": "CVE", "sla": "SLA",
+             "github": "GitHub", "gitlab": "GitLab", "upsun": "Upsun", "linear": "Linear", "jira": "Jira"}
+SETTING_GROUPS = [
+    ("where", "Where the work lives", "Tracker, repository and branches Maestro works with."),
+    ("people", "People", "Who is tagged, validates, reviews and receives escalations."),
+    ("labels", "Labels", "Labels Maestro reads or adds in the tracker."),
+    ("statuses", "Statuses", "Statuses Maestro reads or sets in the tracker."),
+    ("limits", "Limits and timing", "Caps and delays before Maestro escalates."),
+    ("other", "Other", ""),
+]
+_PEOPLE = ("USER", "ANALYST", "DEVELOPER", "OWNER", "LEAD", "REVIEWER", "VALIDATOR", "CLIENT", "MANAGER",
+           "APPROVER", "ASSIGNEE", "PO")
+_WHERE = ("LINEAR", "GITHUB", "JIRA", "CONFLUENCE", "REPO", "BRANCH", "DIR", "PROJECT", "TEAM", "SPACE",
+          "UPSUN", "ENVIRONMENT", "BOARD")
+
+
+def setting_group(key: str) -> str:
+    words = key.upper().split("_")
+    if words[0] == "LABEL":
+        return "labels"
+    if words[0] == "STATUS":
+        return "statuses"
+    if words[0] in ("MAX", "MIN") or words[-1] in ("DAYS", "HOURS", "MINUTES", "LIMIT", "TIMEOUT"):
+        return "limits"
+    if any(w.rstrip("S") in _PEOPLE for w in words):
+        return "people"
+    if any(w.rstrip("S") in _WHERE or w in _WHERE for w in words):
+        return "where"
+    return "other"
+
+
+def setting_label(key: str) -> str:
+    """LINEAR_TEAM -> "Linear team", STATUS_SFD_VALIDATED -> "SFD validated" (the group says it is a status)."""
+    words = key.lower().split("_")
+    if words[0] in ("label", "status") and len(words) > 1:
+        words = words[1:]
+    text = " ".join(_ACRONYMS.get(w, w) for w in words)
+    return text[:1].upper() + text[1:]
+
+
+def grouped_settings(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Settings of a run in readable groups, keeping the designer's order inside each group."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for c in config:
+        key = str(c.get("key") or "")
+        groups.setdefault(setting_group(key), []).append({**c, "label": setting_label(key)})
+    return [
+        {"key": g, "title": title, "hint": hint, "settings": groups[g],
+         "filled": sum(1 for c in groups[g] if str(c.get("value") or "").strip())}
+        for g, title, hint in SETTING_GROUPS if g in groups
+    ]
+
+
 def run_context(wf: Workflow, trigger: str, values: dict[str, str] | None = None) -> str:
     """Block appended to the orchestration prompt on every Maestro run (`values`: settings given at launch)."""
     config = [

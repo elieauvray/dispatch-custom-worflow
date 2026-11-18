@@ -380,3 +380,35 @@ h1 .badge { font-size: .8rem; vertical-align: middle; font-weight: 600; }
 .lead { font-size: 1.02rem; max-width: 52rem; margin: -.4rem 0 1.2rem; }
 .inline-check { display: flex; align-items: center; gap: .5rem; margin: .4rem 0 .8rem; }
 .inline-check input { margin: 0; }
+
+/* --- Run page: settings, grouped and easy to scan ------------------------------ */
+.run-head h1 { margin-bottom: .2rem; }
+.run-head p { margin-bottom: 1.4rem; }
+.run-form { max-width: 60rem; }
+.settings-summary { display: flex; justify-content: space-between; align-items: flex-end; gap: 1.5rem;
+  margin-bottom: 1rem; flex-wrap: wrap; }
+.settings-summary h2 { font-size: 1.2rem; margin: 0 0 .2rem; }
+.settings-summary p { margin: 0; max-width: 36rem; }
+.settings-count { min-width: 11rem; font-size: .9rem; color: var(--muted); }
+.settings-count strong { color: var(--text); font-size: 1.05rem; }
+.settings-count .gen-bar { margin-top: .4rem; }
+.settings-count .gen-bar > span::after { display: none; }
+.settings-group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1rem; overflow: hidden; }
+.settings-group > header { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; padding: .75rem 1.1rem;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); border-bottom: 1px solid var(--border); margin: 0; }
+.settings-group h3 { font-size: 1rem; margin: 0; }
+.setting-row { display: grid; grid-template-columns: minmax(11rem, 17rem) 1fr; gap: .4rem 1.4rem; align-items: start;
+  padding: .6rem 1.1rem; border-top: 1px solid var(--border); }
+.setting-row:first-child { border-top: 0; }
+.setting-row label { margin: 0; padding-top: .45rem; display: flex; flex-direction: column; gap: .15rem; }
+.setting-name { font-weight: 600; }
+.setting-key { font-size: .72rem; color: var(--muted); background: none; padding: 0; }
+.setting-input input { margin: 0; padding: .45rem .7rem; height: auto; font-size: .95rem; }
+.setting-input input.is-empty { border-style: dashed; }
+.setting-input small { display: block; color: var(--muted); font-size: .8rem; margin-top: .25rem; line-height: 1.35; }
+.run-actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  position: sticky; bottom: 0; padding: .9rem 0; background: var(--bg); border-top: 1px solid var(--border); margin-top: .4rem; }
+.run-actions .inline-check { margin: 0; }
+.run-actions .row-actions { margin-left: auto; }
+.run-actions .row-actions button, .run-actions .row-actions a[role="button"] { padding: .45rem 1.1rem; font-size: .95rem; }
+@media (max-width: 640px) { .setting-row { grid-template-columns: 1fr; } .setting-row label { padding-top: 0; } }

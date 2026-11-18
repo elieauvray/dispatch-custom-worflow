@@ -218,8 +218,11 @@ def workflow_run_form(
         return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
     config = (wf.design_json or {}).get("config") or []
     owner = db.get(User, wf.user_id)
-    return render(request, "run_form.html", {"wf": wf, "config": config, "is_owner": wf.user_id == user.id,
-                                             "owner_login": owner.login if owner else ""})
+    return render(request, "run_form.html", {
+        "wf": wf, "config": config, "groups": maestro_service.grouped_settings(config),
+        "filled": sum(1 for c in config if str(c.get("value") or "").strip()),
+        "is_owner": wf.user_id == user.id, "owner_login": owner.login if owner else "",
+    })
 
 
 @router.post("/workflows/{workflow_id}/run", dependencies=[Depends(csrf_protect)])

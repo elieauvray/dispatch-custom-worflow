@@ -472,7 +472,7 @@ def test_settings_are_asked_when_running(client, fake):
     _design(wf_id)  # the fake design has one setting, REPO, with no value
     assert f'href="/workflows/{wf_id}/run"' in client.get(f"/workflows/{wf_id}/design").text
     page = client.get(f"/workflows/{wf_id}/run").text
-    assert "Settings for this run" in page and 'name="cfg:REPO" value=""' in page and 'name="remember"' in page
+    assert "of 1 set" in page and 'name="cfg:REPO" value=""' in page and 'name="remember"' in page
 
     token = csrf(client, f"/workflows/{wf_id}/run")
     r = client.post(f"/workflows/{wf_id}/run", data={"cfg:REPO": "acme/shop", "remember": "1", "csrf_token": token},
@@ -509,3 +509,19 @@ def test_blocked_runs_say_why():
         db.commit()
         assert blocked_reason(db, run) == "TMA run: blocked by missing configuration"
         assert run.display_label == "project blocked"
+
+
+def test_run_settings_are_grouped_and_readable():
+    keys = ["LINEAR_TEAM", "GITHUB_REPO", "DEFAULT_BRANCH", "CLIENT_USERS", "ESCALATION_OWNER", "LABEL_BUG",
+            "STATUS_SFD_VALIDATED", "MAX_DISPATCH_ATTEMPTS", "DISPATCH_STALE_HOURS", "PILOT_REQUEST"]
+    groups = service.grouped_settings([{"key": k, "description": "", "value": "x" if k == "LABEL_BUG" else ""}
+                                       for k in keys])
+    by = {g["key"]: [c["key"] for c in g["settings"]] for g in groups}
+    assert by["where"] == ["LINEAR_TEAM", "GITHUB_REPO", "DEFAULT_BRANCH"]
+    assert by["people"] == ["CLIENT_USERS", "ESCALATION_OWNER"]
+    assert by["labels"] == ["LABEL_BUG"] and by["statuses"] == ["STATUS_SFD_VALIDATED"]
+    assert by["limits"] == ["MAX_DISPATCH_ATTEMPTS", "DISPATCH_STALE_HOURS"] and by["other"] == ["PILOT_REQUEST"]
+    assert [g["key"] for g in groups] == ["where", "people", "labels", "statuses", "limits", "other"]
+    assert service.setting_label("STATUS_SFD_VALIDATED") == "SFD validated"
+    assert service.setting_label("MAX_DISPATCH_ATTEMPTS") == "Max dispatch attempts"
+    assert next(g for g in groups if g["key"] == "labels")["filled"] == 1
