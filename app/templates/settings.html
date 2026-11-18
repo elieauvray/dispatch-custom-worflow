@@ -103,7 +103,7 @@
         </label>
         <noscript><button type="submit" class="secondary">{{ icon('save') }}Apply</button></noscript>
       </form>
-      <small class="help"><strong>Always ask</strong> shows an approval card before each call. <strong>Auto</strong> runs safe calls, denies risky ones and asks when unsure (recommended to follow Dispatch work). <strong>Always allow</strong> never asks.</small>
+      <small class="help"><strong>Always ask</strong> shows an approval card before each call that changes something; read-only calls (get, list, search…) are approved automatically. <strong>Auto</strong> runs safe calls, denies risky ones and asks when unsure (recommended to follow Dispatch work). <strong>Always allow</strong> never asks.</small>
 
       <div class="row-actions">
         <form method="post" action="/settings/connectors/{{ key }}/test">{{ csrf() }}<button type="submit" class="secondary">{{ icon('test') }}Test</button></form>

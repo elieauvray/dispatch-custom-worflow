@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from app.anthropic_client import ManagedAgentsAPI, ManagedAgentsError
 from app.db import SessionLocal
 from app.models import RunEvent, RunStatus, User, Workflow, WorkflowRun, utcnow
+from app.runs.approvals import auto_approve
 from app.runs.events import apply_event, last_agent_text, store_event
 from app.settings.service import client_for, resources_ready, sync_user_resources
 
@@ -60,7 +61,7 @@ class RunDriver:
         run.finished_at = utcnow()
         db.commit()
 
-    def _ingest(self, db: Session, run: WorkflowRun, events: Any) -> bool:
+    def _ingest(self, db: Session, run: WorkflowRun, events: Any, client: Any = None) -> bool:
         """Stores the events; returns True if the session no longer needs the worker."""
         for ev in events:
             if self.stop.is_set():
@@ -72,6 +73,8 @@ class RunDriver:
                 return True
             if store_event(db, run, ev):
                 db.commit()
+            if run.status == RunStatus.WAITING_APPROVAL and client is not None and auto_approve(db, client, run):
+                continue  # only read-only calls were waiting: approved, the session goes on
             if run.status != RunStatus.RUNNING:
                 return True
         return False
@@ -172,14 +175,14 @@ class RunDriver:
                     run.initial_sent = True
                     run.status = RunStatus.RUNNING
                 db.commit()
-                if self._ingest(db, run, history):
+                if self._ingest(db, run, history, client):
                     # The history ends in a waiting state, but the message was just sent.
                     if run.status != RunStatus.CANCELLED:
                         run.status = RunStatus.RUNNING
                         db.commit()
-            elif self._ingest(db, run, history):
+            elif self._ingest(db, run, history, client):
                 return True
-            if self._ingest(db, run, stream):
+            if self._ingest(db, run, stream, client):
                 return True
         # Stream ended without a final state: check the actual state before reconnecting.
         db.refresh(run)
@@ -187,7 +190,7 @@ class RunDriver:
             return True
         status = client.session_status(run.session_id)
         if status in {"idle", "terminated"}:
-            if self._ingest(db, run, client.list_events(run.session_id)):
+            if self._ingest(db, run, client.list_events(run.session_id), client):
                 return True
         return False
 

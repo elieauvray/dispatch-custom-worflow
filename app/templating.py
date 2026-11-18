@@ -76,8 +76,15 @@ def strip_step(text: str | None) -> str:
     return strip_step_markers(text)
 
 
+def _is_read_only(tool: dict) -> bool:  # type: ignore[type-arg]
+    from app.runs.approvals import is_read_only
+
+    return is_read_only(tool)
+
+
 templates.env.filters["md"] = markdown
 templates.env.globals["icon"] = icon
+templates.env.globals["is_read_only"] = _is_read_only
 templates.env.globals["asset"] = asset
 templates.env.filters["strip_step"] = strip_step
 templates.env.filters["dt"] = format_dt

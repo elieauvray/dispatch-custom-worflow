@@ -38,7 +38,7 @@
 </div>
 {%- elif ev.type == 'user.tool_confirmation' -%}
 <div class="ev system" id="ev-{{ ev.row.id }}">
-  {% if p.result == 'allow' %}✔ You allowed{% else %}✖ You denied{% endif %}
+  {% if p.result == 'allow' and ev.tool and is_read_only(ev.tool) %}✔ Read-only call allowed automatically:{% elif p.result == 'allow' %}✔ You allowed{% else %}✖ You denied{% endif %}
   {% if ev.tool %}<span class="toolname">{{ ev.tool.name }}</span>{% else %}the tool call{% endif %}
   {% if p.deny_message %}, reason: “{{ p.deny_message }}”{% endif %}
 </div>
