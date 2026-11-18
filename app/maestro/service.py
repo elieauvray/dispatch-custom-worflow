@@ -531,6 +531,30 @@ def grouped_settings(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def change_block(request: str | None) -> str:
+    """What the user asked to change when running the project again after a run."""
+    if not (request or "").strip():
+        return ""
+    return (
+        "\n\n## Change requested for this run\n"
+        "The user ran this project before and now asks for the change below. Read the ledgers first: keep what is "
+        "already done, then carry the change through the same process (for example a new or reopened item, its "
+        "spec and validations, a Dispatch run, review and release), from the step where it belongs. Do not redo "
+        "finished work that the change does not touch. If the request is unclear, ask before starting.\n\n"
+        f"<change_request>\n{request.strip()}\n</change_request>\n"
+    )
+
+
+def values_from_message(message: str, wf: Workflow) -> dict[str, str]:
+    """Settings a previous run was started with (read back from its config table)."""
+    keys = {str(c.get("key")) for c in (wf.design_json or {}).get("config") or []}
+    values: dict[str, str] = {}
+    for key, value in re.findall(r"^\| ([A-Z0-9_]+) \| (.*?) \|$", message or "", re.MULTILINE):
+        if key in keys and not value.startswith("<not set"):
+            values[key] = value
+    return values
+
+
 def run_context(wf: Workflow, trigger: str, values: dict[str, str] | None = None) -> str:
     """Block appended to the orchestration prompt on every Maestro run (`values`: settings given at launch)."""
     config = [
@@ -572,10 +596,11 @@ def run_context(wf: Workflow, trigger: str, values: dict[str, str] | None = None
     )
 
 
-def maestro_message(db: Session, wf: Workflow, trigger: str,
-                    values: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], str]:
+def maestro_message(db: Session, wf: Workflow, trigger: str, values: dict[str, str] | None = None,
+                    change_request: str | None = None) -> tuple[list[dict[str, Any]], str]:
     skills = current_instructions(db)
-    return skills, compose_workflow_message(skills, wf.name, wf.content + run_context(wf, trigger, values))
+    body = wf.content + run_context(wf, trigger, values) + change_block(change_request)
+    return skills, compose_workflow_message(skills, wf.name, body)
 
 
 # --- Former schedules ----------------------------------------------------------------

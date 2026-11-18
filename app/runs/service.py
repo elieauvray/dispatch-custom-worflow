@@ -20,12 +20,13 @@ def ensure_ready(db: Session, user: User) -> None:
 
 
 def create_workflow_run(db: Session, user: User, workflow: Workflow,
-                        config_values: dict[str, str] | None = None, trigger: str = "manual") -> WorkflowRun:
+                        config_values: dict[str, str] | None = None, trigger: str = "manual",
+                        change_request: str | None = None) -> WorkflowRun:
     ensure_ready(db, user)
     if workflow.description:  # Maestro project: orchestration prompt + settings + run context
         from app.maestro.service import maestro_message
 
-        skills, message = maestro_message(db, workflow, trigger, config_values)
+        skills, message = maestro_message(db, workflow, trigger, config_values, change_request)
     else:
         skills = snapshot_skills(db.scalars(select(Skill)))
         message = compose_workflow_message(skills, workflow.name, workflow.content)

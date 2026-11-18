@@ -150,6 +150,8 @@ def _blocks(steps: list[dict[str, Any]]) -> list[tuple[str, Any]]:
     return blocks
 
 
+NO_ROOM = 44         # room right of the steps for the "No" label of a loop
+NO_RED = "#FF4A11"   # Upsun orange 600: the "No" way back, next to the lime "Yes" way forward
 STEP_GAP = 46        # between two steps
 YES_ROOM = 30        # extra room below a step that can loop back, for its "Yes" label
 ARROW_RUN = 24       # length of the straight segment that ends in an arrowhead
@@ -164,10 +166,11 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
     ids = {str(s.get("id", "")) for s in steps}
     loops = [s for s in steps if s.get("loop_to") and s.get("loop_to") in ids]
     loop_ids = {str(s.get("id")) for s in loops}
-    labels = {str(s.get("id")): "No" + (f" · {_clip(str(s.get('loop')), 30)}" if s.get("loop") else "") for s in loops}
+    labels = {str(s.get("id")): _clip(str(s.get("loop")), 30) for s in loops if s.get("loop")}
     label_w = max((_pill_w(t) for t in labels.values()), default=0)
     # Loop labels and lanes live in a right margin, never over the steps.
-    gutter = (label_w + 28 + LOOP_LANE * len(loops)) if loops else 0
+    # "No" sits right where the dashed arrow leaves the step; its condition goes in the right margin.
+    gutter = (NO_ROOM + label_w + 28 + LOOP_LANE * len(loops)) if loops else 0
     width = W
     used = [a for a in ACTOR_ORDER if any(s.get("actor") == a for s in steps)] or ["maestro"]
     col_w = (width - LABEL_W) / len(used)
@@ -313,13 +316,14 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
             continue
         sx, sy, sw = src
         dx, dy, dw = dst
-        gx = width + label_w + 24 + i * LOOP_LANE
+        gx = width + NO_ROOM + label_w + 24 + i * LOOP_LANE
         y1, y2 = sy + ROW_H / 2, dy + ROW_H / 2 - 8
         arrow(f"M{sx + sw:.1f} {y1:.1f} L{gx:.1f} {y1:.1f} L{gx:.1f} {y2:.1f} L{dx + dw + 3:.1f} {y2:.1f}",
               dashed=True)
-        text = labels[str(s.get("id"))]
-        overlays.append(_pill(width + 12 + label_w / 2, y1, text, fill=SURFACE, stroke=ACCENT, color=TEXT,
-                              size=10, dashed=True))
+        overlays.append(_pill(sx + sw + 24, y1, "No", fill=NO_RED, stroke=NO_RED, color=NEUTRAL_1000, size=10))
+        if str(s.get("id")) in labels:
+            overlays.append(_pill(width + NO_ROOM + 12 + label_w / 2, y1, labels[str(s.get("id"))], fill=SURFACE,
+                                  stroke=ACCENT, color=TEXT, size=10, dashed=True))
 
     height = cursor + 16
     total_w = width + gutter

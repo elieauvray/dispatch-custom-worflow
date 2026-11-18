@@ -436,7 +436,7 @@ def test_branches_render_side_by_side_and_loops_go_back():
     ys = {m.group(1): float(m.group(2)) for m in re.finditer(r'data-step="(S\d)">.*?<rect class="ms-ring" x="[\d.]+" y="([\d.]+)"', svg, re.S)}
     assert ys["S2"] == ys["S3"] and xs["S2"] < xs["S3"]  # the two paths are side by side
     assert ">Bug<" in svg and ">Feature<" in svg
-    assert 'stroke-dasharray="5 4"' in svg and "No · PR refused" in svg and ">Yes<" in svg
+    assert 'stroke-dasharray="5 4"' in svg and ">No<" in svg and ">PR refused<" in svg and ">Yes<" in svg
     from app.maestro.render import step_tags
 
     assert "⟲ back to S4 when PR refused" in step_tags(design["steps"][4])

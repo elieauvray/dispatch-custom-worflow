@@ -329,6 +329,36 @@ def _redirect(request: Request, url: str) -> Response:
     return RedirectResponse(url, status_code=303)
 
 
+@router.post("/runs/{run_id}/rerun", dependencies=[Depends(csrf_protect)])
+def run_again(
+    request: Request,
+    run_id: int,
+    change: str = Form(""),
+    user: User = Depends(require_configured),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Run a finished project again, with the change the user asks for, and the same settings."""
+    from app.maestro import service as maestro_service
+    from app.workflows.routes import _cannot_run, get_visible_workflow
+
+    run = get_owned_run(db, run_id, user)
+    if run.status != RunStatus.COMPLETED or run.workflow_id is None:
+        return _redirect(request, f"/runs/{run.id}")
+    change = change.strip()[:4000]
+    if not change:
+        return _actions_response(request, db, run, "Describe what you want to change.")
+    wf = get_visible_workflow(db, run.workflow_id, user)
+    reason = _cannot_run(db, user, wf)
+    if reason:
+        return _actions_response(request, db, run, reason)
+    values = run.config_values or maestro_service.values_from_message(run.initial_message or "", wf) or None
+    try:
+        new = service.create_workflow_run(db, user, wf, values, change_request=change)
+    except ManagedAgentsError as exc:
+        return _actions_response(request, db, run, f"Could not start the project. {exc}")
+    return _redirect(request, f"/runs/{new.id}")
+
+
 @router.post("/runs/{run_id}/cancel", dependencies=[Depends(csrf_protect)])
 def run_cancel(
     request: Request, run_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)

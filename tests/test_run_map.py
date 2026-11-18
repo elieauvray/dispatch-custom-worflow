@@ -242,7 +242,7 @@ def test_finished_runs_are_closed_and_old_progress_is_refreshed(client, fake):
 
     page = client.get(f"/runs/{run_id}").text
     assert "Continue the conversation" not in page and f"/runs/{run_id}/message" not in page
-    assert "Run finished." in page
+    assert "What do you want to change or improve?" in page and f'hx-post="/runs/{run_id}/rerun"' in page
     token = csrf(client, f"/runs/{run_id}")
     r = client.post(f"/runs/{run_id}/message", data={"text": "hi", "csrf_token": token})
     assert "This run has ended" in r.text
@@ -276,3 +276,26 @@ def test_continue_the_project_from_a_stopped_run(client, fake):
     # A second click lands on the run that already continues it, without starting another one.
     r = client.post(f"/runs/{first}/continue", data={"csrf_token": token}, follow_redirects=False)
     assert r.headers["location"] == f"/runs/{second}"
+
+
+def test_a_finished_project_can_run_again_with_a_change(client, fake):
+    make_user("admin", admin=True)
+    uid = make_user("bob")
+    wf_id = _workflow(uid)
+    login(client, "bob")
+    run_id = _run_with(client, fake, uid, wf_id, ["[step: S3]\nThe game is live.\n[workflow: done]"])
+    with SessionLocal() as db:
+        run = db.get(WorkflowRun, run_id)
+        run.config_values = {"REPO": "acme/tictactoe"}
+        db.commit()
+    token = csrf(client, f"/runs/{run_id}")
+    r = client.post(f"/runs/{run_id}/rerun", data={"change": "", "csrf_token": token})
+    assert "Describe what you want to change" in r.text
+    r = client.post(f"/runs/{run_id}/rerun", data={"change": "Add a scoreboard", "csrf_token": token},
+                    follow_redirects=False)
+    new_id = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        new = db.get(WorkflowRun, new_id)
+        assert new.workflow_id == wf_id and new.config_values == {"REPO": "acme/tictactoe"}
+        assert "<change_request>\nAdd a scoreboard\n</change_request>" in new.initial_message
+        assert "keep what is already done" in new.initial_message

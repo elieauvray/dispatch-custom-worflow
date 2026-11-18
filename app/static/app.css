@@ -412,3 +412,6 @@ h1 .badge { font-size: .8rem; vertical-align: middle; font-weight: 600; }
 .run-actions .row-actions { margin-left: auto; }
 .run-actions .row-actions button, .run-actions .row-actions a[role="button"] { padding: .45rem 1.1rem; font-size: .95rem; }
 @media (max-width: 640px) { .setting-row { grid-template-columns: 1fr; } .setting-row label { padding-top: 0; } }
+.change-card { border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; }
+.change-card textarea { margin: .4rem 0 .3rem; }
+.change-card .row-actions { margin-top: .6rem; gap: 1rem; }

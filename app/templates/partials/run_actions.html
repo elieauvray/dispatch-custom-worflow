@@ -59,8 +59,22 @@
   </article>
 {% elif run.continued_by_run_id %}
   <p class="muted">The project continues in <a href="/runs/{{ run.continued_by_run_id }}">run #{{ run.continued_by_run_id }}</a>.</p>
+{% elif run.status == 'completed' and run.workflow_id %}
+  <article class="change-card">
+    <form hx-post="/runs/{{ run.id }}/rerun" hx-target="#run-actions" hx-swap="innerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="change-{{ run.id }}"><strong>What do you want to change or improve?</strong></label>
+      <textarea id="change-{{ run.id }}" name="change" rows="3" required
+        placeholder="e.g. Add a scoreboard that keeps the score between games; make the board work on mobile"></textarea>
+      <small class="help">Maestro runs the project again with the same settings. It keeps what is done and carries your change through the same process: specs and validations, Upsun Dispatch, review and release.</small>
+      <div class="row-actions">
+        <button type="submit">{{ icon('run') }}Run again with this change</button>
+        <a href="/workflows/{{ run.workflow_id }}/run" class="small">Or start a fresh run</a>
+      </div>
+    </form>
+  </article>
 {% elif run.status == 'completed' %}
-  <p class="muted">Run finished.{% if run.workflow_id %} <a href="/workflows/{{ run.workflow_id }}/run">Start a new run</a> of the project.{% endif %}</p>
+  <p class="muted">Run finished.</p>
 {% elif run.status == 'cancelled' %}
   <p class="muted">Run canceled.</p>
 {% elif run.status == 'failed' %}
