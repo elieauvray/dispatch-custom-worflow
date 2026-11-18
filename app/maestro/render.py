@@ -150,6 +150,7 @@ def _blocks(steps: list[dict[str, Any]]) -> list[tuple[str, Any]]:
     return blocks
 
 
+YES_LINE = "var(--diagram-yes, #D5F800)"  # Yes arrows: lime, a little darker on light backgrounds
 NO_ROOM = 44         # room right of the steps for the "No" label of a loop
 NO_RED = "#FF4A11"   # Upsun orange 600: the "No" way back, next to the lime "Yes" way forward
 STEP_GAP = 46        # between two steps
@@ -191,17 +192,23 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
         )
         parts.append(_t(x + col_w / 2, 29, ACTOR_LABELS[a], size=13, weight=700, fill=tcolor))
 
-    def arrow(d: str, dashed: bool = False) -> None:
+    def arrow(d: str, dashed: bool = False, color: str | None = None) -> None:
         dash = ' stroke-dasharray="5 4"' if dashed else ""
-        color = ACCENT if dashed else MUTED
-        arrows.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="1.3"{dash} '
+        stroke = color or (NO_RED if dashed else MUTED)
+        width = "1.8" if stroke != MUTED else "1.2"
+        arrows.append(f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{width}"{dash} '
                       f'marker-end="url(#ms-arrow)"/>')
 
-    def link(x1: float, b1: float, x2: float, t2: float, turn: float) -> None:
+    def out_color(sid: str) -> str | None:
+        """The way forward out of a step that can loop back is its "Yes": same color as the bubble."""
+        return YES_LINE if sid in loop_ids else None
+
+    def link(x1: float, b1: float, x2: float, t2: float, turn: float, sid: str = "") -> None:
+        color = out_color(sid)
         if abs(x1 - x2) < 1:
-            arrow(f"M{x1:.1f} {b1:.1f} L{x2:.1f} {t2 - 3:.1f}")
+            arrow(f"M{x1:.1f} {b1:.1f} L{x2:.1f} {t2 - 3:.1f}", color=color)
         else:
-            arrow(f"M{x1:.1f} {b1:.1f} L{x1:.1f} {turn:.1f} L{x2:.1f} {turn:.1f} L{x2:.1f} {t2 - 3:.1f}")
+            arrow(f"M{x1:.1f} {b1:.1f} L{x1:.1f} {turn:.1f} L{x2:.1f} {turn:.1f} L{x2:.1f} {t2 - 3:.1f}", color=color)
 
     def draw_step(s: dict[str, Any], x: float, y: float, w: float, show_actor: bool) -> float:
         """Draws the step; returns where the next thing may start (below its "Yes" label if any)."""
@@ -244,7 +251,7 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
                         anchor="start"))
 
     cursor = float(TOP - 12)  # bottom of what was drawn last
-    tails: list[tuple[float, float]] = []      # (cx, bottom) arrows leave from
+    tails: list[tuple[float, float, str]] = []  # (cx, bottom, step id) arrows leave from
     current_phase = None
     for kind, block in _blocks(steps):
         if kind == "step":
@@ -259,10 +266,10 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
             actor = s.get("actor") if s.get("actor") in ACTOR_STYLE else "maestro"
             x = col_x.get(actor, col_x[used[0]]) + 10
             cx = x + box_w / 2
-            for tx, tb in tails:  # one arrow, or several when paths join here
-                link(tx, tb, cx, top, top - ARROW_RUN)
+            for tx, tb, tsid in tails:  # one arrow, or several when paths join here
+                link(tx, tb, cx, top, top - ARROW_RUN, tsid)
             cursor = draw_step(s, x, top, box_w, show_actor=False)
-            tails = [(cx, top + ROW_H)]
+            tails = [(cx, top + ROW_H, str(s.get("id", "")))]
             continue
 
         # Alternative paths, side by side, each under a labeled arrow from the deciding step.
@@ -280,26 +287,28 @@ def render_design_svg(design: dict[str, Any]) -> Markup:
                 f'L{fx - 7:.1f} {fork_y:.1f} Z" fill="{SURFACE}" stroke="{ACCENT}" stroke-width="1.5"/>'
             )
         block_bottom = first_top
-        new_tails: list[tuple[float, float]] = []
+        new_tails: list[tuple[float, float, str]] = []
         frames: list[tuple[float, float]] = []
         for i, (label, path_steps) in enumerate(paths.items()):
             lx = 10 + i * lane
             x = lx + (lane - path_w) / 2
             cx = x + path_w / 2
             frames.append((lx, lane))
-            for tx, tb in tails:
-                link(tx, tb, cx, first_top, fork_y)
+            for tx, tb, tsid in tails:
+                link(tx, tb, cx, first_top, fork_y, tsid)
             overlays.append(_pill(cx, pill_cy, label, fill=ACCENT, stroke=ACCENT,
                                   color="var(--accent-contrast, #FFFFFF)"))
             py = end = prev_bottom = first_top
+            prev_id = ""
             for k, s in enumerate(path_steps):
                 if k:
-                    arrow(f"M{cx:.1f} {prev_bottom:.1f} L{cx:.1f} {py - 3:.1f}")
+                    arrow(f"M{cx:.1f} {prev_bottom:.1f} L{cx:.1f} {py - 3:.1f}", color=out_color(prev_id))
+                prev_id = str(s.get("id", ""))
                 end = draw_step(s, x, py, path_w, show_actor=True)
                 prev_bottom = py + ROW_H
                 if k + 1 < len(path_steps):
                     py = end + STEP_GAP
-            new_tails.append((cx, py + ROW_H))
+            new_tails.append((cx, py + ROW_H, str(path_steps[-1].get("id", ""))))
             block_bottom = max(block_bottom, end)
         if n > 1:
             frame_top, frame_h = fork_y + 12, block_bottom - fork_y + 4

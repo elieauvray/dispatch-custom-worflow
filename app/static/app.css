@@ -19,6 +19,7 @@
   --muted: var(--u-neutral-500);
   --border: var(--u-neutral-200);
   --accent: var(--u-violet-600);
+  --diagram-yes: #8FA800; /* lime, darker on light backgrounds so the Yes arrows stay visible */
   --accent-contrast: #ffffff;
 }
 
@@ -30,6 +31,7 @@
   --muted: var(--u-neutral-400);
   --border: var(--u-neutral-800);
   --accent: var(--u-violet-300);
+  --diagram-yes: var(--u-lime-600);
   --accent-contrast: var(--u-neutral-1000);
   color-scheme: dark;
 }
@@ -44,6 +46,7 @@
     --muted: var(--u-neutral-400);
     --border: var(--u-neutral-800);
     --accent: var(--u-violet-300);
+  --diagram-yes: var(--u-lime-600);
     --accent-contrast: var(--u-neutral-1000);
     color-scheme: dark;
   }
