@@ -7,7 +7,7 @@
   </label>
   <span class="share-side{% if shared %} is-on{% endif %}" data-side="shared">{{ icon('users') }}Shared</span>
 </div>
-<small class="help share-help" data-private="Only you can see and run this project." data-shared="Every user can see this project and run it with their own connectors. Only you can edit, configure or schedule it.">{{ 'Every user can see this project and run it with their own connectors. Only you can edit, configure or schedule it.' if shared else 'Only you can see and run this project.' }}</small>
+<small class="help share-help" data-private="Only you can see and run this project." data-shared="Every user can see this project and run it with their own connectors. Only you can edit or delete it.">{{ 'Every user can see this project and run it with their own connectors. Only you can edit or delete it.' if shared else 'Only you can see and run this project.' }}</small>
 <script>
   (function () {
     var box = document.currentScript.previousElementSibling.previousElementSibling;

@@ -46,7 +46,7 @@ DISPATCH_KNOWLEDGE = """# Upsun Dispatch: capabilities and limits (as of Novembe
 ## Maestro (the orchestrator this design is for)
 - Maestro is Claude running in Claude Managed Agents. Each run gets a fresh session with: MCP connectors
   configured by the user (Linear, GitHub, Jira/Confluence), a sandbox with bash and files, and the
-  orchestration prompt you write. It runs by hand or on a schedule (cron), for example hourly.
+  orchestration prompt you write. It runs when the user clicks Run, or when GitHub reports a merged PR.
 - Maestro STARTS Dispatch workflows (writes the issue, posts the trigger comment) and DETECTS when they are
   finished. It never interacts with a Dispatch workflow while it runs: no comments, no plan decisions, no
   corrections, no re-triggers, no reviews, no merges. People do Dispatch's own validations themselves.
@@ -107,13 +107,12 @@ in English (agents read it), precise and operational:
 6. The stages, in order, each with: who does it, inputs, the exact issue/comment templates to post, the
    expected outputs, the checks, and the gate.
 7. Runs never wait for Dispatch: start what can be started, check what has finished, then stop; the next
-   scheduled run continues.
+   run (started by the user, or woken by a merged pull request) continues.
 8. The end-of-run status report: a Markdown table of items with their current stage, state
    (working | waiting for Dispatch | waiting for a person | escalated | done), owner and links.
 
 Also return: a short summary, the assumptions you made, the needs that are not possible with Dispatch
-today with the alternative you chose, the tools/connectors required, the config keys, and a suggested
-schedule (cron) with its reason. Keep step titles short (2 to 7 words) and details to one line.
+today with the alternative you chose, the tools/connectors required and the config keys. Keep step titles short (2 to 7 words) and details to one line.
 Never invent Dispatch features beyond the knowledge below; when the description asks for one, say so in
 "not_possible" and design the alternative. Write titles, summary and lists in the language of the
 user's description; write the orchestration prompt in English.
@@ -190,15 +189,9 @@ DESIGN_SCHEMA: dict = {
             },
         },
         "tools": {"type": "array", "items": {"type": "string"}},
-        "schedule": {
-            "type": "object",
-            "properties": {"cron": {"type": "string"}, "reason": {"type": "string"}},
-            "required": ["cron", "reason"],
-            "additionalProperties": False,
-        },
         "orchestration_prompt": {"type": "string"},
     },
-    "required": ["summary", "steps", "config", "assumptions", "instruction_adjustments", "not_possible", "tools", "schedule",
+    "required": ["summary", "steps", "config", "assumptions", "instruction_adjustments", "not_possible", "tools",
                  "orchestration_prompt"],
     "additionalProperties": False,
 }

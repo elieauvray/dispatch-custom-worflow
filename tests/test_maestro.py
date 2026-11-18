@@ -55,14 +55,14 @@ def test_description_becomes_a_design_with_actors(client, fake):
     with SessionLocal() as db:
         wf = db.get(Workflow, wf_id)
         assert wf.design_status == "ready" and wf.content.startswith("# Mission")
-        assert wf.schedule_cron == "0 * * * *"
         assert [s["actor"] for s in wf.design_json["steps"]] == ["maestro", "dispatch", "human", "upsun"]
 
     page = client.get(f"/workflows/{wf_id}/design").text
     for text in ("Upsun Dispatch", "People (gates)", "Upsun Cloud", "GATE · PO", "Issue to code",
-                 "Custom Dispatch workflow", "Schedule Maestro", "Run now", "done when PR merged"):
+                 "Custom Dispatch workflow", "Run now", "done when PR merged"):
         assert text in page, text
     assert "Save config" not in page and 'name="cfg:REPO"' not in page  # settings are asked at run time
+    assert "Schedule" not in page and 'name="cron"' not in page  # projects are not scheduled
     # The panel endpoint tells HTMX to reload the page once the design is ready
     r = client.get(f"/workflows/{wf_id}/design/panel", headers={"HX-Request": "true"})
     assert r.headers.get("HX-Redirect") == f"/workflows/{wf_id}/design"
@@ -85,46 +85,22 @@ def test_run_now_sends_orchestration_prompt_config_and_skills(client, fake):
     assert "| REPO | acme/shop |" in msg and "never interact with it" in msg
 
 
-def test_schedule_lifecycle_and_scheduled_runs_import(client, fake):
+def test_old_schedules_are_archived_and_the_feature_is_gone(client, fake):
     _setup(client)
     wf_id = _create(client)
     _design(wf_id)
     token = csrf(client, f"/workflows/{wf_id}/design")
-    client.post(f"/workflows/{wf_id}/schedule",
-                data={"cron": "*/30 * * * *", "timezone": "Europe/Paris", "budget": "5", "csrf_token": token})
-    with SessionLocal() as db:
+    r = client.post(f"/workflows/{wf_id}/schedule", data={"cron": "0 * * * *", "csrf_token": token})
+    assert r.status_code in (404, 405)
+    with SessionLocal() as db:  # a schedule left from before the feature was removed
         wf = db.get(Workflow, wf_id)
-        dep_id = wf.deployment_id
-        assert dep_id and wf.deployment_status == "active" and wf.budget_cents == 500
-    dep = fake.deployments[dep_id]
-    assert dep["cron"] == "*/30 * * * *" and "Trigger: schedule" in dep["message"] and dep["budget"] == 500
-
-    r = client.post(f"/workflows/{wf_id}/schedule", data={"cron": "bad", "csrf_token": token})
-    assert "Invalid cron" in r.text
-
-    client.post(f"/workflows/{wf_id}/schedule/pause", data={"csrf_token": token})
-    assert fake.deployments[dep_id]["paused"] is True
-
-    # Editing the prompt by hand updates the schedule
-    client.post(f"/workflows/{wf_id}/edit", data={"name": "Page migration", "content": "# Mission\nEdited.",
-                                                  "csrf_token": token})
-    assert "Edited." in fake.deployments[dep_id]["message"]
-
-    fake.deployment_runs[dep_id] = [
-        {"id": "drun_1", "session_id": "sesn_sched_1"},
-        {"id": "drun_2", "session_id": None, "error": {"type": "vault_not_found", "message": "gone"}},
-    ]
-    with SessionLocal() as db:
+        wf.deployment_id, wf.deployment_status = "depl_old", "paused"
+        db.commit()
+        assert service.retire_schedules(db) == 1
         wf = db.get(Workflow, wf_id)
-        assert service.import_scheduled_runs(db, wf) == 2
-        assert service.import_scheduled_runs(db, wf) == 0  # no duplicates
-        runs = {r.deployment_run_id: r for r in db.query(WorkflowRun).filter_by(workflow_id=wf_id)}
-    assert runs["drun_1"].trigger == "schedule" and runs["drun_1"].session_id == "sesn_sched_1"
-    assert runs["drun_1"].status == "running"
-    assert runs["drun_2"].status == "failed" and "vault_not_found" in runs["drun_2"].error
-
-    client.post(f"/workflows/{wf_id}/delete", data={"csrf_token": token})
-    assert fake.deployments[dep_id]["archived"] is True
+        assert wf.deployment_id is None and wf.deployment_status is None
+        assert service.retire_schedules(db) == 0
+    assert fake.deployments["depl_old"]["archived"] is True
 
 
 def test_revision_keeps_config_values_and_sends_feedback(client, fake):

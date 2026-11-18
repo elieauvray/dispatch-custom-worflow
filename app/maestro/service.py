@@ -1,4 +1,4 @@
-"""Maestro workflows: design from a description, compose each run, schedule with Managed Agents."""
+"""Maestro projects: design from a description, compose each run, wake runs on merged pull requests."""
 
 from __future__ import annotations
 
@@ -131,10 +131,6 @@ def _normalize_design(raw: dict[str, Any], previous: dict[str, Any] | None) -> d
             for n in raw.get("not_possible") or []
         ][:20],
         "tools": [str(t) for t in raw.get("tools") or []][:20],
-        "schedule": {
-            "cron": str((raw.get("schedule") or {}).get("cron") or "0 * * * *")[:64],
-            "reason": str((raw.get("schedule") or {}).get("reason") or "")[:240],
-        },
     }
 
 
@@ -225,7 +221,6 @@ WRITING_LABELS = [
     ("steps", "Drawing the steps"),
     ("config", "Listing the settings"),
     ("assumptions", "Writing assumptions and limits"),
-    ("schedule", "Choosing a schedule"),
     ("orchestration_prompt", "Writing the orchestration prompt"),
 ]
 PROGRESS_EVERY = 1.5  # seconds between two progress writes while streaming
@@ -437,8 +432,6 @@ def generate_design(db: Session, wf_id: int) -> None:
         _finish_generation(db, wf, written["chars"] or None)
         wf.design_json = {**_normalize_design(raw, wf.design_json), "connectors_needed": needed}
         wf.content = str(raw["orchestration_prompt"]).strip()
-        if not wf.schedule_cron:
-            wf.schedule_cron = wf.design_json["schedule"]["cron"]
         wf.design_status = "ready"
         wf.design_error = None
         wf.design_feedback = None
@@ -450,11 +443,7 @@ def generate_design(db: Session, wf_id: int) -> None:
         wf.design_progress = {"timings": (wf.design_progress or {}).get("timings")}
     wf.design_updated_at = utcnow()
     db.commit()
-    if wf.design_status == "ready" and wf.deployment_id:
-        try:
-            push_schedule(db, user, wf)
-        except ManagedAgentsError as exc:
-            log.warning("Workflow %s: schedule not updated: %s", wf.id, exc)
+
 
 
 def save_config(db: Session, wf: Workflow, values: dict[str, str]) -> None:
@@ -533,80 +522,24 @@ def maestro_message(db: Session, wf: Workflow, trigger: str,
     return skills, compose_workflow_message(skills, wf.name, wf.content + run_context(wf, trigger, values))
 
 
-# --- Schedule (Managed Agents deployment) -----------------------------------------
+# --- Former schedules ----------------------------------------------------------------
 
 
-def _ensure_ready(db: Session, user: User) -> None:
-    settings = get_user_settings(db, user)
-    if not resources_ready(settings):
-        sync_user_resources(db, user, settings)
-
-
-def push_schedule(db: Session, user: User, wf: Workflow) -> None:
-    """Create or update the deployment so scheduled runs use the current prompt, skills and config."""
-    _ensure_ready(db, user)
-    settings = get_user_settings(db, user)
-    client = client_for(settings)
-    _, message = maestro_message(db, wf, "schedule")
-    cron = wf.schedule_cron or "0 * * * *"
-    if wf.deployment_id:
-        client.update_deployment(wf.deployment_id, message, cron, wf.schedule_timezone, wf.budget_cents)
-    else:
-        wf.deployment_id = client.create_deployment(
-            f"Maestro · {wf.name}", settings.agent_id or "", settings.environment_id or "",
-            [settings.vault_id or ""], message, cron, wf.schedule_timezone, wf.budget_cents,
-        )
-        wf.deployment_status = "active"
-    db.commit()
-
-
-def set_paused(db: Session, user: User, wf: Workflow, paused: bool) -> None:
-    if not wf.deployment_id:
-        return
-    client_for(get_user_settings(db, user)).set_deployment_paused(wf.deployment_id, paused)
-    wf.deployment_status = "paused" if paused else "active"
-    db.commit()
-
-
-def archive_schedule(db: Session, user: User, wf: Workflow) -> None:
-    if wf.deployment_id:
-        client_for(get_user_settings(db, user)).archive_deployment(wf.deployment_id)
-        wf.deployment_id, wf.deployment_status = None, None
-        db.commit()
-
-
-def import_scheduled_runs(db: Session, wf: Workflow) -> int:
-    """Register the sessions fired by the schedule so the worker follows them like any run."""
-    user = db.get(User, wf.user_id)
-    if user is None or not wf.deployment_id:
-        return 0
-    runs = client_for(get_user_settings(db, user)).list_deployment_runs(wf.deployment_id)
-    known = set(db.scalars(select(WorkflowRun.deployment_run_id).where(WorkflowRun.workflow_id == wf.id)))
-    added = 0
-    for r in runs:
-        rid, sid = r.get("id"), r.get("session_id")
-        if not rid or rid in known:
+def retire_schedules(db: Session) -> int:
+    """Projects are no longer scheduled: archive the deployments left from the schedule feature."""
+    retired = 0
+    for wf in db.scalars(select(Workflow).where(Workflow.deployment_id.is_not(None))):
+        user = db.get(User, wf.user_id)
+        try:
+            if user is not None:
+                client_for(get_user_settings(db, user)).archive_deployment(wf.deployment_id)
+        except ManagedAgentsError as exc:
+            log.warning("Workflow %s: could not archive its old schedule: %s", wf.id, exc)
             continue
-        error = r.get("error") or {}
-        skills, message = maestro_message(db, wf, "schedule")
-        context_type = (r.get("trigger_context") or {}).get("type")
-        new_run = WorkflowRun(
-            user_id=user.id, workflow_id=wf.id, deployment_run_id=rid,
-            trigger="wake" if context_type == "manual" else "schedule",
-            session_id=sid, initial_sent=True, initial_message=message,
-            status=RunStatus.RUNNING if sid else RunStatus.FAILED,
-            error=None if sid else f"Scheduled run failed: {error.get('type', 'unknown')} {error.get('message', '')}",
-            content_snapshot=wf.content, workflow_name_snapshot=wf.name, skills_snapshot=skills,
-            design_snapshot=wf.design_json,
-            pending_event_ids=[], finished_at=None if sid else utcnow(),
-        )
-        db.add(new_run)
-        db.flush()
-        mark_continued(db, new_run)
-        added += 1
-    if added:
-        db.commit()
-    return added
+        wf.deployment_id, wf.deployment_status = None, None
+        retired += 1
+    db.commit()
+    return retired
 
 
 # --- Wake-up (GitHub webhook) ---------------------------------------------------
@@ -615,8 +548,6 @@ WAKE_DEBOUNCE = timedelta(minutes=2)
 
 
 def _aware(value: Any) -> Any:
-    from datetime import UTC
-
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
@@ -636,8 +567,6 @@ def wake_for_repo(db: Session, user: User, repo: str) -> list[int]:
     for wf in workflows:
         if not _mentions_repo(wf, repo) or missing_connectors(db, user, wf):
             continue
-        if wf.deployment_id and wf.deployment_status != "active":
-            continue  # schedule paused on purpose
         recent = db.scalar(
             select(WorkflowRun.id).where(
                 WorkflowRun.workflow_id == wf.id, WorkflowRun.started_at >= utcnow() - WAKE_DEBOUNCE
@@ -646,14 +575,11 @@ def wake_for_repo(db: Session, user: User, repo: str) -> list[int]:
         if recent or (wf.last_woken_at and _aware(wf.last_woken_at) >= utcnow() - WAKE_DEBOUNCE):
             continue  # a run just started or was just requested: it will see the merge
         try:
-            if wf.deployment_id:
-                client_for(get_user_settings(db, user)).run_deployment(wf.deployment_id)
-            else:
-                from app.runs.service import create_workflow_run
+            from app.runs.service import create_workflow_run
 
-                run = create_workflow_run(db, user, wf)
-                run.trigger = "wake"
-                db.commit()
+            run = create_workflow_run(db, user, wf)
+            run.trigger = "wake"
+            db.commit()
             wf.last_woken_at = utcnow()
             db.commit()
             woken.append(wf.id)

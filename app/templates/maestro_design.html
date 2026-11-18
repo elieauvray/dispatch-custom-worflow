@@ -26,7 +26,7 @@
   {% endif %}
 {% else %}
   {% if missing %}
-  <div class="flash error" role="alert">This project needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.{% if wf.deployment_status == 'active' %} Pause the schedule meanwhile: scheduled runs would fail.{% endif %}</div>
+  <div class="flash error" role="alert">This project needs {{ missing | join(', ') }}, which {{ 'is' if missing | length == 1 else 'are' }} no longer connected to Maestro. Runs are disabled until you <a href="/settings#connectors">connect {{ 'it' if missing | length == 1 else 'them' }} again</a>.</div>
   {% endif %}
   {% if instructions_changed %}
   <div class="flash warning" role="status">
@@ -99,39 +99,10 @@
   </div>
 
 
-  {% if is_owner %}
-  <section id="schedule">
+  {% if not is_owner %}
+  <section id="launch">
     <h2 class="section-title">Launch</h2>
-    <article>
-      <p class="small">
-        <strong>Run now</strong> asks for the settings of the run, then starts it; you follow it live.
-        A <strong>schedule</strong> starts a fresh run at each tick (Claude Managed Agents deployment): each run reads the ledgers in the trackers, advances every item, stops at the gates.
-        Scheduled runs use the settings saved at your last run{% if wf.empty_config %} ({{ wf.empty_config | length }} still empty: <a href="/workflows/{{ wf.id }}/run">set them by running the project</a>){% endif %}.
-        {% if design.schedule and design.schedule.reason %}<br>Suggested: <code>{{ design.schedule.cron }}</code>. {{ design.schedule.reason }}{% endif %}
-      </p>
-      <form method="post" action="/workflows/{{ wf.id }}/schedule" class="grid">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label>Cron <input name="cron" value="{{ wf.schedule_cron or '0 * * * *' }}" required></label>
-        <label>Timezone <input name="timezone" value="{{ wf.schedule_timezone }}"></label>
-        <label>Budget per run (USD) <input name="budget" value="{{ '%.2f' % (wf.budget_cents / 100) if wf.budget_cents else '' }}" placeholder="optional"></label>
-        <button type="submit" style="align-self:end" {% if missing %}disabled{% endif %}>{{ icon('schedule') }}{{ 'Update schedule' if wf.deployment_id else 'Schedule Maestro' }}</button>
-      </form>
-      {% if wf.deployment_id %}
-      <div class="row-actions">
-        <span class="badge {{ 'configured' if wf.deployment_status == 'active' else 'not_configured' }}">{{ 'Scheduled' if wf.deployment_status == 'active' else 'Paused' }}</span>
-        <span class="small muted">Deployment <code>{{ wf.deployment_id }}</code></span>
-        <form method="post" action="/workflows/{{ wf.id }}/schedule/{{ 'pause' if wf.deployment_status == 'active' else 'resume' }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary">{{ icon('pause' if wf.deployment_status == 'active' else 'run') }}{{ 'Pause' if wf.deployment_status == 'active' else 'Resume' }}</button>
-        </form>
-      </div>
-      {% endif %}
-    </article>
-  </section>
-  {% else %}
-  <section id="schedule">
-    <h2 class="section-title">Launch</h2>
-    <p class="small">Shared by <strong>{{ owner_login }}</strong>. <strong>Run now</strong> starts a run with your own connectors, so Upsun Dispatch sees your account. Only {{ owner_login }} can change this project or schedule it.</p>
+    <p class="small">Shared by <strong>{{ owner_login }}</strong>. <strong>Run now</strong> starts a run with your own connectors, so Upsun Dispatch sees your account. Only {{ owner_login }} can change it.</p>
   </section>
   {% endif %}
 

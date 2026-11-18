@@ -268,14 +268,7 @@ class ManagedAgentsAPI(Protocol):
                     diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def clarify_workflow(self, model: str, description: str, services: list[str],
                          instructions: str = "", diagram: dict[str, Any] | None = None) -> dict[str, Any]: ...
-    def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
-                          message: str, cron: str, timezone: str, budget_cents: int | None) -> str: ...
-    def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
-                          budget_cents: int | None) -> None: ...
-    def set_deployment_paused(self, deployment_id: str, paused: bool) -> None: ...
-    def run_deployment(self, deployment_id: str) -> None: ...
     def archive_deployment(self, deployment_id: str) -> None: ...
-    def list_deployment_runs(self, deployment_id: str) -> list[dict[str, Any]]: ...
 
 
 class ManagedAgentsClient:
@@ -591,60 +584,13 @@ class ManagedAgentsClient:
         except ValueError as exc:
             raise ManagedAgentsError("Could not read the clarification questions.") from exc
 
-    # -- scheduled Maestro runs (Managed Agents deployments) -----------------------
-    @staticmethod
-    def _deployment_fields(message: str, cron: str, timezone: str, budget_cents: int | None) -> dict[str, Any]:
-        fields: dict[str, Any] = {
-            "initial_events": [{"type": "user.message", "content": [{"type": "text", "text": message}]}],
-            "schedule": {"type": "cron", "expression": cron, "timezone": timezone},
-        }
-        fields["budget"] = (
-            {"type": "limit", "max_list_cost": {"amount": str(budget_cents), "currency": "USD"}}
-            if budget_cents else None
-        )
-        return fields
-
-    def create_deployment(self, name: str, agent_id: str, environment_id: str, vault_ids: list[str],
-                          message: str, cron: str, timezone: str, budget_cents: int | None) -> str:
-        fields = self._deployment_fields(message, cron, timezone, budget_cents)
-        if fields["budget"] is None:
-            del fields["budget"]
-        with self._wrap():
-            dep = self._client.beta.deployments.create(
-                name=name[:200], agent=agent_id, environment_id=environment_id, vault_ids=vault_ids,
-                **fields,
-            )
-        return dep.id
-
-    def update_deployment(self, deployment_id: str, message: str, cron: str, timezone: str,
-                          budget_cents: int | None) -> None:
-        with self._wrap():
-            self._client.beta.deployments.update(
-                deployment_id, **self._deployment_fields(message, cron, timezone, budget_cents)
-            )
-
-    def set_deployment_paused(self, deployment_id: str, paused: bool) -> None:
-        with self._wrap():
-            if paused:
-                self._client.beta.deployments.pause(deployment_id)
-            else:
-                self._client.beta.deployments.unpause(deployment_id)
-
-    def run_deployment(self, deployment_id: str) -> None:
-        with self._wrap():
-            self._client.beta.deployments.run(deployment_id)
-
+    # -- old schedules (Managed Agents deployments), archived once ------------------
     def archive_deployment(self, deployment_id: str) -> None:
         with self._wrap():
             try:
                 self._client.beta.deployments.archive(deployment_id)
             except anthropic.NotFoundError:
                 pass
-
-    def list_deployment_runs(self, deployment_id: str) -> list[dict[str, Any]]:
-        with self._wrap():
-            page = self._client.beta.deployment_runs.list(deployment_id=deployment_id, limit=50)
-            return [event_to_dict(r) for r in page.data]
 
     # -- sessions ------------------------------------------------------------
     def create_session(

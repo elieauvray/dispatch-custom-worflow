@@ -28,9 +28,8 @@ def _setup(client):  # type: ignore[no-untyped-def]
                          permission_policy="auto", status=ConnectorStatus.CONFIGURED))
         design = {"summary": "s", "steps": [], "connectors_needed": ["github"],
                   "config": [{"key": "REPO", "description": "repo", "value": "Acme/Shop"}]}
-        scheduled = Workflow(user_id=uid, name="Scheduled", description="d" * 50, content="# Mission",
-                             design_json=design, design_status="ready", deployment_id="depl_1",
-                             deployment_status="active")
+        scheduled = Workflow(user_id=uid, name="By config", description="d" * 50, content="# Mission",
+                             design_json=design, design_status="ready")
         manual = Workflow(user_id=uid, name="Manual", description="Work on acme/shop", content="# Mission",
                           design_json={**design, "config": []}, design_status="ready")
         other = Workflow(user_id=uid, name="Other", description="Work on acme/blog", content="# Mission",
@@ -58,17 +57,16 @@ def test_merged_pr_wakes_the_workflows_of_that_repo(client, fake):
     r = client.post(path, content=body, headers={"X-GitHub-Event": "pull_request",
                                                  "X-Hub-Signature-256": _sign(secret, body)})
     assert r.status_code == 202 and sorted(r.json()["woken_workflows"]) == sorted([scheduled, manual])
-    assert ("run_deployment", "depl_1") in fake.calls
     with SessionLocal() as db:
-        runs = db.query(WorkflowRun).filter_by(workflow_id=manual).all()
-        assert len(runs) == 1 and runs[0].trigger == "wake"
+        for wf_id in (scheduled, manual):  # found by its config value or by its description
+            runs = db.query(WorkflowRun).filter_by(workflow_id=wf_id).all()
+            assert len(runs) == 1 and runs[0].trigger == "wake"
         assert db.query(WorkflowRun).filter_by(workflow_id=other).count() == 0
 
     # A second merge right after does not wake them again
     r = client.post(path, content=body, headers={"X-GitHub-Event": "pull_request",
                                                  "X-Hub-Signature-256": _sign(secret, body)})
     assert r.json()["woken_workflows"] == []
-    assert [c for c in fake.calls if c[0] == "run_deployment"] == [("run_deployment", "depl_1")]
 
 
 def test_webhook_security_and_ignored_events(client, fake):
@@ -85,15 +83,4 @@ def test_webhook_security_and_ignored_events(client, fake):
     r = client.post(path, content=closed, headers={"X-GitHub-Event": "pull_request",
                                                    "X-Hub-Signature-256": _sign(secret, closed)})
     assert "ignored" in r.json()
-    assert not any(c[0] == "run_deployment" for c in fake.calls)
 
-
-def test_paused_schedule_is_not_woken(client, fake):
-    path, secret, (scheduled, _manual, _other) = _setup(client)
-    with SessionLocal() as db:
-        db.get(Workflow, scheduled).deployment_status = "paused"
-        db.commit()
-    body = _merged("acme/shop")
-    r = client.post(path, content=body, headers={"X-GitHub-Event": "pull_request",
-                                                 "X-Hub-Signature-256": _sign(secret, body)})
-    assert scheduled not in r.json()["woken_workflows"]

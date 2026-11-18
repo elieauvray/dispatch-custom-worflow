@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 def get_owned_workflow(db: Session, workflow_id: int, user: User) -> Workflow:
-    """A workflow its owner can change (edit, delete, config, schedule)."""
+    """A project its owner can change (edit, delete, config)."""
     wf = db.get(Workflow, workflow_id)
     if wf is None or wf.user_id != user.id:
         raise HTTPException(status_code=404)
@@ -152,7 +152,6 @@ async def workflow_update(
     if not error and can_edit_prompt and not content and not redesign:
         error = "The orchestration prompt is required."
     if not error:
-        prompt_changed = not redesign and content != wf.content
         wf.name = name
         wf.shared = bool(shared)
         if redesign:
@@ -179,11 +178,6 @@ async def workflow_update(
         flash(request, "Saved. Maestro is redesigning the project.", "info")
     else:
         flash(request, "Project updated.", "success")
-        if prompt_changed and wf.deployment_id:  # scheduled Maestro runs must use the edited prompt
-            try:
-                maestro_service.push_schedule(db, user, wf)
-            except ManagedAgentsError as exc:
-                flash(request, f"The schedule could not be updated. {exc}", "error")
     return RedirectResponse(f"/workflows/{wf.id}/design" if is_maestro else "/workflows", status_code=303)
 
 
@@ -192,14 +186,6 @@ def workflow_delete(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = get_owned_workflow(db, workflow_id, user)
-    if wf.deployment_id:  # stop the schedule for good, or it would keep firing runs
-        from app.maestro.service import archive_schedule
-
-        try:
-            archive_schedule(db, user, wf)
-        except ManagedAgentsError as exc:
-            flash(request, f"The project was not deleted: its schedule could not be stopped. {exc}", "error")
-            return RedirectResponse("/workflows", status_code=303)
     db.delete(wf)
     db.commit()
     flash(request, "Project deleted.", "success")
@@ -248,13 +234,8 @@ async def workflow_run(
     form = await request.form()
     values = {k[4:]: str(v).strip()[:500] for k, v in form.items() if k.startswith("cfg:")} or None
     if values is not None and wf.user_id == user.id and form.get("remember"):
-        # The owner's values become the defaults of the next runs and of the schedule.
+        # The owner's values become the defaults of the next runs.
         maestro_service.save_config(db, wf, values)
-        if wf.deployment_id:
-            try:
-                maestro_service.push_schedule(db, user, wf)
-            except ManagedAgentsError as exc:
-                flash(request, f"The schedule could not be updated. {exc}", "error")
     try:
         run = service.create_workflow_run(db, user, wf, values)
     except ManagedAgentsError as exc:

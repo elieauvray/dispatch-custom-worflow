@@ -192,7 +192,6 @@ class RunDriver:
         return False
 
 
-SCHEDULE_SYNC_SECONDS = 60.0
 
 
 def _design_job(wf_id: int) -> None:
@@ -272,7 +271,7 @@ class Worker:
                 del self.threads[rid]
 
     def maestro_jobs(self, db: Session) -> None:
-        """Generate queued Maestro designs and import runs fired by schedules."""
+        """Generate queued Maestro designs."""
         from app.maestro import service as maestro
 
         self.design_threads = {k: t for k, t in getattr(self, "design_threads", {}).items() if t.is_alive()}
@@ -281,15 +280,6 @@ class Worker:
             self.design_threads[wf_id] = t
             t.start()
             log.info("Workflow %s: design generation started", wf_id)
-        if time.monotonic() - getattr(self, "_last_schedule_sync", 0.0) >= SCHEDULE_SYNC_SECONDS:
-            self._last_schedule_sync = time.monotonic()
-            for wf in db.scalars(select(Workflow).where(Workflow.deployment_id.is_not(None))):
-                try:
-                    if maestro.import_scheduled_runs(db, wf):
-                        log.info("Workflow %s: scheduled run(s) imported", wf.id)
-                except Exception:
-                    db.rollback()
-                    log.exception("Workflow %s: could not import scheduled runs", wf.id)
 
     def tick(self) -> None:
         db = SessionLocal()
@@ -317,6 +307,10 @@ class Worker:
 
                 if changed := refresh_progress(db):
                     log.info("Workflow progress updated for %s run(s)", changed)
+                from app.maestro.service import retire_schedules
+
+                if retired := retire_schedules(db):
+                    log.info("Archived %s schedule(s) left from the removed schedule feature", retired)
         except Exception:
             log.exception("Could not refresh workflow progress")
         while not self.stop.is_set():

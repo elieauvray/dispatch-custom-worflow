@@ -1,5 +1,5 @@
 <span class="badge {{ run.display_status }}">{{ run.display_label }}</span>
-{% if run.status == 'completed' and run.progress == 'ongoing' %}<span class="small muted">· Maestro did its part in {{ run.duration_seconds | duration }}; the project continues on the next run (schedule, GitHub wake-up or Run now)</span>
+{% if run.status == 'completed' and run.progress == 'ongoing' %}<span class="small muted">· Maestro did its part in {{ run.duration_seconds | duration }}; the project continues on the next run (Run now, or a GitHub wake-up when a PR is merged)</span>
 {% elif run.status == 'completed' and run.progress == 'blocked' %}<span class="small muted">· Run finished in {{ run.duration_seconds | duration }}; the project cannot go on until you act{% if blocked_reason %}: <strong>{{ blocked_reason }}</strong>{% endif %}. Its last report says what to do.</span>
 {% elif run.status == 'completed' and run.progress == 'continued' and run.continued_by_run_id %}<span class="small muted">· <a href="/runs/{{ run.continued_by_run_id }}">see run #{{ run.continued_by_run_id }}</a></span>
 {% elif run.status in ['completed', 'failed', 'cancelled'] %}<span class="small muted">· took {{ run.duration_seconds | duration }}</span>{% endif %}

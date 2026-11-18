@@ -192,32 +192,12 @@ class FakeManagedAgents:
             "instruction_adjustments": list(self.design_adjustments),
             "not_possible": [{"need": "Custom Dispatch workflow", "alternative": "Maestro chains Issue to code runs"}],
             "tools": ["GitHub connector"],
-            "schedule": {"cron": "0 * * * *", "reason": "Hourly is enough for human gates."},
             "orchestration_prompt": "# Mission\nYou are the Executor of the page migration factory.",
         }
 
-    def create_deployment(self, name, agent_id, environment_id, vault_ids, message, cron, timezone, budget_cents):  # type: ignore[no-untyped-def]
-        dep_id = self._id("depl")
-        self.deployments[dep_id] = {"name": name, "message": message, "cron": cron, "timezone": timezone,
-                                    "budget": budget_cents, "paused": False, "archived": False}
-        self.calls.append(("create_deployment", dep_id))
-        return dep_id
-
-    def update_deployment(self, deployment_id, message, cron, timezone, budget_cents):  # type: ignore[no-untyped-def]
-        self.deployments[deployment_id].update(message=message, cron=cron, timezone=timezone, budget=budget_cents)
-        self.calls.append(("update_deployment", deployment_id))
-
-    def set_deployment_paused(self, deployment_id, paused):  # type: ignore[no-untyped-def]
-        self.deployments[deployment_id]["paused"] = paused
-
-    def run_deployment(self, deployment_id):  # type: ignore[no-untyped-def]
-        self.calls.append(("run_deployment", deployment_id))
-
     def archive_deployment(self, deployment_id):  # type: ignore[no-untyped-def]
-        self.deployments[deployment_id]["archived"] = True
+        self.deployments.setdefault(deployment_id, {})["archived"] = True
 
-    def list_deployment_runs(self, deployment_id):  # type: ignore[no-untyped-def]
-        return list(self.deployment_runs.get(deployment_id, []))
 
     def generate_plan(self, model: str, request_text: str, services: list[str]) -> dict[str, Any]:
         self.plan_calls.append((model, request_text, services))

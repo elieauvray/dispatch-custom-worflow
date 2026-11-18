@@ -1,4 +1,4 @@
-"""Maestro pages: describe a workflow, review the generated design, configure, schedule, launch."""
+"""Maestro pages: describe a project, review the generated design, launch."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from app.templating import flash, render, templates
 from app.workflows.routes import get_owned_workflow, get_visible_workflow
 
 router = APIRouter()
-CRON_RE = re.compile(r"^\S+ \S+ \S+ \S+ \S+$")
 
 
 def _maestro(db: Session, workflow_id: int, user: User, *, view: bool = False) -> Workflow:
@@ -128,7 +127,7 @@ def design_panel(
 ) -> Response:
     wf = _maestro(db, workflow_id, user, view=True)
     if wf.design_status == "ready":
-        # Generation finished: reload the full page (config form, schedule, prompt).
+        # Generation finished: reload the full page.
         return Response(status_code=204, headers={"HX-Redirect": f"/workflows/{wf.id}/design"})
     return HTMLResponse(templates.get_template("partials/maestro_status.html").render(_panel_ctx(request, wf, db, user)))
 
@@ -182,64 +181,8 @@ async def design_config(
     form = await request.form()
     values = {k[4:]: str(v) for k, v in form.items() if k.startswith("cfg:")}
     service.save_config(db, wf, values)
-    if wf.deployment_id:
-        try:
-            service.push_schedule(db, user, wf)
-        except ManagedAgentsError as exc:
-            flash(request, f"Config saved, but the schedule could not be updated. {exc}", "error")
-            return RedirectResponse(f"/workflows/{wf.id}/design#config", status_code=303)
     flash(request, "Config saved.", "success")
     return RedirectResponse(f"/workflows/{wf.id}/design#config", status_code=303)
-
-
-@router.post("/workflows/{workflow_id}/schedule", dependencies=[Depends(csrf_protect)])
-def schedule_save(
-    request: Request,
-    workflow_id: int,
-    cron: str = Form(...),
-    timezone: str = Form("Europe/Paris"),
-    budget: str = Form(""),
-    user: User = Depends(require_configured),
-    db: Session = Depends(get_db),
-) -> Response:
-    wf = _maestro(db, workflow_id, user)
-    missing = service.missing_connectors(db, user, wf)
-    if missing:
-        flash(request, f"Connect {', '.join(missing)} in Settings before scheduling this project.", "error")
-        return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
-    cron = " ".join(cron.split())
-    if not CRON_RE.match(cron):
-        flash(request, "Invalid cron expression (5 fields, e.g. 0 * * * *).", "error")
-        return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
-    try:
-        wf.budget_cents = int(round(float(budget) * 100)) if budget.strip() else None
-    except ValueError:
-        flash(request, "The budget must be a number of dollars.", "error")
-        return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
-    wf.schedule_cron, wf.schedule_timezone = cron, timezone.strip() or "Europe/Paris"
-    db.commit()
-    try:
-        service.push_schedule(db, user, wf)
-        flash(request, f"Schedule active: {cron} ({wf.schedule_timezone}).", "success")
-    except ManagedAgentsError as exc:
-        flash(request, f"Could not schedule Maestro. {exc}", "error")
-    return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
-
-
-@router.post("/workflows/{workflow_id}/schedule/{action}", dependencies=[Depends(csrf_protect)])
-def schedule_toggle(
-    request: Request, workflow_id: int, action: str,
-    user: User = Depends(require_configured), db: Session = Depends(get_db),
-) -> Response:
-    wf = _maestro(db, workflow_id, user)
-    if action not in {"pause", "resume"}:
-        raise HTTPException(status_code=404)
-    try:
-        service.set_paused(db, user, wf, action == "pause")
-        flash(request, "Schedule paused." if action == "pause" else "Schedule resumed.", "success")
-    except ManagedAgentsError as exc:
-        flash(request, str(exc), "error")
-    return RedirectResponse(f"/workflows/{wf.id}/design#schedule", status_code=303)
 
 
 @router.get("/workflows/{workflow_id}/design.svg")

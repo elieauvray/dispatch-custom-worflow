@@ -19,7 +19,7 @@ Dispatch, giving Dispatch every step it can do:
    - the **steps and their actor**: Maestro, Upsun Dispatch (Issue to code, Code review, full review, CVE
      scan), people (gates) or Upsun Cloud;
    - the **assumptions**, what is **not possible with Dispatch** and the chosen alternative, the required
-     tools, the config parameters and a suggested schedule.
+     tools and the config parameters (asked when the project is run).
 
    The designer relies on a Dispatch knowledge base (`app/maestro/knowledge.py`), with no built-in workflow
    template.
@@ -27,7 +27,7 @@ Dispatch, giving Dispatch every step it can do:
    itself. If the description involves a connector that is not configured (for example Linear) or a tool with no
    connector in Maestro (GitLab, Slack, sending emails, and so on), **no prompt is created**: the project
    switches to "blocked" with the message "connect it in Settings, then try again". If a required connector
-   is removed later, Run now and the schedule are disabled.
+   is removed later, Run now is disabled.
    **Clarify.** After the tool check and before the design, Maestro asks at most 6 multiple-choice questions
    (recommended option first, plus "Other") when a decision materially changes the workflow or is needed to
    fit what Dispatch can do (tracker, who validates what, one PR per issue, completion signal, first run
@@ -39,11 +39,10 @@ Dispatch, giving Dispatch every step it can do:
    shows the description so you can fix it first.
 2. **Visualization.** A swimlane diagram (one column per actor, phases as bands, GATE badges,
    Dispatch workflow type, repetitions and loops), exportable as SVG.
-3. **Launch.** *Run now* starts a run that you follow live. *Schedule Maestro* creates a scheduled
-   Claude Managed Agents deployment (cron, time zone, budget per run): each tick creates a session that the worker imports
-   and follows like the other runs (transcript, approvals, questions). Pause, resume and automatic
-   update when the prompt, the config or the system instructions change; deleting the workflow archives the
-   deployment.
+3. **Launch.** *Run now* opens the settings of the run (prefilled with the last values; the owner can keep
+   them for next time), then starts a run that you follow live. Projects are not scheduled: a run ends once
+   Maestro has done its part, and the next one starts when you click *Run now* or when GitHub reports a
+   merged pull request on the project's repository (GitHub wake-up, in Settings).
 
 **Following a run on its diagram.** Each run keeps a frozen copy of its workflow's design. On the run page,
 a compact map of the steps stays visible while you scroll the transcript (left column, or a band at the top on
@@ -103,7 +102,7 @@ Browser ──HTMX/SSE──▶ web (FastAPI, uvicorn) ──▶ PostgreSQL ◀�
 
 ### Run lifecycle
 
-1. The web app creates a `workflow_run` with the `running` status (Run now), or the worker imports a session fired by the schedule or a GitHub wake-up.
+1. The web app creates a `workflow_run` with the `running` status (Run now), or a GitHub wake-up starts one when a pull request is merged.
 2. The worker claims it, creates the session (`agent`, `environment_id`, `vault_ids`), opens the stream, rereads the history (deduplication by event id), then sends the `user.message`.
 3. Each event is stored in `run_events` and updates the status:
    - `session.status_idle` + `requires_action` gives **waiting for approval**. The blocking `event_ids` are stored.

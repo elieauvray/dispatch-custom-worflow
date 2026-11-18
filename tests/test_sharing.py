@@ -65,8 +65,8 @@ def test_others_can_view_and_run_a_shared_workflow_but_not_change_it(client, fak
     assert client.get(f"/workflows/{private_id}/design").status_code == 404
 
     token = csrf(client, f"/workflows/{shared_id}/design")
-    for path in ("edit", "delete", "design/config", "design/revise", "schedule"):
-        r = client.post(f"/workflows/{shared_id}/{path}", data={"name": "x", "cron": "0 * * * *", "csrf_token": token})
+    for path in ("edit", "delete", "design/config", "design/revise"):
+        r = client.post(f"/workflows/{shared_id}/{path}", data={"name": "x", "csrf_token": token})
         assert r.status_code == 404, path
     assert client.get(f"/workflows/{shared_id}/edit").status_code == 404
 

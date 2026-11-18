@@ -5,7 +5,7 @@
   <h1 style="margin:0">Projects</h1>
   <a href="/" role="button">{{ icon('create') }}Describe a new project</a>
 </header>
-<p class="muted">Each project is a process Maestro designed from your description, from the request to production. Open one to review its design, set its config, run it now or schedule it. The admin's <a href="/instructions">system instructions</a> apply to every project and take precedence over its description.</p>
+<p class="muted">Each project is a process Maestro designed from your description, from the request to production. Open one to review its design, then run it. The admin's <a href="/instructions">system instructions</a> apply to every project and take precedence over its description.</p>
 {% if workflows %}
 <div class="overflow-auto">
 <table>
@@ -14,7 +14,7 @@
   {% for wf in workflows %}
   {% set last = last_runs.get(wf.id) %}
   <tr>
-    <td class="name-cell">{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.user_id != current_user.id %} <span class="badge shared" title="Shared by {{ owners.get(wf.user_id, '') }}">{{ icon('users') }}{{ owners.get(wf.user_id, '') }}</span>{% elif wf.shared %} <span class="badge shared" title="Shared with every user">{{ icon('users') }}shared</span>{% endif %}{% if wf.deployment_status == 'active' %} <span class="badge configured" title="{{ wf.schedule_cron }}">scheduled</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% if wf.design_status == 'needs_answers' %} <span class="badge waiting_input">needs your answers</span>{% endif %}{% if wf.design_status == 'blocked' %} <span class="badge failed">blocked</span>{% endif %}{% if wf.id in outdated %} <span class="badge waiting_input" title="The system instructions changed since this design was generated">instructions changed</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
+    <td class="name-cell">{% if wf.description %}<a href="/workflows/{{ wf.id }}/design"><strong>{{ wf.name }}</strong></a>{% if wf.user_id != current_user.id %} <span class="badge shared" title="Shared by {{ owners.get(wf.user_id, '') }}">{{ icon('users') }}{{ owners.get(wf.user_id, '') }}</span>{% elif wf.shared %} <span class="badge shared" title="Shared with every user">{{ icon('users') }}shared</span>{% endif %}{% if wf.design_status in ['queued','generating'] %} <span class="badge running">designing</span>{% endif %}{% if wf.design_status == 'needs_answers' %} <span class="badge waiting_input">needs your answers</span>{% endif %}{% if wf.design_status == 'blocked' %} <span class="badge failed">blocked</span>{% endif %}{% if wf.id in outdated %} <span class="badge waiting_input" title="The system instructions changed since this design was generated">instructions changed</span>{% endif %}{% else %}<strong>{{ wf.name }}</strong>{% endif %}</td>
     <td class="small content-cell">{{ (wf.design_json.summary if wf.design_json and wf.design_json.summary else (wf.description or wf.content)) | excerpt(90) }}</td>
     <td class="small">{{ wf.created_at | dt }}</td>
     <td>{{ counts.get(wf.id, 0) }}</td>

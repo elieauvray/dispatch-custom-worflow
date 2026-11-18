@@ -18,7 +18,7 @@
       {% endfor %}
     </div>
     {% if is_owner %}
-    <label class="inline-check"><input type="checkbox" name="remember" value="1" checked> Use these values next time{% if wf.deployment_id %} and for the schedule{% endif %}</label>
+    <label class="inline-check"><input type="checkbox" name="remember" value="1" checked> Use these values next time</label>
     {% else %}
     <p class="small muted">Prefilled with the values of {{ owner_login }}, who shared this project. Your changes only apply to this run.</p>
     {% endif %}
