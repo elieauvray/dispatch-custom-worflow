@@ -525,3 +525,9 @@ def test_run_settings_are_grouped_and_readable():
     assert service.setting_label("STATUS_SFD_VALIDATED") == "SFD validated"
     assert service.setting_label("MAX_DISPATCH_ATTEMPTS") == "Max dispatch attempts"
     assert next(g for g in groups if g["key"] == "labels")["filled"] == 1
+
+
+def test_the_summary_is_a_description_not_a_history():
+    from app.maestro.knowledge import DESIGNER_SYSTEM
+
+    assert "It is never a history" in DESIGNER_SYSTEM and "Start with the goal" in DESIGNER_SYSTEM

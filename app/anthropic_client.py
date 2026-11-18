@@ -484,7 +484,8 @@ class ManagedAgentsClient:
         parts.append(f"<process_description>\n{description}\n</process_description>")
         if previous and feedback:
             parts.append("<previous_design>\n" + json.dumps(previous, ensure_ascii=False) + "\n</previous_design>")
-            parts.append(f"<revision_request>\n{feedback}\n</revision_request>\nRevise the design accordingly.")
+            parts.append(f"<revision_request>\n{feedback}\n</revision_request>\nRevise the design accordingly. "
+                         "Write the summary as if the design were new: never describe what changed.")
         params: dict[str, Any] = {
             "model": model,
             "max_tokens": 64000,

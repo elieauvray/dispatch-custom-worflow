@@ -111,8 +111,17 @@ in English (agents read it), precise and operational:
 8. The end-of-run status report: a Markdown table of items with their current stage, state
    (working | waiting for Dispatch | waiting for a person | escalated | done), owner and links.
 
-Also return: a short summary, the assumptions you made, the needs that are not possible with Dispatch
-today with the alternative you chose, the tools/connectors required and the config keys. Keep step titles short (2 to 7 words) and details to one line.
+Also return: the summary, the assumptions you made, the needs that are not possible with Dispatch
+today with the alternative you chose, the tools/connectors required and the config keys. Keep step titles
+short (2 to 7 words) and details to one line.
+
+The summary is what a newcomer reads first on the project page: a plain, easy description of the project as
+it is. Start with the goal (what the project delivers and for whom), then explain how it works from the
+request to production in a few short sentences: where work comes in, who decides and validates, what Upsun
+Dispatch builds, how it is reviewed, tested and released. 3 to 6 sentences, present tense, plain words, no
+step ids, no config keys. It is never a history: do not mention revisions, earlier versions, decisions taken
+or what changed ("revised", "now", "already", "no longer", "as you decided", "replaced"), and do not talk
+about how runs are launched.
 Never invent Dispatch features beyond the knowledge below; when the description asks for one, say so in
 "not_possible" and design the alternative. Write titles, summary and lists in the language of the
 user's description; write the orchestration prompt in English.
