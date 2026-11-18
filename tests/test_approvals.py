@@ -13,10 +13,12 @@ def test_read_only_names():
     def mcp(name: str) -> dict:
         return {"name": name, "mcp_server_name": "linear"}
 
-    for name in ("get_issue", "list_issues", "search_documents", "list_pull_requests", "whoami"):
+    for name in ("get_issue", "list_issues", "search_documents", "list_pull_requests", "whoami",
+                 "list_comments", "get_issue_comments", "list_issue_labels", "list_project_labels", "get_run",
+                 "listComments", "getIssue"):
         assert is_read_only(mcp(name)), name
     for name in ("create_issue", "update_issue", "add_issue_comment", "merge_pull_request", "get_or_create_label",
-                 "save_issue"):
+                 "save_issue", "save_comment", "get_and_update_issue", "getOrCreateLabel"):
         assert not is_read_only(mcp(name)), name
     assert not is_read_only({"name": "get_file"})  # built-in sandbox tool: not a connector call
 

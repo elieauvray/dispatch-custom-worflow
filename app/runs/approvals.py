@@ -18,25 +18,28 @@ from sqlalchemy.orm import Session
 
 from app.models import RunEvent, RunStatus, WorkflowRun
 
-READ_ONLY = re.compile(
-    r"^(get|list|search|read|fetch|find|query|view|show|describe|lookup|check|count|whoami)(_|$)",
-    re.IGNORECASE,
-)
+READ_VERBS = frozenset({
+    "get", "list", "search", "read", "fetch", "find", "query", "view", "show", "describe", "lookup", "check",
+    "count", "whoami",
+})
 # A read-looking name that still changes something (e.g. "get_or_create_label") is never auto-approved.
-WRITE_HINT = re.compile(
-    r"(create|update|delete|remove|add|set|edit|write|post|comment|merge|close|assign|move|archive|"
-    r"upload|send|publish|approve|transition|link|label)",
-    re.IGNORECASE,
-)
+# Matched on whole words only: "list_comments" or "get_issue_labels" are reads, the nouns must not count.
+# Words that are mostly nouns in tool names (comment, post, label, link) are left out for the same reason.
+WRITE_VERBS = frozenset({
+    "create", "update", "upsert", "delete", "remove", "add", "set", "edit", "write", "save", "merge", "close",
+    "assign", "unassign", "move", "archive", "upload", "send", "publish", "approve", "transition", "patch",
+    "put", "insert", "mark", "reopen", "resolve", "submit", "share", "trigger", "execute", "or",
+})
+WORDS = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
 
 
 def is_read_only(tool: dict[str, Any]) -> bool:
     """Only MCP tools (connectors), never the sandbox's built-in tools."""
     name = str(tool.get("name") or "")
-    if not tool.get("mcp_server_name") or not READ_ONLY.match(name):
+    words = [w.lower() for w in WORDS.findall(name)]
+    if not tool.get("mcp_server_name") or not words or words[0] not in READ_VERBS:
         return False
-    rest = READ_ONLY.sub("", name, count=1)
-    return not WRITE_HINT.search(rest)
+    return not any(w in WRITE_VERBS for w in words[1:])
 
 
 def auto_approve(db: Session, client: Any, run: WorkflowRun) -> bool:
