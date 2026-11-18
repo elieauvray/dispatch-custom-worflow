@@ -76,3 +76,24 @@ def test_others_can_view_and_run_a_shared_workflow_but_not_change_it(client, fak
         run = db.query(WorkflowRun).filter_by(workflow_id=shared_id).one()
         assert run.user_id == bob  # runs with bob's account and connectors
     assert client.get(f"/workflows/{shared_id}/history").status_code == 200
+
+
+def test_someone_else_s_settings_apply_to_their_run_only(client, fake):
+    make_user("admin", admin=True)
+    alice, bob = make_user("alice"), make_user("bob")
+    _connect(alice, "github")
+    _connect(bob, "github")
+    login(client, "alice")
+    wf_id = _create(client, "Team flow", shared=True)
+    _design(wf_id)
+    client.post("/logout", data={"csrf_token": csrf(client, "/workflows")})
+    login(client, "bob")
+    page = client.get(f"/workflows/{wf_id}/run").text
+    assert "Prefilled with the values of alice" in page and 'name="remember"' not in page
+    token = csrf(client, f"/workflows/{wf_id}/run")
+    r = client.post(f"/workflows/{wf_id}/run", data={"cfg:REPO": "bob/repo", "remember": "1", "csrf_token": token},
+                    follow_redirects=False)
+    run_id = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        assert "| REPO | bob/repo |" in db.get(WorkflowRun, run_id).initial_message
+        assert db.get(Workflow, wf_id).design_json["config"][0]["value"] == ""  # alice's defaults untouched

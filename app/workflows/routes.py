@@ -206,21 +206,57 @@ def workflow_delete(
     return RedirectResponse("/workflows", status_code=303)
 
 
+def _cannot_run(db: Session, user: User, wf: Workflow) -> str | None:
+    """Why this project cannot be run by this user now (None when it can)."""
+    if not wf.description:
+        return None
+    from app.maestro.service import missing_connectors
+
+    missing = missing_connectors(db, user, wf)
+    if missing:
+        return f"Connect {', '.join(missing)} in Settings first."
+    if wf.design_status != "ready":
+        return "The design is not ready yet."
+    return None
+
+
+@router.get("/workflows/{workflow_id}/run")
+def workflow_run_form(
+    request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
+) -> Response:
+    """The settings of a project are asked when you run it, prefilled with the last values saved."""
+    wf = get_visible_workflow(db, workflow_id, user)
+    reason = _cannot_run(db, user, wf)
+    if reason:
+        flash(request, reason, "error")
+        return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+    config = (wf.design_json or {}).get("config") or []
+    owner = db.get(User, wf.user_id)
+    return render(request, "run_form.html", {"wf": wf, "config": config, "is_owner": wf.user_id == user.id,
+                                             "owner_login": owner.login if owner else ""})
+
+
 @router.post("/workflows/{workflow_id}/run", dependencies=[Depends(csrf_protect)])
-def workflow_run(
+async def workflow_run(
     request: Request, workflow_id: int, user: User = Depends(require_configured), db: Session = Depends(get_db)
 ) -> Response:
     wf = get_visible_workflow(db, workflow_id, user)
-    if wf.description:  # Maestro workflow: it can only run with the connectors it was designed for
-        from app.maestro.service import missing_connectors
-
-        missing = missing_connectors(db, user, wf)
-        if wf.design_status != "ready" or missing:
-            flash(request, f"Connect {', '.join(missing)} in Settings first." if missing
-                  else "The design is not ready yet.", "error")
-            return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+    reason = _cannot_run(db, user, wf)
+    if reason:
+        flash(request, reason, "error")
+        return RedirectResponse(f"/workflows/{wf.id}/design", status_code=303)
+    form = await request.form()
+    values = {k[4:]: str(v).strip()[:500] for k, v in form.items() if k.startswith("cfg:")} or None
+    if values is not None and wf.user_id == user.id and form.get("remember"):
+        # The owner's values become the defaults of the next runs and of the schedule.
+        maestro_service.save_config(db, wf, values)
+        if wf.deployment_id:
+            try:
+                maestro_service.push_schedule(db, user, wf)
+            except ManagedAgentsError as exc:
+                flash(request, f"The schedule could not be updated. {exc}", "error")
     try:
-        run = service.create_workflow_run(db, user, wf)
+        run = service.create_workflow_run(db, user, wf, values)
     except ManagedAgentsError as exc:
         flash(request, f"Could not start the project. {exc}", "error")
         return RedirectResponse("/workflows", status_code=303)

@@ -486,9 +486,12 @@ def _report_marker_rule(steps: list[dict[str, Any]]) -> str:
             "or nothing else happened in this run.")
 
 
-def run_context(wf: Workflow, trigger: str) -> str:
-    """Block appended to the orchestration prompt on every Maestro run."""
-    config = (wf.design_json or {}).get("config") or []
+def run_context(wf: Workflow, trigger: str, values: dict[str, str] | None = None) -> str:
+    """Block appended to the orchestration prompt on every Maestro run (`values`: settings given at launch)."""
+    config = [
+        {**c, "value": values[c["key"]]} if values is not None and c.get("key") in values else c
+        for c in (wf.design_json or {}).get("config") or []
+    ]
     rows = "\n".join(f"| {c['key']} | {c.get('value') or '<not set: ask the user>'} |" for c in config)
     table = f"| Key | Value |\n|-----|-------|\n{rows}\n" if rows else "No config values.\n"
     steps = (wf.design_json or {}).get("steps") or []
@@ -524,9 +527,10 @@ def run_context(wf: Workflow, trigger: str) -> str:
     )
 
 
-def maestro_message(db: Session, wf: Workflow, trigger: str) -> tuple[list[dict[str, Any]], str]:
+def maestro_message(db: Session, wf: Workflow, trigger: str,
+                    values: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], str]:
     skills = current_instructions(db)
-    return skills, compose_workflow_message(skills, wf.name, wf.content + run_context(wf, trigger))
+    return skills, compose_workflow_message(skills, wf.name, wf.content + run_context(wf, trigger, values))
 
 
 # --- Schedule (Managed Agents deployment) -----------------------------------------

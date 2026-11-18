@@ -60,8 +60,9 @@ def test_description_becomes_a_design_with_actors(client, fake):
 
     page = client.get(f"/workflows/{wf_id}/design").text
     for text in ("Upsun Dispatch", "People (gates)", "Upsun Cloud", "GATE · PO", "Issue to code",
-                 "Custom Dispatch workflow", "Save config", "Schedule Maestro", "Run now", "done when PR merged"):
+                 "Custom Dispatch workflow", "Schedule Maestro", "Run now", "done when PR merged"):
         assert text in page, text
+    assert "Save config" not in page and 'name="cfg:REPO"' not in page  # settings are asked at run time
     # The panel endpoint tells HTMX to reload the page once the design is ready
     r = client.get(f"/workflows/{wf_id}/design/panel", headers={"HX-Request": "true"})
     assert r.headers.get("HX-Redirect") == f"/workflows/{wf_id}/design"
@@ -489,17 +490,30 @@ def test_answered_questions_show_as_done_while_designing(client, fake, monkeypat
     assert rows["clarify"]["state"] == "done" and rows["clarify"]["note"] == "Already answered"
 
 
-def test_empty_config_is_flagged_before_running(client, fake):
+def test_settings_are_asked_when_running(client, fake):
     _setup(client)
     wf_id = _create(client)
-    _design(wf_id)  # the fake design has one config key, REPO, with no value
-    page = client.get(f"/workflows/{wf_id}/design").text
-    assert "1 of 1 config values are not set" in page and "(REPO)" in page and "Run anyway?" in page
-    assert "Run anyway?" in client.get("/workflows").text
-    token = csrf(client, f"/workflows/{wf_id}/design")
-    client.post(f"/workflows/{wf_id}/design/config", data={"cfg:REPO": "acme/shop", "csrf_token": token})
-    page = client.get(f"/workflows/{wf_id}/design").text
-    assert "config values are not set" not in page and "Run anyway?" not in page
+    _design(wf_id)  # the fake design has one setting, REPO, with no value
+    assert f'href="/workflows/{wf_id}/run"' in client.get(f"/workflows/{wf_id}/design").text
+    page = client.get(f"/workflows/{wf_id}/run").text
+    assert "Settings for this run" in page and 'name="cfg:REPO" value=""' in page and 'name="remember"' in page
+
+    token = csrf(client, f"/workflows/{wf_id}/run")
+    r = client.post(f"/workflows/{wf_id}/run", data={"cfg:REPO": "acme/shop", "remember": "1", "csrf_token": token},
+                    follow_redirects=False)
+    run_id = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        assert "| REPO | acme/shop |" in db.get(WorkflowRun, run_id).initial_message
+        assert db.get(Workflow, wf_id).design_json["config"][0]["value"] == "acme/shop"  # remembered
+    assert 'name="cfg:REPO" value="acme/shop"' in client.get(f"/workflows/{wf_id}/run").text
+
+    # Without "remember", the values only apply to this run
+    r = client.post(f"/workflows/{wf_id}/run", data={"cfg:REPO": "acme/other", "csrf_token": token},
+                    follow_redirects=False)
+    run_id = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        assert "| REPO | acme/other |" in db.get(WorkflowRun, run_id).initial_message
+        assert db.get(Workflow, wf_id).design_json["config"][0]["value"] == "acme/shop"
 
 
 def test_blocked_runs_say_why():

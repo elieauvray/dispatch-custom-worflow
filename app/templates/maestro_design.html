@@ -6,10 +6,7 @@
   <h1 style="margin:0">{{ wf.name }} <span class="badge {{ 'shared' if wf.shared else 'private' }}">{{ icon('users' if wf.shared else 'lock') }}{{ 'Shared' if wf.shared else 'Private' }}</span></h1>
   <div class="row-actions">
     {% if wf.design_status == 'ready' and not missing %}
-    <form method="post" action="/workflows/{{ wf.id }}/run"{% if wf.empty_config %} onsubmit='return confirm({{ (wf.empty_config | length | string) ~ " of " ~ (design.config | length | string) ~ " config values are not set. Maestro will not guess them, so the run will stop before doing anything that needs them. Run anyway?" | tojson }})'{% endif %}>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit">{{ icon('run') }}Run now</button>
-    </form>
+    <a href="/workflows/{{ wf.id }}/run" role="button">{{ icon('run') }}Run now</a>
     {% endif %}
     {% if is_owner %}<a href="/workflows/{{ wf.id }}/edit" role="button" class="secondary">{{ icon('edit') }}Edit</a>{% endif %}
     <a href="/workflows/{{ wf.id }}/history" role="button" class="secondary">{{ icon('runs') }}Runs</a>
@@ -39,14 +36,6 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="linklike">{{ icon('refresh') }}Regenerate the design</button>
     </form>{% endif %}
-  </div>
-  {% endif %}
-  {% if wf.empty_config %}
-  <div class="flash warning" role="status">
-    <strong>{{ wf.empty_config | length }} of {{ design.config | length }} config values are not set</strong>
-    ({{ wf.empty_config[:6] | join(', ') }}{% if wf.empty_config | length > 6 %}, …{% endif %}).
-    Maestro never guesses them, so a run stops before the steps that need them.
-    {% if is_owner %}<a href="#config">Set them in Config</a>.{% else %}Ask {{ owner_login }} to set them.{% endif %}
   </div>
   {% endif %}
   {% if design.summary %}<p>{{ design.summary }}</p>{% endif %}
@@ -109,32 +98,15 @@
     {% endif %}
   </div>
 
-  <section id="config">
-    <h2 class="section-title">Config</h2>
-    {% if design.config and not is_owner %}
-    <table><tbody>{% for c in design.config %}<tr><th>{{ c.key }}</th><td>{{ c.value or '—' }}</td><td class="small muted">{{ c.description }}</td></tr>{% endfor %}</tbody></table>
-    <small class="help">Set by {{ owner_login }}, who shared this project.</small>
-    {% elif design.config %}
-    <article>
-      <form method="post" action="/workflows/{{ wf.id }}/design/config">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for c in design.config %}
-        <label>{{ c.key }} <input name="cfg:{{ c.key }}" value="{{ c.value }}" placeholder="{{ c.description }}"></label>
-        <small class="help">{{ c.description }}</small>
-        {% endfor %}
-        <button type="submit">{{ icon('save') }}Save config</button>
-      </form>
-    </article>
-    {% else %}<p class="muted">No config needed.</p>{% endif %}
-  </section>
 
   {% if is_owner %}
   <section id="schedule">
     <h2 class="section-title">Launch</h2>
     <article>
       <p class="small">
-        <strong>Run now</strong> starts one Maestro run, followed live like any run.
+        <strong>Run now</strong> asks for the settings of the run, then starts it; you follow it live.
         A <strong>schedule</strong> starts a fresh run at each tick (Claude Managed Agents deployment): each run reads the ledgers in the trackers, advances every item, stops at the gates.
+        Scheduled runs use the settings saved at your last run{% if wf.empty_config %} ({{ wf.empty_config | length }} still empty: <a href="/workflows/{{ wf.id }}/run">set them by running the project</a>){% endif %}.
         {% if design.schedule and design.schedule.reason %}<br>Suggested: <code>{{ design.schedule.cron }}</code>. {{ design.schedule.reason }}{% endif %}
       </p>
       <form method="post" action="/workflows/{{ wf.id }}/schedule" class="grid">

@@ -5,10 +5,7 @@
 {% if workflow.description %}<p><a href="/workflows/{{ workflow.id }}/design">Open the Maestro design</a></p>{% endif %}
 <header class="connector-head" style="margin-bottom:1rem">
   <h1 style="margin:0">History: {{ workflow.name }}</h1>
-  <form method="post" action="/workflows/{{ workflow.id }}/run" style="margin:0">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">{{ icon('run') }}Run</button>
-  </form>
+  <a href="/workflows/{{ workflow.id }}/run" role="button">{{ icon('run') }}Run</a>
 </header>
 
 <h2 style="font-size:1.1rem">Runs</h2>
